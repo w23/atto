@@ -6,6 +6,7 @@
 #define ATTO_APP_CLOSE_FUNC sample_close
 #define ATTO_APP_KEY_FUNC sample_key
 #define ATTO_APP_POINTER_FUNC sample_pointer
+#define ATTO_APP_H_IMPLEMENT
 #include "atto_app.h"
 
 #include <stdio.h>
@@ -31,11 +32,10 @@ void sample_close() {
 
 void sample_key(int key, int down) {
 	printf("%s: %d %d\n", __FUNCTION__, key, down);
+	if (key == AK_Esc)
+		aAppExit(0);
 }
 
 void sample_pointer(int x, int y, unsigned int btns, unsigned int btnsdiff) {
-	printf("%s: %d %d %x %x\n", __FUNCTION__, x, y, btns, btnsdiff);
+	printf("%s: %d %d %#x %#x\n", __FUNCTION__, x, y, btns, btnsdiff);
 }
-
-#define ATTO_APP_H_IMPLEMENT
-#include "atto_app.h"

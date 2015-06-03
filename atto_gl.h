@@ -1,5 +1,5 @@
-#ifndef __ATTO_GL_H__
-#define __ATTO_GL_H__
+#ifndef ATTO_GL_H__DECLARED
+#define ATTO_GL_H__DECLARED
 
 /* common platform detection */
 #ifndef ATTO_PLATFORM
@@ -9,7 +9,11 @@
 #define ATTO_PLATFORM_X11
 /* FIXME this Linux-only definition should be before ANY header inclusion; this requirement also transcends to the user */
 /* required for Linux clock_gettime */
-#define _POSIX_C_SOURCE 199309L
+#if __STDC_VERSION__ >= 199901L
+#define _XOPEN_SOURCE 600
+#else
+#define _XOPEN_SOURCE 500
+#endif /* __STDC_VERSION__ */
 #elif defined(_WIN32)
 #define ATTO_PLATFORM_WINDOWS
 #elif defined(__MACH__) && defined(__APPLE__)
@@ -25,7 +29,6 @@
 
 #ifdef ATTO_PLATFORM_X11
 #define GL_GLEXT_PROTOTYPES 1
-#include <X11/Xlib.h>
 #include <GL/glx.h>
 #include <GL/gl.h>
 #include <GL/glext.h>
@@ -122,6 +125,8 @@ ATTO__FUNCLIST
 #undef ATTO__FUNCLIST_DO
 
 #endif /* ifdef ATTO_PLATFORM_WINDOWS */
+
+#endif /* ifndef __ATTO_GL_H__DECLARED */
 
 #ifdef ATTO_GL_H_IMPLEMENT
 #ifdef __ATTO_GL_H_IMPLEMENTED
@@ -244,5 +249,3 @@ void aGLUseProgram(int program,
 }
 
 #endif /* ATTO_GL_H_IMPLEMENT */
-
-#endif /* ifndef __ATTO_GL_H__ */

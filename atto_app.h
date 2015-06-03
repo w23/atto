@@ -1,5 +1,5 @@
-#ifndef __ATTO_APP_H__
-#define __ATTO_APP_H__
+#ifndef ATTO_APP_H__DECLARED
+#define ATTO_APP_H__DECLARED
 
 /* common platform detection */
 #ifndef ATTO_PLATFORM
@@ -9,7 +9,11 @@
 #define ATTO_PLATFORM_X11
 /* FIXME this Linux-only definition should be before ANY header inclusion; this requirement also transcends to the user */
 /* required for Linux clock_gettime */
-#define _POSIX_C_SOURCE 199309L
+#if __STDC_VERSION__ >= 199901L
+#define _XOPEN_SOURCE 600
+#else
+#define _XOPEN_SOURCE 500
+#endif /* __STDC_VERSION__ */
 #elif defined(_WIN32)
 #define ATTO_PLATFORM_WINDOWS
 #elif defined(__MACH__) && defined(__APPLE__)
@@ -25,10 +29,9 @@
 
 void aAppExit(int code);
 
-void aAppMessage(const char *message);
-
-/* hide ponter, pin and set it to relative mode */
+/* hide ponter, pin and set it to relative mode
 void aAppGrabFocus(int grab);
+*/
 
 #ifdef ATTO_APP_KEY_FUNC
 typedef enum {
@@ -111,7 +114,7 @@ typedef enum {
 	AK_Max = 256
 } aKey;
 
-/* void aKey(int key, int down); */
+void ATTO_APP_KEY_FUNC(int key, int down);
 #endif /* ifdef ATTO_APP_KEY_FUNC */
 
 #ifdef ATTO_APP_POINTER_FUNC
@@ -119,13 +122,16 @@ typedef enum {
 	AB_Left = 0x01,
 	AB_Right = 0x02,
 	AB_Middle = 0x04,
-	AB_WheelUp,
-	AB_WheelDown
+	AB_WheelUp = 0x08,
+	AB_WheelDown = 0x10
 } aButton;
-/* void aPointer(int x, int y, unsigned int buttons, unsigned int buttonsdiff); */
+
+void ATTO_APP_POINTER_FUNC(
+	int x, int y,
+	unsigned int buttonbits, unsigned int buttonnbitsdiff);
 #endif /* ifdef ATTO_APP_POINTER_FUNC */
 
-#endif /* ifndef __ATTO_APP_H__ */
+#endif /* ifndef ATTO_APP_H__DECLARED */
 
 
 /*****************************************************************************
@@ -164,6 +170,14 @@ typedef enum {
 #error define ATTO_APP_PAINT_FUNC void aAppPaint(unsigned int time_ms, float dt);
 #endif
 
+extern void ATTO_APP_INIT_FUNC(int argc, char *argv[]);
+extern void ATTO_APP_RESIZE_FUNC(int width, int height);
+extern void ATTO_APP_PAINT_FUNC(unsigned int time_ms, float dt);
+
+#ifdef ATTO_APP_CLOSE_FUNC
+extern void ATTO_APP_CLOSE_FUNC();
+#endif
+
 #include <string.h>
 
 #ifdef ATTO_PLATFORM_LINUX
@@ -182,7 +196,9 @@ static void a__print_and_exit(const char *message, const char *file, int line) {
 static struct timespec a__time_start = {0, 0};
 static unsigned int a__time() {
 	struct timespec ts;
-	ATTO__CHECK(0 == clock_gettime(CLOCK_MONOTONIC, &ts), "clock_gettime(CLOCK_MONOTONIC)");
+	int res = clock_gettime(CLOCK_MONOTONIC, &ts);
+	(void)(res);
+	ATTO__CHECK(0 == res, "clock_gettime(CLOCK_MONOTONIC)");
 
 	if (a__time_start.tv_sec == 0 && a__time_start.tv_nsec == 0) a__time_start = ts;
 
@@ -194,6 +210,7 @@ static unsigned int a__time() {
 #endif /* ATTO_PLATFORM_LINUX */
 
 #ifdef ATTO_PLATFORM_X11
+#define GL_GLEXT_PROTOTYPES 1
 #include <X11/Xlib.h>
 #include <GL/glx.h>
 
@@ -218,8 +235,8 @@ void aAppExit(int code) {
 	a__should_exit = 1;
 }
 
-void a__processXKeyEvent(XEvent *e) {
-	int key, down = (e->type == KeyPress) ? 1 : 0;
+static void a__processXKeyEvent(XEvent *e) {
+	int key = AK_Unknown, down = (e->type == KeyPress) ? 1 : 0;
 	switch(XLookupKeysym(&e->xkey, 0)) {
 #define ATTOMAPK__(x,a) case XK_##x: key = AK_##a; break;
 		ATTOMAPK__(BackSpace,Backspace) ATTOMAPK__(Tab,Tab)
@@ -249,14 +266,40 @@ void a__processXKeyEvent(XEvent *e) {
 		ATTOMAPK__(Meta_R,RightMeta) ATTOMAPK__(Super_R,RightSuper)
 		ATTOMAPK__(Shift_R,RightShift) ATTOMAPK__(Caps_Lock,Capslock);
 #undef ATTOMAPK_
+		default: return;
 	}
 	ATTO_APP_KEY_FUNC(key, down);
 }
 
-void a__processXButton(const XEvent *e) {
+static unsigned int a__X11ToButton(unsigned int x11btn) {
+	return 0
+		| ((x11btn & Button1Mask) ? AB_Left : 0)
+		| ((x11btn & Button2Mask) ? AB_Middle : 0)
+		| ((x11btn & Button3Mask) ? AB_Right : 0)
+		| ((x11btn & Button4Mask) ? AB_WheelUp : 0)
+		| ((x11btn & Button5Mask) ? AB_WheelDown : 0);
 }
 
-void a__processXMotion(const XEvent *e) {
+static void a__processXButton(const XEvent *e) {
+	unsigned int button = 0;
+	switch (e->xbutton.button) {
+		case Button1: button = AB_Left; break;
+		case Button2: button = AB_Middle; break;
+		case Button3: button = AB_Right; break;
+		case Button4: button = AB_WheelUp; break;
+		case Button5: button = AB_WheelDown; break;
+	}
+	ATTO_APP_POINTER_FUNC(
+		e->xbutton.x, e->xbutton.y,
+		a__X11ToButton(e->xbutton.state) ^ button, button
+	);
+}
+
+static void a__processXMotion(const XEvent *e) {
+	ATTO_APP_POINTER_FUNC(
+		e->xmotion.x, e->xmotion.y,
+		a__X11ToButton(e->xmotion.state), 0
+	);
 }
 
 int main(int argc, char *argv[]) {
@@ -283,7 +326,7 @@ int main(int argc, char *argv[]) {
 	memset(&winattrs, 0, sizeof(winattrs));
 	winattrs.event_mask = KeyPressMask | KeyReleaseMask |
 #ifdef ATTO_APP_POINTER_FUNC
-		ButtonPressMask | PointerMotionMask |
+		ButtonPressMask | ButtonReleaseMask | PointerMotionMask |
 #endif
 		ExposureMask | VisibilityChangeMask | StructureNotifyMask;
 	winattrs.border_pixel = 0;
@@ -315,7 +358,12 @@ int main(int argc, char *argv[]) {
 
 	glXMakeContextCurrent(display, drawable, drawable, context);
 
-	XSelectInput(display, window, StructureNotifyMask | KeyPressMask | KeyReleaseMask);
+	XSelectInput(display, window,
+		StructureNotifyMask | KeyPressMask | KeyReleaseMask |
+#ifdef ATTO_APP_POINTER_FUNC
+		ButtonPressMask | ButtonReleaseMask | PointerMotionMask
+#endif
+	);
 
 	ATTO_APP_INIT_FUNC(argc, argv);
 	ATTO_APP_RESIZE_FUNC(ATTO_APP_WIDTH, ATTO_APP_HEIGHT);
@@ -376,6 +424,10 @@ int main(int argc, char *argv[]) {
 	return a__exit_code;
 }
 #endif /* ATTO_PLATFORM_X11 */
+
+/*****************************************************************************
+ * WINDOWS IMPLEMENTATION
+ ****************************************************************************/
 
 #ifdef ATTO_PLATFORM_WINDOWS
 #include <windows.h>
