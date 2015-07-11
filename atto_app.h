@@ -27,6 +27,8 @@
 #endif /* ifndef ATTO_PLATFORM */
 /* end common platform detection */
 
+unsigned int aTime();
+
 void aAppExit(int code);
 
 /* hide ponter, pin and set it to relative mode
@@ -194,7 +196,7 @@ static void a__print_and_exit(const char *message, const char *file, int line) {
 #endif
 
 static struct timespec a__time_start = {0, 0};
-static unsigned int a__time() {
+unsigned int aTime() {
 	struct timespec ts;
 	int res = clock_gettime(CLOCK_MONOTONIC, &ts);
 	(void)(res);
@@ -405,7 +407,7 @@ int main(int argc, char *argv[]) {
 		}
 
 		{
-			unsigned int now = a__time();
+			unsigned int now = aTime();
 			ATTO_APP_PAINT_FUNC(time_ms, (now - time_ms) * 1e-3f);
 			glXSwapBuffers(display, drawable);
 			time_ms = now;
@@ -468,7 +470,7 @@ static void a__message_and_exit(const char *message, const char *file, int line)
 static LARGE_INTEGER a__time_freq = {0};
 static LARGE_INTEGER a__time_start = {0};
 
-static unsigned int a__time() {
+unsigned int aTime() {
 	LARGE_INTEGER now;
 	if (a__time_start.QuadPart == 0) {
 		QueryPerformanceFrequency(&a__time_freq);
@@ -552,7 +554,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			DispatchMessage(&msg);
 		}
 
-		unsigned int now = a__time();
+		unsigned int now = aTime();
 		ATTO_APP_PAINT_FUNC(now, (now - prev_ms) * 1e-3f);
 		SwapBuffers(hdc);
 		prev_ms = now;
