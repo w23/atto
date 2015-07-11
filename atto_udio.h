@@ -1,10 +1,13 @@
 #ifndef ATTO_UDIO_H__DECLARED
 #define ATTO_UDIO_H__DECLARED
 
-/*
- * 44100
- * 2 channels interleaved
- */
+#ifndef ATTO_UDIO_SAMPLERATE
+#define ATTO_UDIO_SAMPLERATE 48000
+#endif
+
+#ifndef ATTO_UDIO_CHANNELS
+#define ATTO_UDIO_CHANNELS 2
+#endif
 
 typedef void (*a_udio_callback_f)(void *opaque, unsigned int sample, float *samples, unsigned int nsamples);
 
@@ -24,6 +27,10 @@ void aUdioStop();
 #error atto_udio.h can be implemented only once
 #endif /* ifdef ATTO_UDIO_H__IMPLEMENTED */
 #define ATTO_UDIO_H__IMPLEMENTED
+
+#ifndef ATTO_UDIO_BUFFER_SAMPLES
+#define ATTO_UDIO_BUFFER_SAMPLES 512
+#endif
 
 #ifdef ATTO_PLATFORM_LINUX
 /* Use pulseaudio simple api */
@@ -45,26 +52,26 @@ static void *a__udio_thread_main(void *arg) {
 
 	pthread_mutex_lock(&a__udio_mutex);
 	ss.format = PA_SAMPLE_FLOAT32NE;
-	ss.channels = 2;
-	ss.rate = 44100;
+	ss.channels = ATTO_UDIO_CHANNELS;
+	ss.rate = ATTO_UDIO_SAMPLERATE;
 	s = pa_simple_new(
 		NULL, ATTO_APP_NAME, PA_STREAM_PLAYBACK,
 		NULL, "m", &ss, NULL, NULL, NULL);
 
 	for(;;) {
-		float buffer[1024];
+		float buffer[ATTO_UDIO_BUFFER_SAMPLES * ATTO_UDIO_CHANNELS];
 
 		if (a__udio_callback == 0) {
 			pthread_mutex_unlock(&a__udio_mutex);
 			break;
 		}
-		a__udio_callback(a__udio_opaque, a__udio_sample, buffer, 512);
+		a__udio_callback(a__udio_opaque, a__udio_sample, buffer, ATTO_UDIO_BUFFER_SAMPLES);
 		pthread_mutex_unlock(&a__udio_mutex);
 
 		pa_simple_write(s, buffer, sizeof(buffer), NULL);
 
 		pthread_mutex_lock(&a__udio_mutex);
-		a__udio_sample += 512;
+		a__udio_sample += ATTO_UDIO_BUFFER_SAMPLES;
 	}
 
 	pa_simple_flush(s, NULL);
