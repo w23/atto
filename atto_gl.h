@@ -142,7 +142,7 @@ void aGLInit() {
 
 #ifdef ATTO_PLATFORM_WINDOWS
 void aGLInit() {
-#define ATTO__FUNCLIST_DO(T, N) gl##N = (T)wglGetProcAddress("gl"##N);
+#define ATTO__FUNCLIST_DO(T, N) gl##N = (T)wglGetProcAddress("gl" #N);
 	ATTO__FUNCLIST
 #undef ATTO__FUNCLIST_DO
 }

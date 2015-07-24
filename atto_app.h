@@ -480,6 +480,10 @@ unsigned int aTime() {
 	return (unsigned int)((now.QuadPart - a__time_start.QuadPart) * 1000ull / a__time_freq.QuadPart);
 }
 
+void aAppExit(int code) {
+	PostQuitMessage(code);
+}
+
 static LRESULT CALLBACK a__window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	switch (msg) {
 	case WM_SIZE:
