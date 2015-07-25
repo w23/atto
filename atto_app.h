@@ -481,7 +481,7 @@ unsigned int aTime() {
 }
 
 void aAppExit(int code) {
-	PostQuitMessage(code);
+	ExitProcess(code);
 }
 
 static LRESULT CALLBACK a__window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
@@ -490,11 +490,12 @@ static LRESULT CALLBACK a__window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARA
 		ATTO_APP_RESIZE_FUNC(lparam & 0xffff, lparam >> 16);
 		break;
 
+	case WM_KEYDOWN:
 	case WM_KEYUP:
-		if (wparam != VK_ESCAPE)
-			break;
+		break;
+
 	case WM_CLOSE:
-		PostQuitMessage(0);
+		ExitProcess(0);
 		break;
 
 	default:
