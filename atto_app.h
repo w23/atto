@@ -485,15 +485,65 @@ void aAppExit(int code) {
 	ExitProcess(code);
 }
 
+#ifdef ATTO_APP_KEY_FUNC
+static aKey a__winkey(int key) {
+	if (key >= 'a' && key <= 'z') return AK_A + key - 'a';
+	if (key >= 'A' && key <= 'Z') return AK_A + key - 'A';
+	if (key >= '0' && key <= '9') return AK_A + key - '0';
+
+	switch (key) {
+	case VK_BACK: return AK_Backspace;
+	case VK_TAB: return AK_Tab;
+	case VK_RETURN: return AK_Enter;
+	case VK_LCONTROL: return AK_LeftCtrl;
+	case VK_RCONTROL: return AK_RightCtrl;
+	case VK_LMENU: return AK_LeftAlt;
+	case VK_RMENU: return AK_RightAlt;
+	case VK_CAPITAL: return AK_Capslock;
+	case VK_ESCAPE: return AK_Esc;
+	case VK_SPACE: return AK_Space;
+	case VK_HOME: return AK_Home;
+	case VK_LEFT: return AK_Left;
+	case VK_UP: return AK_Up;
+	case VK_RIGHT: return AK_Right;
+	case VK_DOWN: return AK_Down;
+	/* case VK_SNAPSHOT: return AK_Printscreen; */
+	case VK_INSERT: return AK_Ins;
+	case VK_DELETE: return AK_Del;
+	case VK_F1: return AK_F1;
+	case VK_F2: return AK_F2;
+	case VK_F3: return AK_F3;
+	case VK_F4: return AK_F4;
+	case VK_F5: return AK_F5;
+	case VK_F6: return AK_F6;
+	case VK_F7: return AK_F7;
+	case VK_F8: return AK_F8;
+	case VK_F9: return AK_F9;
+	case VK_F10: return AK_F10;
+	case VK_F11: return AK_F11;
+	case VK_F12: return AK_F12;
+	}
+	return AK_Unknown;
+}
+#endif /* ATTO_APP_KEY_FUNC */
+
 static LRESULT CALLBACK a__window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+	int down = 0;
+	aKey key;
 	switch (msg) {
 	case WM_SIZE:
 		ATTO_APP_RESIZE_FUNC(lparam & 0xffff, lparam >> 16);
 		break;
 
+#ifdef ATTO_APP_KEY_FUNC
 	case WM_KEYDOWN:
+		down = 1;
 	case WM_KEYUP:
+		key = a__winkey(wparam);
+		if (key != AK_Unknown)
+			ATTO_APP_KEY_FUNC(key, down);
 		break;
+#endif /* ATTO_APP_KEY_FUNC */
 
 	case WM_CLOSE:
 		ExitProcess(0);
