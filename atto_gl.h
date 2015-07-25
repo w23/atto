@@ -53,7 +53,8 @@
 /* Initialize GL stuff, like load GL>=2 procs on Windows */
 void aGLInit();
 
-GLint aGLCreateProgram(const char *vertex, const char *fragment);
+GLint aGLCreateProgram(const char * const *vertex, const char * const *fragment);
+GLint aGLCreateProgramSimple(const char *vertex, const char *fragment);
 
 typedef enum {
 	AGLAttribute_Float,
@@ -120,7 +121,7 @@ extern char a_gl_error[ATTO_GL_ERROR_BUFFER_SIZE];
 	ATTO__FUNCLIST_DO(PFNGLENABLEVERTEXATTRIBARRAYPROC, EnableVertexAttribArray) \
 	ATTO__FUNCLIST_DO(PFNGLVERTEXATTRIBPOINTERPROC, VertexAttribPointer)
 
-#define ATTO__FUNCLIST_DO(T,N) T gl##N;
+#define ATTO__FUNCLIST_DO(T,N) T gl##N = NULL;
 ATTO__FUNCLIST
 #undef ATTO__FUNCLIST_DO
 
@@ -141,8 +142,14 @@ void aGLInit() {
 #endif
 
 #ifdef ATTO_PLATFORM_WINDOWS
+static PROC a__check_get_proc_address(const char *name) {
+	PROC ret = wglGetProcAddress(name);
+	ATTO__CHECK(NULL != ret, name);
+	return ret;
+}
 void aGLInit() {
-#define ATTO__FUNCLIST_DO(T, N) gl##N = (T)wglGetProcAddress("gl" #N);
+//#define ATTO__FUNCLIST_DO(T, N) gl##N = (T)wglGetProcAddress("gl" #N);
+#define ATTO__FUNCLIST_DO(T, N) gl##N = (T)a__check_get_proc_address("gl" #N);
 	ATTO__FUNCLIST
 #undef ATTO__FUNCLIST_DO
 }
@@ -150,8 +157,11 @@ void aGLInit() {
 
 char a_gl_error[ATTO_GL_ERROR_BUFFER_SIZE];
 
-static GLuint a__GlCreateShader(int type, int n, const char **source) {
+static GLuint a__GlCreateShader(int type, const char * const *source) {
+	int n;
 	GLuint shader = glCreateShader(type);
+	
+	for (n = 0; source[n] != 0; ++n);
 
 	glShaderSource(shader, n, source, NULL);
 	glCompileShader(shader);
@@ -169,14 +179,14 @@ static GLuint a__GlCreateShader(int type, int n, const char **source) {
 	return shader;
 }
 
-int aGLCreateProgram(const char *vertex, const char *fragment) {
+GLint aGLCreateProgram(const char * const *vertex, const char * const *fragment) {
 	GLuint program;
 	GLuint vertex_shader, fragment_shader;
-	fragment_shader = a__GlCreateShader(GL_FRAGMENT_SHADER, 1, &fragment);
+	fragment_shader = a__GlCreateShader(GL_FRAGMENT_SHADER, fragment);
 	if (fragment_shader == 0)
 		return -1;
 
-	vertex_shader = a__GlCreateShader(GL_VERTEX_SHADER, 1, &vertex);
+	vertex_shader = a__GlCreateShader(GL_VERTEX_SHADER, vertex);
 	if (vertex_shader == 0) {
 		glDeleteShader(fragment_shader);
 		return -2;
@@ -201,6 +211,13 @@ int aGLCreateProgram(const char *vertex, const char *fragment) {
 	}
 
 	return program;
+}
+
+GLint aGLCreateProgramSimple(const char *vertex, const char *fragment)
+{
+	const char *vvertex[2] = { vertex, 0 };
+	const char *vfragment[2] = { fragment, 0 };
+	return aGLCreateProgram(vvertex, vfragment);
 }
 
 void aGLUseProgram(int program,
