@@ -58,6 +58,7 @@ int aIoFileWrite(const char *filename, void *buffer, int size) {
 	close(fd);
 	return rd;
 }
+
 #endif
 
 #ifdef ATTO_PLATFORM_LINUX
@@ -72,7 +73,6 @@ struct a__io_monitor_t {
 };
 
 struct a__io_monitor_t a__io_monitors[ATTO_IO_MONITORS_MAX];
-
 
 int aIoMonitorOpen(const char *filename) {
 	int i;
@@ -236,5 +236,66 @@ void aIoMonitorClose(struct Aio_monitor_t *monitor) {
 }
 
 #endif
+
+#ifdef ATTO_PLATFORM_MACH
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/event.h>
+#include <sys/time.h>
+#include <errno.h>
+#include <string.h>
+#include <inttypes.h>
+
+struct a__io_monitor_t {
+	const char *filename;
+	int fd;
+};
+
+static int a__io_kq = -1;
+struct a__io_monitor_t a__io_monitors[ATTO_IO_MONITORS_MAX];
+
+int aIoMonitorOpen(const char *filename) {
+	int i;
+	if (a__io_kq < 0) {
+		a__io_kq = kqueue();
+		if (a__io_kq < 0)
+			return -1;
+	}
+	
+	for (i = 0; i < ATTO_IO_MONITORS_MAX; ++i)
+		if (a__io_monitors[i].filename == 0) {
+			a__io_monitors[i].fd = open(filename, O_EVTONLY);
+			a__io_monitors[i].filename = filename;
+			return i;
+		}
+	return -1;
+}
+
+//static int a__io_
+
+int aIoMonitorCheck(int monitor) {
+	int i;
+	if (a__io_kq < 0) return -1;
+	
+	for (i = 0; i < ATTO_IO_MONITORS_MAX; ++i)
+		if (a__io_monitors[i].filename == 0) {
+		}
+	return 0;
+}
+
+void aIoMonitorClose(int monitor) {
+	if (monitor < 0 || monitor >= ATTO_IO_MONITORS_MAX) return;
+
+	struct a__io_monitor_t *m = a__io_monitors + monitor;
+	if (m->filename == 0) return;
+	m->filename = 0;
+	if (m->fd > 0)
+		close(m->fd);
+}
+
+#endif /* ATTO_PLATFORM_MACH */
 
 #endif /* ifdef ATTO_IO_H_IMPLEMENT */
