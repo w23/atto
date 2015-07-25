@@ -235,9 +235,8 @@ void aIoMonitorClose(struct Aio_monitor_t *monitor) {
 	CloseHandle(monitor->dir);
 }
 
-#endif
+#elif defined(ATTO_PLATFORM_MACH)
 
-#ifdef ATTO_PLATFORM_MACH
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -249,51 +248,97 @@ void aIoMonitorClose(struct Aio_monitor_t *monitor) {
 #include <string.h>
 #include <inttypes.h>
 
-struct a__io_monitor_t {
+struct Aio_monitor_t {
 	const char *filename;
 	int fd;
+	int updated;
 };
 
 static int a__io_kq = -1;
-struct a__io_monitor_t a__io_monitors[ATTO_IO_MONITORS_MAX];
+struct Aio_monitor_t a__io_monitors[ATTO_IO_MONITORS_MAX];
 
-int aIoMonitorOpen(const char *filename) {
+struct Aio_monitor_t *aIoMonitorOpen(const char *filename) {
 	int i;
 	if (a__io_kq < 0) {
 		a__io_kq = kqueue();
 		if (a__io_kq < 0)
-			return -1;
+			return 0;
 	}
 	
-	for (i = 0; i < ATTO_IO_MONITORS_MAX; ++i)
-		if (a__io_monitors[i].filename == 0) {
-			a__io_monitors[i].fd = open(filename, O_EVTONLY);
-			a__io_monitors[i].filename = filename;
-			return i;
+	for (i = 0; i < ATTO_IO_MONITORS_MAX; ++i) {
+		struct Aio_monitor_t *m = a__io_monitors + i;
+		if (m->filename == 0) {
+			m->filename = filename;
+			m->fd = -1;
+			return m;
 		}
-	return -1;
-}
-
-//static int a__io_
-
-int aIoMonitorCheck(int monitor) {
-	int i;
-	if (a__io_kq < 0) return -1;
-	
-	for (i = 0; i < ATTO_IO_MONITORS_MAX; ++i)
-		if (a__io_monitors[i].filename == 0) {
-		}
+	}
 	return 0;
 }
 
-void aIoMonitorClose(int monitor) {
-	if (monitor < 0 || monitor >= ATTO_IO_MONITORS_MAX) return;
+int aIoMonitorCheck(struct Aio_monitor_t *monitor) {
+	int result;
+	struct kevent event;
+	struct timespec ts;
+	ts.tv_sec = 0;
+	ts.tv_nsec = 0;
 
-	struct a__io_monitor_t *m = a__io_monitors + monitor;
-	if (m->filename == 0) return;
-	m->filename = 0;
-	if (m->fd > 0)
-		close(m->fd);
+	if (a__io_kq < 0) return -1;
+	
+	if (monitor->fd < 0) {
+		monitor->fd = open(monitor->filename, O_EVTONLY);
+		if (monitor->fd > 0) {
+			event.ident = monitor->fd;
+			event.filter = EVFILT_VNODE;
+			event.flags = EV_ADD | EV_ENABLE | EV_CLEAR;
+			event.fflags = NOTE_DELETE | NOTE_WRITE | NOTE_EXTEND | NOTE_RENAME;
+			event.udata = monitor;
+			result = kevent(a__io_kq, &event, 1, NULL, 0, &ts);
+			if (result != 0) {
+				fprintf(stderr, "kevent error: %s %d %d\n", monitor->filename, result, errno);
+				close(monitor->fd);
+				monitor->fd = -1;
+			} else {
+				fprintf(stderr, "monitoring %s\n", monitor->filename);
+				monitor->updated = 1;
+			}
+		}
+	}
+	
+	for (;;) {
+		struct Aio_monitor_t *m;
+		int result = kevent(a__io_kq, NULL, 0, &event, 1, &ts);
+		if (result < 0) {
+			fprintf(stderr, "kevent error: %d %d\n", result, errno);
+			break;
+		}
+		if (result == 0)
+			break;
+		
+		m = (struct Aio_monitor_t*)event.udata;
+		fprintf(stderr, "%s updated\n", m->filename);
+		++(m->updated);
+		if (event.fflags & NOTE_DELETE) {
+			/* is it necessary to EV_DELETE? */
+			close(m->fd);
+			m->fd = -1;
+		}
+	}
+	
+	if (monitor->updated) {
+		monitor->updated = 0;
+		return 1;
+	}
+	
+	return 0;
+}
+
+void aIoMonitorClose(struct Aio_monitor_t *monitor) {
+	if (monitor->fd > 0)
+		close(monitor->fd);
+
+	monitor->fd = -1;
+	monitor->filename = 0;
 }
 
 #endif /* ATTO_PLATFORM_MACH */

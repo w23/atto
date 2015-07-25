@@ -630,6 +630,9 @@ int main(int argc, char* argv[]) {
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
 	glutCreateWindow(ATTO_APP_NAME);
 	
+	ATTO_APP_INIT_FUNC(argc, argv);
+	ATTO_APP_RESIZE_FUNC(ATTO_APP_WIDTH, ATTO_APP_HEIGHT);
+	
 	glutDisplayFunc(a__display_cb);
 	glutReshapeFunc(a__reshape_cb);
 #ifdef ATTO_APP_KEY_FUNC
