@@ -4,9 +4,11 @@
 int aIoFileRead(const char *filename, void *buffer, int size);
 int aIoFileWrite(const char *filename, void *buffer, int size);
 
-int aIoMonitorOpen(const char *filename);
-int aIoMonitorCheck(int monitor);
-void aIoMonitorClose(int monitor);
+struct Aio_monitor_t;
+
+struct Aio_monitor_t *aIoMonitorOpen(const char *filename);
+int aIoMonitorCheck(struct Aio_monitor_t *monitor);
+void aIoMonitorClose(struct Aio_monitor_t *monitor);
 
 #endif /* ifndef ATTO_IO_H__DECLARED */
 
@@ -139,6 +141,100 @@ void aIoMonitorClose(int monitor) {
 	if (m->watch != -1) inotify_rm_watch(a__io_inotifyfd, m->watch);
 	m->filename = 0;
 }
+#elif defined(ATTO_PLATFORM_WINDOWS)
+#include <shellapi.h>
+
+int aIoFileRead(const char *filename, void *buffer, int size) {
+	WCHAR *wfilename = utf8_to_wchar(filename, -1, NULL);
+	HANDLE h = CreateFile(wfilename, GENERIC_READ, FILE_SHARE_READ,
+		NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (h == INVALID_HANDLE_VALUE) return 0;
+	DWORD read;
+	BOOL rr = ReadFile(h, buffer, size, &read, NULL);
+	CloseHandle(h);
+	free(wfilename);
+	if (rr == FALSE || read < 1) return 0;
+	return read;
+}
+
+//int aIoFileWrite(const char *filename, void *buffer, int size) {}
+
+struct Aio_monitor_t {
+	LONG sentinel;
+	HANDLE dir;
+	HANDLE thread;
+	DWORD filename_size;
+	WCHAR *filename;
+	WCHAR dirname[1];
+};
+
+static DWORD WINAPI filemon_thread_main(struct Aio_monitor_t *mon) {
+	DWORD buffer[16384];
+	for (;;) {
+		DWORD returned = 0;
+		BOOL result = ReadDirectoryChangesW(mon->dir, &buffer, sizeof(buffer), FALSE,
+			FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE,
+			&returned, NULL, NULL);
+		if (!result) break;
+		const char *ptr = (const char*)buffer;
+		while (returned >= sizeof(FILE_NOTIFY_INFORMATION)) {
+			PFILE_NOTIFY_INFORMATION notify = (PFILE_NOTIFY_INFORMATION)ptr;
+			if ((notify->FileNameLength == mon->filename_size)
+				&& (0 == memcmp(notify->FileName, mon->filename, notify->FileNameLength)))
+				InterlockedIncrement(&mon->sentinel);
+			ptr += notify->NextEntryOffset;
+			returned -= notify->NextEntryOffset;
+			if (notify->NextEntryOffset == 0)
+				break;
+		}
+	}
+	free(mon);
+	return 0;
+}
+
+struct Aio_monitor_t *aIoMonitorOpen(const char *filename) {
+	struct Aio_monitor_t *mon = 0;
+	WCHAR *wfilename = 0;
+	WCHAR buffer[MAX_PATH + 1];
+	WCHAR *filepart;
+	wfilename = utf8_to_wchar(filename, -1, NULL);
+	DWORD length = GetFullPathName(wfilename, sizeof(buffer) / sizeof(*buffer), buffer, &filepart);
+	free(wfilename);
+	if (length == 0 || length >= sizeof(buffer))
+		return NULL;
+
+	int filename_length = filepart - buffer;
+	WCHAR filetmp = filepart[0];
+	filepart[0] = 0;
+	HANDLE dir = CreateFile(buffer,
+		GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+		NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+	if (dir == INVALID_HANDLE_VALUE)
+		return NULL;
+	filepart[0] = filetmp;
+
+	mon = (struct Aio_monitor_t*)malloc(sizeof(*mon) + sizeof(WCHAR) * length);
+	mon->sentinel = 1;
+	mon->dir = dir;
+	memcpy(mon->dirname, buffer, sizeof(WCHAR) * (length + 1));
+	mon->filename_size = sizeof(WCHAR) * (length - filename_length);
+	mon->filename = mon->dirname + filename_length;
+
+	mon->thread = CreateThread(NULL, 0, filemon_thread_main, mon, 0, NULL);
+	ATTO__CHECK(mon->thread != NULL, "CreateThread");
+
+	return mon;
+}
+
+int aIoMonitorCheck(struct Aio_monitor_t *monitor) {
+	return 0 != InterlockedExchange(&monitor->sentinel, 0);
+}
+
+void aIoMonitorClose(struct Aio_monitor_t *monitor) {
+	CloseHandle(monitor->thread);
+	CloseHandle(monitor->dir);
+}
+
 #endif
 
 #endif /* ifdef ATTO_IO_H_IMPLEMENT */
