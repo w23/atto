@@ -580,6 +580,7 @@ exit:
 
 #ifdef ATTO_PLATFORM_GLUT
 #include <stdlib.h>
+#include <stdio.h>
 #include <GLUT/glut.h>
 
 static unsigned int a__prev_ms = 0;
@@ -602,7 +603,62 @@ static void a__reshape_cb(int w, int h) {
 }
 
 #ifdef ATTO_APP_KEY_FUNC
-static void a__keyb_cb(unsigned char key, int x, int y) {
+static aKey a__glut_key(int key) {
+	if (key >= 'a' && key <= 'z') return AK_A + key - 'a';
+	if (key >= 'A' && key <= 'Z') return AK_A + key - 'A';
+	if (key >= '0' && key <= '9') return AK_A + key - '0';
+	switch (key) {
+		case GLUT_KEY_F1: return AK_F1;
+		case GLUT_KEY_F2: return AK_F2;
+		case GLUT_KEY_F3: return AK_F3;
+		case GLUT_KEY_F4: return AK_F4;
+		case GLUT_KEY_F5: return AK_F5;
+		case GLUT_KEY_F6: return AK_F6;
+		case GLUT_KEY_F7: return AK_F7;
+		case GLUT_KEY_F8: return AK_F8;
+		case GLUT_KEY_F9: return AK_F9;
+		case GLUT_KEY_F10: return AK_F10;
+		case GLUT_KEY_F11: return AK_F11;
+		case GLUT_KEY_F12: return AK_F12;
+
+		case 13: return AK_Enter;
+		case 27: return AK_Esc;
+		case 32: return AK_Space;
+		
+		case GLUT_KEY_LEFT: return AK_Left;
+		case GLUT_KEY_UP: return AK_Up;
+		case GLUT_KEY_RIGHT: return AK_Right;
+		case GLUT_KEY_DOWN: return AK_Down;
+		case GLUT_KEY_PAGE_UP: return AK_PageUp;
+		case GLUT_KEY_PAGE_DOWN: return AK_PageDown;
+		case GLUT_KEY_HOME: return AK_Home;
+		case GLUT_KEY_END: return AK_End;
+		case GLUT_KEY_INSERT: return AK_Ins;
+
+		case 127: return AK_Backspace;			
+	}
+	fprintf(stderr, "unknown key %d\n", key);
+	return AK_Unknown;
+}
+
+static void a__key_down_cb(unsigned char key, int x, int y) {
+	aKey ak = a__glut_key(key);
+	if (ak != AK_Unknown) ATTO_APP_KEY_FUNC(ak, 1);
+}
+
+static void a__key_up_cb(unsigned char key, int x, int y) {
+	aKey ak = a__glut_key(key);
+	if (ak != AK_Unknown) ATTO_APP_KEY_FUNC(ak, 0);
+}
+
+static void a__special_down_cb(int key, int x, int y) {
+	aKey ak = a__glut_key(key);
+	if (ak != AK_Unknown) ATTO_APP_KEY_FUNC(ak, 1);
+}
+
+static void a__special_up_cb(int key, int x, int y) {
+	aKey ak = a__glut_key(key);
+	if (ak != AK_Unknown) ATTO_APP_KEY_FUNC(ak, 0);
 }
 #endif /* ATTO_APP_KEY_FUNC */
 
@@ -636,7 +692,10 @@ int main(int argc, char* argv[]) {
 	glutDisplayFunc(a__display_cb);
 	glutReshapeFunc(a__reshape_cb);
 #ifdef ATTO_APP_KEY_FUNC
-	glutKeyboardFunc(a__keyb_cb);
+	glutKeyboardFunc(a__key_down_cb);
+	glutKeyboardUpFunc(a__key_up_cb);
+	glutSpecialFunc(a__special_down_cb);
+	glutSpecialFunc(a__special_up_cb);
 #endif
 #ifdef ATTO_APP_POINTER_FUNC
 	glutMotionFunc(a__motion_cb);
