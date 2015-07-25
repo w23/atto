@@ -46,7 +46,6 @@
 #endif /* ifdef ATTO_PLATFORM_WINDOWS */
 
 #ifdef ATTO_PLATFORM_OSX
-#include <GLUT/GLUT.h>
 #include <OpenGL/gl3.h>
 #endif
 
@@ -136,6 +135,12 @@ ATTO__FUNCLIST
 #define __ATTO_GL_H_IMPLEMENTED
 
 #ifdef ATTO_PLATFORM_X11
+void aGLInit() {
+	/* No-op */
+}
+#endif
+
+#ifdef ATTO_PLATFORM_OSX
 void aGLInit() {
 	/* No-op */
 }

@@ -20,6 +20,7 @@
 #define ATTO_PLATFORM_POSIX
 #define ATTO_PLATFORM_MACH
 #define ATTO_PLATFORM_OSX
+#define ATTO_PLATFORM_GLUT
 #else
 #error Not ported
 #endif
@@ -575,6 +576,77 @@ exit:
 	DestroyWindow(hwnd);
 	return 0;
 }
+#endif /* ATTO_PLATFORM_WINDOWS */
+
+#ifdef ATTO_PLATFORM_GLUT
+#include <stdlib.h>
+#include <GLUT/glut.h>
+
+static unsigned int a__prev_ms = 0;
+
+unsigned int aTime() {
+	return glutGet(GLUT_ELAPSED_TIME);
+}
+
+static void a__display_cb(void) {
+	unsigned int now = aTime();
+	ATTO_APP_PAINT_FUNC(now, (now - a__prev_ms) * 1e-3f);
+	a__prev_ms = now;
+
+	glutSwapBuffers();
+	glutPostRedisplay();
+}
+
+static void a__reshape_cb(int w, int h) {
+	ATTO_APP_RESIZE_FUNC(w, h);
+}
+
+#ifdef ATTO_APP_KEY_FUNC
+static void a__keyb_cb(unsigned char key, int x, int y) {
+}
+#endif /* ATTO_APP_KEY_FUNC */
+
+#ifdef ATTO_APP_POINTER_FUNC
+static void  a__motion_cb(int x, int y) {
+}
+
+static void a__mouse_cb(int a, int b, int c, int d) {
+}
+#endif /* ATTO_APP_POINTER_FUNC */
+
+#ifdef ATTO_APP_CLOSE_FUNC
+static void a__close_cb(void) {
+	ATTO_APP_CLOSE_FUNC();
+}
 #endif
+
+void aAppExit(int code) {
+	exit(code);
+}
+
+int main(int argc, char* argv[]) {
+	glutInit(&argc, (char**)argv);
+	glutInitWindowSize(ATTO_APP_WIDTH, ATTO_APP_HEIGHT);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
+	glutCreateWindow(ATTO_APP_NAME);
+	
+	glutDisplayFunc(a__display_cb);
+	glutReshapeFunc(a__reshape_cb);
+#ifdef ATTO_APP_KEY_FUNC
+	glutKeyboardFunc(a__keyb_cb);
+#endif
+#ifdef ATTO_APP_POINTER_FUNC
+	glutMotionFunc(a__motion_cb);
+	glutMouseFunc(a__mouse_cb);
+#endif
+#ifdef ATTO_APP_CLOSE_FUNC
+	glutWMCloseFunc(a__close_cb);
+#endif
+
+	a__prev_ms = aTime();
+	glutMainLoop();
+	return 0;
+}
+#endif /* ATTO_PLATFORM_GLUT */
 
 #endif /* ATTO_APP_H_IMPLEMENT */
