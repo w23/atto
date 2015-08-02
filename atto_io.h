@@ -157,7 +157,18 @@ int aIoFileRead(const char *filename, void *buffer, int size) {
 	return read;
 }
 
-//int aIoFileWrite(const char *filename, void *buffer, int size) {}
+int aIoFileWrite(const char *filename, void *buffer, int size) {
+	WCHAR *wfilename = utf8_to_wchar(filename, -1, NULL);
+	HANDLE h = CreateFile(wfilename, GENERIC_WRITE, FILE_SHARE_READ,
+		NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (h == INVALID_HANDLE_VALUE) return 0;
+	DWORD written;
+	BOOL rr = WriteFile(h, buffer, size, &written, NULL);
+	CloseHandle(h);
+	free(wfilename);
+	if (rr == FALSE || written < 1) return 0;
+	return written;
+}
 
 struct Aio_monitor_t {
 	LONG sentinel;
@@ -173,12 +184,14 @@ static DWORD WINAPI filemon_thread_main(struct Aio_monitor_t *mon) {
 	for (;;) {
 		DWORD returned = 0;
 		BOOL result = ReadDirectoryChangesW(mon->dir, &buffer, sizeof(buffer), FALSE,
-			FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE,
+			FILE_NOTIFY_CHANGE_CREATION | FILE_NOTIFY_CHANGE_FILE_NAME |
+			FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE,
 			&returned, NULL, NULL);
 		if (!result) break;
 		const char *ptr = (const char*)buffer;
 		while (returned >= sizeof(FILE_NOTIFY_INFORMATION)) {
 			PFILE_NOTIFY_INFORMATION notify = (PFILE_NOTIFY_INFORMATION)ptr;
+			//fprintf(stdout, "notify: %d\n", notify->Action);
 			if ((notify->FileNameLength == mon->filename_size)
 				&& (0 == memcmp(notify->FileName, mon->filename, notify->FileNameLength)))
 				InterlockedIncrement(&mon->sentinel);

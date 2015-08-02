@@ -433,6 +433,8 @@ int main(int argc, char *argv[]) {
  ****************************************************************************/
 
 #ifdef ATTO_PLATFORM_WINDOWS
+#include <stdio.h>
+#include <fcntl.h>
 #include <windows.h>
 #include <gl/gl.h>
 #include "wglext.h"
@@ -487,7 +489,6 @@ void aAppExit(int code) {
 
 #ifdef ATTO_APP_KEY_FUNC
 static aKey a__winkey(int key) {
-	if (key >= 'a' && key <= 'z') return AK_A + key - 'a';
 	if (key >= 'A' && key <= 'Z') return AK_A + key - 'A';
 	if (key >= '0' && key <= '9') return AK_A + key - '0';
 
@@ -563,6 +564,19 @@ static const PIXELFORMATDESCRIPTOR a__pfd = {
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
 	(void)hPrevInstance;
 	(void)lpCmdLine;
+
+	AllocConsole();
+	HANDLE handle_out = GetStdHandle(STD_OUTPUT_HANDLE);
+	int hCrt = _open_osfhandle((long)handle_out, _O_TEXT);
+	FILE* hf_out = _fdopen(hCrt, "w");
+	setvbuf(hf_out, NULL, _IONBF, 1);
+	*stdout = *stderr = *hf_out;
+
+	HANDLE handle_in = GetStdHandle(STD_INPUT_HANDLE);
+	hCrt = _open_osfhandle((long)handle_in, _O_TEXT);
+	FILE* hf_in = _fdopen(hCrt, "r");
+	setvbuf(hf_in, NULL, _IONBF, 128);
+	*stdin = *hf_in;
 
 	WNDCLASSEX wndclass;
 	HWND hwnd;
@@ -653,10 +667,7 @@ static void a__reshape_cb(int w, int h) {
 }
 
 #ifdef ATTO_APP_KEY_FUNC
-static aKey a__glut_key(int key) {
-	if (key >= 'a' && key <= 'z') return AK_A + key - 'a';
-	if (key >= 'A' && key <= 'Z') return AK_A + key - 'A';
-	if (key >= '0' && key <= '9') return AK_A + key - '0';
+static aKey a__glut_special_key(int key) {
 	switch (key) {
 		case GLUT_KEY_F1: return AK_F1;
 		case GLUT_KEY_F2: return AK_F2;
@@ -670,10 +681,6 @@ static aKey a__glut_key(int key) {
 		case GLUT_KEY_F10: return AK_F10;
 		case GLUT_KEY_F11: return AK_F11;
 		case GLUT_KEY_F12: return AK_F12;
-
-		case 13: return AK_Enter;
-		case 27: return AK_Esc;
-		case 32: return AK_Space;
 		
 		case GLUT_KEY_LEFT: return AK_Left;
 		case GLUT_KEY_UP: return AK_Up;
@@ -686,6 +693,20 @@ static aKey a__glut_key(int key) {
 		case GLUT_KEY_INSERT: return AK_Ins;
 
 		case 127: return AK_Backspace;			
+	}
+	fprintf(stderr, "unknown special key %d\n", key);
+	return AK_Unknown;
+
+}
+static aKey a__glut_key(int key) {
+	if (key >= 'a' && key <= 'z') return AK_A + key - 'a';
+	if (key >= 'A' && key <= 'Z') return AK_A + key - 'A';
+	if (key >= '0' && key <= '9') return AK_A + key - '0';
+	switch (key) {
+		case 13: return AK_Enter;
+		case 27: return AK_Esc;
+		case 32: return AK_Space;
+		case 127: return AK_Backspace;
 	}
 	fprintf(stderr, "unknown key %d\n", key);
 	return AK_Unknown;
@@ -702,12 +723,12 @@ static void a__key_up_cb(unsigned char key, int x, int y) {
 }
 
 static void a__special_down_cb(int key, int x, int y) {
-	aKey ak = a__glut_key(key);
+	aKey ak = a__glut_special_key(key);
 	if (ak != AK_Unknown) ATTO_APP_KEY_FUNC(ak, 1);
 }
 
 static void a__special_up_cb(int key, int x, int y) {
-	aKey ak = a__glut_key(key);
+	aKey ak = a__glut_special_key(key);
 	if (ak != AK_Unknown) ATTO_APP_KEY_FUNC(ak, 0);
 }
 #endif /* ATTO_APP_KEY_FUNC */
@@ -745,7 +766,7 @@ int main(int argc, char* argv[]) {
 	glutKeyboardFunc(a__key_down_cb);
 	glutKeyboardUpFunc(a__key_up_cb);
 	glutSpecialFunc(a__special_down_cb);
-	glutSpecialFunc(a__special_up_cb);
+	glutSpecialUpFunc(a__special_up_cb);
 #endif
 #ifdef ATTO_APP_POINTER_FUNC
 	glutMotionFunc(a__motion_cb);

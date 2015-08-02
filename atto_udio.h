@@ -124,4 +124,105 @@ void aUdioStop() {
 
 #endif
 
+#ifdef ATTO_PLATFORM_WINDOWS
+#include <mmsystem.h>
+#include <mmreg.h>
+
+static struct {
+	HWAVEOUT waveout;
+	HANDLE thread, event;
+	a_udio_callback_f callback;
+	void *opaque;
+} a__udio = { 0 };
+
+
+
+static DWORD WINAPI a__udio_thread(LPVOID lpParameter) {
+	float buffer[ATTO_UDIO_BUFFER_SAMPLES * ATTO_UDIO_CHANNELS];
+	unsigned int sample = 0;
+	MMRESULT result;
+	WAVEHDR whdr[2] = { { 0 }, { 0 } };
+	whdr[0].lpData = buffer;
+	whdr[1].lpData = buffer + ATTO_UDIO_BUFFER_SAMPLES * ATTO_UDIO_CHANNELS / 2;
+	whdr[0].dwBufferLength = whdr[1].dwBufferLength = sizeof(buffer) / 2;
+	printf("audio thread started\n");
+	while (WAIT_OBJECT_0 == WaitForSingleObject(a__udio.event, INFINITE)) {
+		for (int i = 0; i < 2; ++i) {
+			if (whdr[i].dwFlags & WHDR_DONE) {
+				whdr[i].dwFlags = 0;
+				result = waveOutUnprepareHeader(a__udio.waveout, whdr + i, sizeof(*whdr));
+				if (result != MMSYSERR_NOERROR) {
+					fprintf(stderr, "waveOutUnprepareHeader: %d\n", result);
+					continue;
+				}
+			}
+			if (!(whdr[i].dwFlags & WHDR_PREPARED)) {
+				a__udio.callback(a__udio.opaque, sample, whdr[i].lpData, ATTO_UDIO_BUFFER_SAMPLES / 2);
+				sample += ATTO_UDIO_BUFFER_SAMPLES / 2;
+
+				result = waveOutPrepareHeader(a__udio.waveout, whdr + i, sizeof(*whdr));
+				if (result != MMSYSERR_NOERROR) {
+					fprintf(stderr, "waveOutPrepareHeader: %d\n", result);
+					continue;
+				}
+
+				result = waveOutWrite(a__udio.waveout, whdr + i, sizeof(*whdr));
+				if (result != MMSYSERR_NOERROR) {
+					fprintf(stderr, "waveOutWrite: %d\n", result);
+					continue;
+				}
+			}
+		}
+	}
+	printf("audio thread finished\n");
+	return 0;
+}
+
+int aUdioStart(a_udio_callback_f callback, void *opaque) {
+	if (a__udio.waveout)
+		return -1;
+
+	WAVEFORMATEX wvfmt;
+	wvfmt.wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
+	wvfmt.nChannels = ATTO_UDIO_CHANNELS;
+	wvfmt.nSamplesPerSec = ATTO_UDIO_SAMPLERATE;
+	wvfmt.wBitsPerSample = 32;
+	wvfmt.nBlockAlign = wvfmt.wBitsPerSample * wvfmt.nChannels / 8;
+	wvfmt.nAvgBytesPerSec = wvfmt.nSamplesPerSec * wvfmt.nBlockAlign;
+	wvfmt.cbSize = 0;
+
+	a__udio.event = CreateEvent(NULL, FALSE, TRUE, "AttoUdio");
+
+	MMRESULT result = waveOutOpen(&a__udio.waveout, WAVE_MAPPER,
+		&wvfmt, a__udio.event, 0, CALLBACK_EVENT);
+	if (result != MMSYSERR_NOERROR) {
+		fprintf(stderr, "waveOutOpen: %d\n", result);
+		return -2;
+	}
+
+	a__udio.callback = callback;
+
+	a__udio.thread = CreateThread(NULL, 0, a__udio_thread, 0, 0, NULL);
+
+	SetEvent(a__udio.event);
+
+	return 0;
+}
+
+unsigned int aUdioPosition() {
+	if (!a__udio.waveout)
+		return 0;
+
+	MMTIME mmtime;
+	mmtime.wType = TIME_SAMPLES;
+	waveOutGetPosition(a__udio.waveout, &mmtime, sizeof(mmtime));
+	return (float)(mmtime.u.sample * 1000.f) / (float)ATTO_UDIO_SAMPLERATE;
+}
+
+void aUdioStop() {
+	/* TODO */
+}
+#endif /* ifdef ATTO_PLATFORM_WINDOWS */
+
+
 #endif /* ifdef ATTO_UDIO_H_IMPLEMENT */
