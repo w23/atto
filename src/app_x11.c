@@ -12,8 +12,6 @@
 
 #include <string.h>
 #include <stdlib.h> /* exit() */
-#include <stdio.h>
-#include <stdarg.h>
 
 #include <atto/platform.h>
 #include <atto/app.h>
@@ -40,15 +38,6 @@ static const int a__glxattribs[] = {
 
 static void a__appCleanup(void);
 static void a__appProcessXKeyEvent(XEvent *e);
-
-void aAppDebugPrintf(const char *fmt, ...) {
-	va_list args;
-	va_start(args, fmt);
-	fprintf(stderr, "DBG: ");
-	vfprintf(stderr, fmt, args);
-	fprintf(stderr, "\n");
-	va_end(args);
-}
 
 void aAppTerminate(int code) {
 	a__appCleanup();

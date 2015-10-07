@@ -1,11 +1,4 @@
-/* cc samples/app.c -I. -O3 -Wall -Werror -Wpedantic -lX11 -lGL -o sample_app */
-
 #include <atto/app.h>
-
-/*
-#define ATTO_GL_H_IMPLEMENT
-#include <atto/gl.h>
-*/
 
 static const char *event_name(AEventType type) {
 	switch(type) {
