@@ -22,6 +22,10 @@ static const char *opengl_version(AOpenGLVersion ver) {
 	return "Unknown";
 }
 
+static ATimeMs fps_time = 0;
+static float fps_dt = 0, fps_min_dt = 0, fps_max_dt = 0;
+static int fps_frames = 0;
+
 void atto_app_event(const AEvent *event) {
 	int i;
 	switch(event->type) {
@@ -40,8 +44,20 @@ void atto_app_event(const AEvent *event) {
 			break;
 
 		case AET_Paint:
-			aAppDebugPrintf("%s[%u]: dt = %f", event_name(event->type),
-				event->timestamp, event->data.paint.dt);
+			fps_dt += event->data.paint.dt;
+			fps_min_dt = (fps_min_dt > event->data.paint.dt || !fps_min_dt) ? event->data.paint.dt : fps_min_dt;
+			fps_max_dt = (fps_max_dt < event->data.paint.dt) ? event->data.paint.dt : fps_max_dt;
+			++fps_frames;
+			if (event->timestamp - fps_time > 3000) {
+				float sec = (event->timestamp - fps_time) * .001;
+				aAppDebugPrintf("%s[%u]: elapsed: %.2fs, frames = %d, "
+					"min_dt = %.2fms, avg_dt = %.2fms, max_dt = %.2fms, avg_fps = %.2f",
+					event_name(event->type), event->timestamp, sec, fps_frames,
+					fps_min_dt * 1000., fps_dt * 1000. / fps_frames, fps_max_dt * 1000., fps_frames / sec);
+				fps_frames = 0;
+				fps_min_dt = fps_dt = fps_max_dt = 0;
+				fps_time = event->timestamp;
+			}
 			break;
 
 		case AET_Key:

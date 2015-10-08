@@ -1,8 +1,9 @@
 #!/bin/sh
 
+WORKDIR=${WORKDIR:="./.workdir"}
+
 CC=${CC:="cc"}
 AR=${AR:="ar"}
-WORKDIR=${WORKDIR:="./.workdir"}
 APP=${APP:="app"}
 LDFLAGS="$LDFLAGS -lX11 -lGL -latto -L."
 CFLAGS="$CFLAGS -I."

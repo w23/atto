@@ -1,31 +1,7 @@
 #ifndef ATTO_GL_H__DECLARED
 #define ATTO_GL_H__DECLARED
 
-/* common platform detection */
-#ifndef ATTO_PLATFORM
-#ifdef __linux__
-#define ATTO_PLATFORM_POSIX
-#define ATTO_PLATFORM_LINUX
-#define ATTO_PLATFORM_X11
-/* FIXME this Linux-only definition should be before ANY header inclusion; this requirement also transcends to the user */
-/* required for Linux clock_gettime */
-#if __STDC_VERSION__ >= 199901L
-#define _XOPEN_SOURCE 600
-#else
-#define _XOPEN_SOURCE 500
-#endif /* __STDC_VERSION__ */
-#elif defined(_WIN32)
-#define ATTO_PLATFORM_WINDOWS
-#elif defined(__MACH__) && defined(__APPLE__)
-#define ATTO_PLATFORM_POSIX
-#define ATTO_PLATFORM_MACH
-#define ATTO_PLATFORM_OSX
-#else
-#error Not ported
-#endif
-#define ATTO_PLATFORM
-#endif /* ifndef ATTO_PLATFORM */
-/* end common platform detection */
+#include <atto/platform.h>
 
 #ifdef ATTO_PLATFORM_X11
 #define GL_GLEXT_PROTOTYPES 1
@@ -33,6 +9,11 @@
 #include <GL/gl.h>
 #include <GL/glext.h>
 #endif /* ifdef ATTO_PLATFORM_X11 */
+
+#ifdef ATTO_PLATFORM_RPI
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
+#endif /* ifdef ATTO_PLATFORM_RPI */
 
 #ifdef ATTO_PLATFORM_WINDOWS
 #ifndef ATTO_WINDOWS_H_INCLUDED
@@ -120,7 +101,7 @@ extern char a_gl_error[ATTO_GL_ERROR_BUFFER_SIZE];
 	ATTO__FUNCLIST_DO(PFNGLENABLEVERTEXATTRIBARRAYPROC, EnableVertexAttribArray) \
 	ATTO__FUNCLIST_DO(PFNGLVERTEXATTRIBPOINTERPROC, VertexAttribPointer)
 
-#define ATTO__FUNCLIST_DO(T,N) T gl##N = NULL;
+#define ATTO__FUNCLIST_DO(T,N) T gl##N = 0;
 ATTO__FUNCLIST
 #undef ATTO__FUNCLIST_DO
 
@@ -134,13 +115,8 @@ ATTO__FUNCLIST
 #endif /* ifdef __ATTO_GL_H_IMPLEMENTED */
 #define __ATTO_GL_H_IMPLEMENTED
 
-#ifdef ATTO_PLATFORM_X11
-void aGLInit() {
-	/* No-op */
-}
-#endif
-
-#ifdef ATTO_PLATFORM_OSX
+#if defined(ATTO_PLATFORM_X11) || defined(ATTO_PLATFORM_RPI) || \
+	defined(ATTO_PLATFORM_OSX)
 void aGLInit() {
 	/* No-op */
 }
@@ -149,7 +125,7 @@ void aGLInit() {
 #ifdef ATTO_PLATFORM_WINDOWS
 static PROC a__check_get_proc_address(const char *name) {
 	PROC ret = wglGetProcAddress(name);
-	ATTO__CHECK(NULL != ret, name);
+	ATTO__CHECK(0 != ret, name);
 	return ret;
 }
 void aGLInit() {
@@ -165,17 +141,17 @@ char a_gl_error[ATTO_GL_ERROR_BUFFER_SIZE];
 static GLuint a__GlCreateShader(int type, const char * const *source) {
 	int n;
 	GLuint shader = glCreateShader(type);
-	
+
 	for (n = 0; source[n] != 0; ++n);
 
-	glShaderSource(shader, n, source, NULL);
+	glShaderSource(shader, n, (const GLchar **)source, 0);
 	glCompileShader(shader);
 
 	{
 		GLint status;
 		glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
 		if (status != GL_TRUE) {
-			glGetShaderInfoLog(shader, sizeof(a_gl_error), NULL, a_gl_error);
+			glGetShaderInfoLog(shader, sizeof(a_gl_error), 0, a_gl_error);
 			glDeleteShader(shader);
 			shader = 0;
 		}
@@ -209,7 +185,7 @@ GLint aGLCreateProgram(const char * const *vertex, const char * const *fragment)
 		GLint status;
 		glGetProgramiv(program, GL_LINK_STATUS, &status);
 		if (status != GL_TRUE) {
-			glGetProgramInfoLog(program, sizeof(a_gl_error), NULL, a_gl_error);
+			glGetProgramInfoLog(program, sizeof(a_gl_error), 0, a_gl_error);
 			glDeleteProgram(program);
 			return -3;
 		}
