@@ -355,21 +355,12 @@ void aGLTextureUpload(AGLTexture *tex,
 			internal = format = GL_RGB; type = GL_UNSIGNED_BYTE; break;
 		case AGLTF_U8_RGBA:
 			internal = format = GL_RGBA; type = GL_UNSIGNED_BYTE; break;
-#ifdef ATTO_GL_ES
-		case AGLTF_U565_RGB:
-			internal = format = GL_RGB; type = GL_UNSIGNED_SHORT_565; break;
-		case AGLTF_U5551_RGBA:
-			internal = format = GL_RGBA; type = GL_UNSIGNED_SHORT_5551; break;
-		case AGLTF_U4444_RGBA:
-			internal = format = GL_RGBA; type = GL_UNSIGNED_SHORT_4444; break;
-#else
 		case AGLTF_U565_RGB:
 			internal = format = GL_RGB; type = GL_UNSIGNED_SHORT_5_6_5; break;
 		case AGLTF_U5551_RGBA:
 			internal = format = GL_RGBA; type = GL_UNSIGNED_SHORT_5_5_5_1; break;
 		case AGLTF_U4444_RGBA:
 			internal = format = GL_RGBA; type = GL_UNSIGNED_SHORT_4_4_4_4; break;
-#endif
 		default: ATTO_ASSERT(!"Unknown format");
 	}
 	glBindTexture(GL_TEXTURE_2D, tex->name);
