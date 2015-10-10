@@ -8,11 +8,13 @@
 #include <GL/glx.h>
 #include <GL/gl.h>
 #include <GL/glext.h>
+#define ATTO_GL_DESKTOP
 #endif /* ifdef ATTO_PLATFORM_X11 */
 
 #ifdef ATTO_PLATFORM_RPI
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
+#define ATTO_GL_ES
 #endif /* ifdef ATTO_PLATFORM_RPI */
 
 #ifdef ATTO_PLATFORM_WINDOWS
@@ -24,17 +26,16 @@
 #endif /* ifndef ATTO_WINDOWS_H_INCLUDED */
 #include <GL/gl.h>
 #include "glext.h"
+#define ATTO_GL_DESKTOP
 #endif /* ifdef ATTO_PLATFORM_WINDOWS */
 
 #ifdef ATTO_PLATFORM_OSX
 #include <OpenGL/gl3.h>
+#define ATTO_GL_DESKTOP
 #endif
 
 /* Initialize GL stuff, like load GL>=2 procs on Windows */
 void aGLInit();
-
-GLint aGLCreateProgram(const char * const *vertex, const char * const *fragment);
-GLint aGLCreateProgramSimple(const char *vertex, const char *fragment);
 
 typedef enum {
 	AGLAttribute_Float,
@@ -55,15 +56,86 @@ typedef struct {
 	AGLAttributeType type;
 	const void *pvalue;
 	GLsizei count;
-} Agl_program_uniform_t;
+} AGLProgramUniform;
 
-void aGLUseProgram(GLint program, const Agl_program_uniform_t *uniforms, unsigned int nuniforms);
+typedef GLint AGLProgram;
 
-#ifndef ATTO_GL_ERROR_BUFFER_SIZE
-#define ATTO_GL_ERROR_BUFFER_SIZE 1024
-#endif /* ifndef ATTO_GL_ERROR_BUFFER_SIZE */
+AGLProgram aGLProgramCreate(const char * const *vertex, const char * const *fragment);
+AGLProgram aGLProgramCreateSimple(const char *vertex, const char *fragment);
+void aGLProgramUse(AGLProgram program, const AGLProgramUniform *uniforms, unsigned int nuniforms);
+#define aGLProgramDestroy(p) do { glDeleteProgram(p); } while(0)
 
-extern char a_gl_error[ATTO_GL_ERROR_BUFFER_SIZE];
+typedef enum {
+	AGLTF_Unknown,
+	AGLTF_U8_R,
+	AGLTF_U8_RA,
+	AGLTF_U8_RGB,
+	AGLTF_U8_RGBA,
+	AGLTF_U565_RGB,
+	AGLTF_U5551_RGBA,
+	AGLTF_U4444_RGBA
+} AGLTextureFormat;
+
+typedef struct {
+	GLuint name;
+	GLsizei width, height;
+	AGLTextureFormat format;
+} AGLTexture;
+
+AGLTexture aGLTextureCreate(void);
+void aGLTextureUpload(AGLTexture *texture,
+		AGLTextureFormat format, int width, int height, const void *pixels);
+void aGLTextureBind(const AGLTexture *texture, GLint unit);
+#define aGLTextureDestroy(t) do { glDeleteTextures(1, &(t)->name); } while(0)
+
+typedef struct {
+	AGLTexture *color;
+	int ncolors;
+	int depth;
+} AGLFramebufferParams;
+
+void aGLFramebufferBind(AGLFramebufferParams params);
+
+typedef enum {
+	AGLBT_Vertex = GL_ARRAY_BUFFER,
+	AGLBT_Index = GL_ELEMENT_ARRAY_BUFFER
+} AGLBufferType;
+
+typedef struct {
+	GLuint name;
+	AGLBufferType type;
+} AGLBuffer;
+
+AGLBuffer aGLBufferCreate(AGLBufferType type);
+void aGLBufferUpload(AGLBuffer *buffer, GLsizei size, const void *data);
+void aGLBufferBind(const AGLBuffer *buffer);
+#define aGLBufferDestroy(fb) do { glDeleteBuffers(1, &fb); } while(0)
+
+typedef struct {
+	const char *name;
+	const AGLBuffer *buffer;
+	GLint size;
+	GLenum type;
+	GLboolean normalized;
+	GLsizei stride;
+	const GLvoid *ptr;
+} AGLAttribute;
+
+void aGLAttributeBind(const AGLAttribute *attribs, int nattribs,
+	const AGLProgram *program);
+
+typedef struct {
+	GLenum mode;
+	GLsizei count;
+	GLint first;
+	const AGLBuffer *index_buffer;
+	const GLvoid *indices_ptr;
+	GLenum index_type;
+} AGLPaintParams;
+
+void aGLPaint(AGLPaintParams params);
+
+extern char a_gl_error[];
 
 #ifdef ATTO_PLATFORM_WINDOWS
 #define ATTO__FUNCLIST \
@@ -115,6 +187,14 @@ ATTO__FUNCLIST
 #endif /* ifdef __ATTO_GL_H_IMPLEMENTED */
 #define __ATTO_GL_H_IMPLEMENTED
 
+#ifndef ATTO_ASSERT
+#define ATTO_ASSERT(cond) \
+	if (!(cond)) { \
+		aAppDebugPrintf("ERROR @ %s:%d: (%s) failed", __FILE__, __LINE__, #cond); \
+		aAppTerminate(-1); \
+	}
+#endif /* ifndef ATTO_ASSERT */
+
 #if defined(ATTO_PLATFORM_X11) || defined(ATTO_PLATFORM_RPI) || \
 	defined(ATTO_PLATFORM_OSX)
 void aGLInit() {
@@ -125,16 +205,19 @@ void aGLInit() {
 #ifdef ATTO_PLATFORM_WINDOWS
 static PROC a__check_get_proc_address(const char *name) {
 	PROC ret = wglGetProcAddress(name);
-	ATTO__CHECK(0 != ret, name);
+	ATTO_ASSERT(ret);
 	return ret;
 }
 void aGLInit() {
-//#define ATTO__FUNCLIST_DO(T, N) gl##N = (T)wglGetProcAddress("gl" #N);
 #define ATTO__FUNCLIST_DO(T, N) gl##N = (T)a__check_get_proc_address("gl" #N);
 	ATTO__FUNCLIST
 #undef ATTO__FUNCLIST_DO
 }
 #endif /* ifdef ATTO_PLATFORM_WINDOWS */
+
+#ifndef ATTO_GL_ERROR_BUFFER_SIZE
+#define ATTO_GL_ERROR_BUFFER_SIZE 1024
+#endif /* ifndef ATTO_GL_ERROR_BUFFER_SIZE */
 
 char a_gl_error[ATTO_GL_ERROR_BUFFER_SIZE];
 
@@ -160,7 +243,7 @@ static GLuint a__GlCreateShader(int type, const char * const *source) {
 	return shader;
 }
 
-GLint aGLCreateProgram(const char * const *vertex, const char * const *fragment) {
+GLint aGLProgramCreate(const char * const *vertex, const char * const *fragment) {
 	GLuint program;
 	GLuint vertex_shader, fragment_shader;
 	fragment_shader = a__GlCreateShader(GL_FRAGMENT_SHADER, fragment);
@@ -194,15 +277,16 @@ GLint aGLCreateProgram(const char * const *vertex, const char * const *fragment)
 	return program;
 }
 
-GLint aGLCreateProgramSimple(const char *vertex, const char *fragment)
-{
-	const char *vvertex[2] = { vertex, 0 };
-	const char *vfragment[2] = { fragment, 0 };
-	return aGLCreateProgram(vvertex, vfragment);
+GLint aGLProgramCreateSimple(const char *vertex, const char *fragment) {
+	const char *vvertex[2] = { 0 };
+	const char *vfragment[2] = { 0 };
+	vvertex[0] = vertex;
+	vfragment[0] = fragment;
+	return aGLProgramCreate(vvertex, vfragment);
 }
 
-void aGLUseProgram(int program,
-		const Agl_program_uniform_t *uniforms, unsigned int nuniforms) {
+void aGLProgramUse(AGLProgram program,
+		const AGLProgramUniform *uniforms, unsigned int nuniforms) {
 	unsigned int i;
 	glUseProgram(program);
 	for (i = 0; i < nuniforms; ++i) {
@@ -244,6 +328,114 @@ void aGLUseProgram(int program,
 				break;
 		}
 	}
+}
+
+struct {
+	GLuint tex_unit;
+	GLuint framebuffer;
+} a__gl_state;
+
+AGLTexture aGLTextureCreate(void) {
+	AGLTexture tex;
+	glGenTextures(1, &tex.name);
+	tex.width = tex.height = 0;
+	tex.format = AGLTF_Unknown;
+	return tex;
+}
+
+void aGLTextureUpload(AGLTexture *tex,
+		AGLTextureFormat aformat, int width, int height, const void *pixels) {
+	GLenum internal, format, type;
+	switch (aformat) {
+		case AGLTF_U8_R:
+			internal = format = GL_LUMINANCE; type = GL_UNSIGNED_BYTE; break;
+		case AGLTF_U8_RA:
+			internal = format = GL_LUMINANCE_ALPHA; type = GL_UNSIGNED_BYTE; break;
+		case AGLTF_U8_RGB:
+			internal = format = GL_RGB; type = GL_UNSIGNED_BYTE; break;
+		case AGLTF_U8_RGBA:
+			internal = format = GL_RGBA; type = GL_UNSIGNED_BYTE; break;
+#ifdef ATTO_GL_ES
+		case AGLTF_U565_RGB:
+			internal = format = GL_RGB; type = GL_UNSIGNED_SHORT_565; break;
+		case AGLTF_U5551_RGBA:
+			internal = format = GL_RGBA; type = GL_UNSIGNED_SHORT_5551; break;
+		case AGLTF_U4444_RGBA:
+			internal = format = GL_RGBA; type = GL_UNSIGNED_SHORT_4444; break;
+#else
+		case AGLTF_U565_RGB:
+			internal = format = GL_RGB; type = GL_UNSIGNED_SHORT_5_6_5; break;
+		case AGLTF_U5551_RGBA:
+			internal = format = GL_RGBA; type = GL_UNSIGNED_SHORT_5_5_5_1; break;
+		case AGLTF_U4444_RGBA:
+			internal = format = GL_RGBA; type = GL_UNSIGNED_SHORT_4_4_4_4; break;
+#endif
+		default: ATTO_ASSERT(!"Unknown format");
+	}
+	glBindTexture(GL_TEXTURE_2D, tex->name);
+	glTexImage2D(GL_TEXTURE_2D, 0, internal, width, height, 0,
+		format, type, pixels);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_LINEAR);
+	tex->width = width;
+	tex->height = height;
+	tex->format = format;
+}
+
+void aGLTextureBind(const AGLTexture *texture, GLint unit) {
+	glActiveTexture(GL_TEXTURE0  + unit);
+	glBindTexture(GL_TEXTURE_2D, texture->name);
+}
+
+AGLBuffer aGLBufferCreate(AGLBufferType type) {
+	AGLBuffer buf;
+	glGenBuffers(1, &buf.name);
+	buf.type = type;
+	return buf;
+}
+
+void aGLBufferUpload(AGLBuffer *buffer, GLsizei size, const void *data) {
+	glBindBuffer(buffer->type, buffer->name);
+	glBufferData(buffer->type, size, data, GL_STATIC_DRAW);
+}
+
+void aGLBufferBind(const AGLBuffer *buffer) {
+	if (buffer)
+		glBindBuffer(buffer->type, buffer->name);
+	else {
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	}
+}
+
+void aGLAttributeBind(const AGLAttribute *attribs, int nattribs,
+		const AGLProgram *program) {
+	int i;
+	for (i = 0; i < nattribs; ++i) {
+		const AGLAttribute *a = attribs + i;
+		GLint loc = glGetAttribLocation(*program, a->name);
+		if (loc < 0) continue;
+		if (a->buffer)
+			aGLBufferBind(a->buffer);
+		else
+			glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glEnableVertexAttribArray(loc);
+		glVertexAttribPointer(loc, a->size, a->type, a->normalized, a->stride, a->ptr);
+	}
+}
+
+void aGLPaint(AGLPaintParams params) {
+	if (params.first < 0) {
+		aGLBufferBind(params.index_buffer);
+		glDrawElements(params.mode, params.count, params.index_type, params.indices_ptr);
+	} else
+		glDrawArrays(params.mode, params.first, params.count);
+}
+
+void aGLFramebufferBind(AGLFramebufferParams params) {
+	ATTO_ASSERT(!"FIXME: Implement");
 }
 
 #endif /* ATTO_GL_H_IMPLEMENT */
