@@ -133,9 +133,9 @@ typedef struct {
 		int x, y;
 		unsigned int buttons;
 	} pointer;
-} AGlobalState;
+} AAppState;
 
-extern const AGlobalState *a_global_state;
+extern const AAppState *a_app_state;
 
 ATimeMs aAppTime(void);
 

@@ -4,8 +4,8 @@
 
 #include "app_egl.c"
 
-static AGlobalState a__global_state;
-const AGlobalState *a_global_state = &a__global_state;
+static AAppState a__global_state;
+const AAppState *a_app_state = &a__global_state;
 static EGL_DISPMANX_WINDOW_T a__app_window;
 
 static void a__appCleanup(void);

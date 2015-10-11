@@ -29,7 +29,7 @@ static void a__appEglInit(
 	EGLint num_config;
 
 	ATTO_ASSERT(EGL_NO_DISPLAY != (a__app_egl.display = eglGetDisplay(native_display)));
-	ATTO_ASSERT(eglInitialize(a__app_egl.display, &ver_min, &ver_maj));
+	ATTO_ASSERT(eglInitialize(a__app_egl.display, &ver_maj, &ver_min));
 
 	aAppDebugPrintf("EGL: version %d.%d", ver_maj, ver_min);
 	aAppDebugPrintf("EGL: EGL_VERSION: '%s'",
@@ -43,7 +43,7 @@ static void a__appEglInit(
 
 	ATTO_ASSERT(eglChooseConfig(a__app_egl.display, a__app_egl_config_attrs,
 		&config, 1, &num_config));
-	
+
 	a__app_egl.context = eglCreateContext(a__app_egl.display, config,
 		EGL_NO_CONTEXT, a__app_egl_context_attrs);
 	ATTO_ASSERT(EGL_NO_CONTEXT != a__app_egl.context);

@@ -15,7 +15,7 @@ void atto_app_event(const AEvent *event) {
 			break;
 
 		case AET_Resize:
-			glViewport(0, 0, a_global_state->width, a_global_state->height);
+			glViewport(0, 0, a_app_state->width, a_app_state->height);
 			break;
 
 		case AET_Paint:
@@ -58,19 +58,47 @@ static const float vertexes[] = {
 };
 
 static struct {
-	AGLProgram program;
+	AGLAttribute attr[1];
+	AGLProgramUniform pun[1];
+	AGLDrawParams draw;
 } g;
 
 static void init(void) {
-	g.program = aGLProgramCreateSimple(shader_vertex, shader_fragment);
-	if (g.program <= 0)
+	g.draw.proc.program = aGLProgramCreateSimple(shader_vertex, shader_fragment);
+	if (g.draw.proc.program <= 0) {
 		aAppDebugPrintf("shader error: %s", a_gl_error);
+		/* \fixme add fatal */
+	}
+
+	aGLDrawParamsSetDefaults(&g.draw);
+
+	g.attr[0].name = "av2_pos";
+	g.attr[0].buffer = 0;
+	g.attr[0].size = 2;
+	g.attr[0].type = GL_FLOAT;
+	g.attr[0].normalized = GL_FALSE;
+	g.attr[0].stride = 0;
+	g.attr[0].ptr = vertexes;
+
+	g.pun[0].name = "uf_time";
+	g.pun[0].type = AGLAT_Float;
+	g.pun[0].count = 1;
+
+	g.draw.src.draw.mode = GL_TRIANGLES;
+	g.draw.src.draw.count = 3;
+	g.draw.src.draw.first = 0;
+	g.draw.src.draw.index_buffer = 0;
+	g.draw.src.draw.indices_ptr = 0;
+	g.draw.src.draw.index_type = 0;
+	
+	g.draw.src.attribs = g.attr;
+	g.draw.src.nattribs = sizeof g.attr / sizeof *g.attr;
+
+	g.draw.proc.uniforms = g.pun;
+	g.draw.proc.nuniforms = sizeof g.pun / sizeof *g.pun;
 }
 
 static void paint(ATimeMs timestamp) {
-	AGLAttribute attr[1];
-	AGLProgramUniform pun[1];
-	AGLPaintParams app;
 	float t = timestamp * 1e-3f;
 
 	glClearColor(
@@ -80,26 +108,6 @@ static void paint(ATimeMs timestamp) {
 		1.f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	attr[0].name = "av2_pos";
-	attr[0].buffer = 0;
-	attr[0].size = 2;
-	attr[0].type = GL_FLOAT;
-	attr[0].normalized = GL_FALSE;
-	attr[0].stride = 0;
-	attr[0].ptr = vertexes;
-	aGLAttributeBind(attr, 1, &g.program);
-
-	pun[0].name = "uf_time";
-	pun[0].type = AGLAttribute_Float;
-	pun[0].pvalue = &t;
-	pun[0].count = 1;
-	aGLProgramUse(g.program, pun, 1);
-
-	app.mode = GL_TRIANGLES;
-	app.count = 3;
-	app.first = 0;
-	app.index_buffer = 0;
-	app.indices_ptr = 0;
-	app.index_type = 0;
-	aGLPaint(app);
+	g.pun[0].value.pf = &t;
+	aGLDraw(&g.draw);
 }

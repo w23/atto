@@ -20,8 +20,8 @@
 #include <X11/Xlib.h>
 #include <GL/glx.h>
 
-static AGlobalState a__global_state;
-const AGlobalState *a_global_state = &a__global_state;
+static AAppState a__global_state;
+const AAppState *a_app_state = &a__global_state;
 
 static const int a__glxattribs[] = {
 	GLX_X_RENDERABLE, True,
