@@ -34,6 +34,33 @@
 #define ATTO_GL_DESKTOP
 #endif
 
+/* \todo
+ * - utility
+ *   - do not depend on atto/platform.h strictly
+ *   - assert, print and fatal macro
+ *   - argument sanity check
+ *   - gl error detection
+ * - framebuffer
+ *   - multiple attachments
+ *   - depth texture attachment
+ * - textures
+ *   - parameters (min, mag, wraps)
+ *   - cubemap
+ *   - compressed
+ *   - mipmaps
+ * - functionality
+ *   - one-op clear
+ *   - copy between buffers/textures
+ * - capabilitues
+ *   - limits
+ *   - features
+ *   - extension-based features
+ * - optimization
+ *   - decrease state changes
+ *   - benchmark
+ *   - draw-sorting helper
+ */
+
 /* Initialize GL stuff, like load GL>=2 procs on Windows */
 void aGLInit();
 
@@ -192,13 +219,15 @@ typedef enum {
 	AGLFF_CounterClockwise = GL_CCW /* default */
 } AGLFrontFace;
 
-/* \todo
+typedef enum {
+	AGLDBM_None, /* Texture?, */
+	AGLDBM_16
+} AGLDepthBufferMode;
+
 typedef struct {
 	AGLTexture *color;
-	int ncolors;
-	int depth;
+	AGLDepthBufferMode depth_mode;
 } AGLFramebufferParams;
-*/
 
 /* The entire state required for one draw call */
 typedef struct {
@@ -224,16 +253,21 @@ typedef struct {
 	} proc;
 
 	struct {
-		/* \todo AGLFramebufferParams framebuffer; */
 		AGLBlendParams blend;
 		AGLDepthParams depth;
+		AGLFramebufferParams *framebuffer;
 	} dst;
 } AGLDrawParams;
 
 void aGLDrawParamsSetDefaults(AGLDrawParams *params);
 void aGLDraw(const AGLDrawParams *params);
 
-extern const char *a_gl_extensions;
+/*
+typedef struct {
+	const char *a_gl_extensions;
+} AGLCapabilities;
+*/
+
 extern char a_gl_error[];
 
 /***************************************************************************************/
@@ -313,6 +347,12 @@ static struct {
 	AGLFrontFace front_face;
 	AGLBlendParams blend;
 	AGLDepthParams depth;
+	struct {
+		AGLFramebufferParams params;
+		/* store color explicitly by value? */
+		GLuint depth_buffer;
+		GLuint name, binding;
+	} framebuffer;
 } a__gl_state;
 
 static GLuint a__GLCreateShader(int type, const char * const *source);
@@ -321,9 +361,10 @@ static void a__GLProgramBind(AGLProgram program,
 static void a__GLTextureBind(const AGLTexture *texture, GLint unit);
 static void a__GLAttribsBind(const AGLAttribute *attrs, int nattrs, AGLProgram program);
 static void a__GLAttribsUnbind(const AGLAttribute *attrs, int nattrs, AGLProgram program);
+static void	a__GLCullingBind(AGLCullMode cull, AGLFrontFace front);
 static void a__GLDepthBind(AGLDepthParams depth);
 static void a__GLBlendBind(const AGLBlendParams *blend);
-static void	a__GLCullingBind(AGLCullMode cull, AGLFrontFace front);
+static void a__GLFramebufferBind(const AGLFramebufferParams *fb);
 
 #ifdef ATTO_PLATFORM_WINDOWS
 static PROC a__check_get_proc_address(const char *name) {
@@ -348,6 +389,9 @@ void aGLInit() {
 	a__gl_state.blend.func.dst_rgb = a__gl_state.blend.func.dst_a = AGLBF_Zero;
 	a__gl_state.depth.mode = AGLDM_Disabled;
 	a__gl_state.depth.func = AGLDF_Less;
+
+	glGenFramebuffers(1, &a__gl_state.framebuffer.name);
+	glGenRenderbuffers(1, &a__gl_state.framebuffer.depth_buffer);
 }
 
 GLint aGLProgramCreate(const char * const *vertex, const char * const *fragment) {
@@ -460,7 +504,7 @@ void aGLDrawParamsSetDefaults(AGLDrawParams *params) {
 }
 
 void aGLDraw(const AGLDrawParams *p) {
-	/* \todo a__GLFramebufferBind(&p->dst.framebuffer); */
+	a__GLFramebufferBind(p->dst.framebuffer);
 	a__GLDepthBind(p->dst.depth);
 	a__GLBlendBind(&p->dst.blend);
 
@@ -653,6 +697,45 @@ static void	a__GLCullingBind(AGLCullMode cull, AGLFrontFace front) {
 
 	if (front != a__gl_state.front_face)
 		glFrontFace(a__gl_state.front_face = front);
+}
+
+static void a__GLFramebufferBind(const AGLFramebufferParams *fb) {
+	int depth, color;
+	GLenum status;
+
+	if (!fb) {
+		if (a__gl_state.framebuffer.binding)
+			glBindFramebuffer(GL_FRAMEBUFFER, a__gl_state.framebuffer.binding = 0);
+		return;
+	}
+
+	if (a__gl_state.framebuffer.binding != a__gl_state.framebuffer.name)
+		glBindFramebuffer(GL_FRAMEBUFFER,
+			a__gl_state.framebuffer.binding = a__gl_state.framebuffer.name);
+
+	depth = a__gl_state.framebuffer.params.depth_mode != fb->depth_mode;
+	color = a__gl_state.framebuffer.params.color != fb->color;
+
+	if (color)
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+			GL_TEXTURE_2D, fb->color->name, 0);
+
+	if (fb->depth_mode != AGLDBM_None && (depth || color)) {
+		glBindRenderbuffer(GL_RENDERBUFFER, a__gl_state.framebuffer.depth_buffer);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT,
+			fb->color->width, fb->color->height);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+			GL_RENDERBUFFER, a__gl_state.framebuffer.depth_buffer);
+	}
+
+	if (depth && fb->depth_mode == AGLDBM_None)
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+			GL_RENDERBUFFER, 0);
+
+	status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	/* \fixme */ ATTO_ASSERT(status == GL_FRAMEBUFFER_COMPLETE);
+
+	a__gl_state.framebuffer.params = *fb;
 }
 
 #endif /* ATTO_GL_H_IMPLEMENT */
