@@ -20,8 +20,8 @@
 #include <X11/Xlib.h>
 #include <GL/glx.h>
 
-static AAppState a__global_state;
-const AAppState *a_app_state = &a__global_state;
+static AAppState a__app_state;
+const AAppState *a_app_state = &a__app_state;
 
 static const int a__glxattribs[] = {
 	GLX_X_RENDERABLE, True,
@@ -78,7 +78,7 @@ static void a__appProcessXKeyEvent(XEvent *e) {
 		default: return;
 	}
 
-	a__global_state.keys[key] = down;
+	a__app_state.keys[key] = down;
 
 	{
 		AEvent event;
@@ -113,12 +113,12 @@ static void a__appProcessXButton(const XEvent *e) {
 		AEvent event;
 		event.timestamp = aAppTime();
 		event.type = AET_Pointer;
-		event.data.pointer.dx = e->xbutton.x - a__global_state.pointer.x;
-		event.data.pointer.dy = e->xbutton.y - a__global_state.pointer.y;
+		event.data.pointer.dx = e->xbutton.x - a__app_state.pointer.x;
+		event.data.pointer.dy = e->xbutton.y - a__app_state.pointer.y;
 		event.data.pointer.buttons_diff = a__appX11ToButton(e->xbutton.state) ^ button;
-		a__global_state.pointer.x = e->xbutton.x;
-		a__global_state.pointer.y = e->xbutton.y;
-		a__global_state.pointer.buttons ^= event.data.pointer.buttons_diff;
+		a__app_state.pointer.x = e->xbutton.x;
+		a__app_state.pointer.y = e->xbutton.y;
+		a__app_state.pointer.buttons ^= event.data.pointer.buttons_diff;
 		atto_app_event(&event);
 	}
 }
@@ -127,12 +127,12 @@ static void a__appProcessXMotion(const XEvent *e) {
 	AEvent event;
 	event.timestamp = aAppTime();
 	event.type = AET_Pointer;
-	event.data.pointer.dx = e->xmotion.x - a__global_state.pointer.x;
-	event.data.pointer.dy = e->xmotion.y - a__global_state.pointer.y;
+	event.data.pointer.dx = e->xmotion.x - a__app_state.pointer.x;
+	event.data.pointer.dy = e->xmotion.y - a__app_state.pointer.y;
 	event.data.pointer.buttons_diff = 0;
-	a__global_state.pointer.x = e->xmotion.x;
-	a__global_state.pointer.y = e->xmotion.y;
-	a__global_state.pointer.buttons = a__appX11ToButton(e->xmotion.state);
+	a__app_state.pointer.x = e->xmotion.x;
+	a__app_state.pointer.y = e->xmotion.y;
+	a__app_state.pointer.buttons = a__appX11ToButton(e->xmotion.state);
 	atto_app_event(&event);
 }
 
@@ -194,11 +194,11 @@ int main(int argc, char *argv[]) {
 		ButtonPressMask | ButtonReleaseMask | PointerMotionMask
 	);
 
-	a__global_state.argc = argc;
-	a__global_state.argv = (const char * const *)argv;
-	a__global_state.gl_version = AOGLV_21;
-	a__global_state.width = ATTO_APP_WIDTH;
-	a__global_state.height = ATTO_APP_HEIGHT;
+	a__app_state.argc = argc;
+	a__app_state.argv = (const char * const *)argv;
+	a__app_state.gl_version = AOGLV_21;
+	a__app_state.width = ATTO_APP_WIDTH;
+	a__app_state.height = ATTO_APP_HEIGHT;
 
 	event.timestamp = aAppTime();
 	event.type = AET_Init;
@@ -212,10 +212,10 @@ int main(int argc, char *argv[]) {
 			XNextEvent(display, &e);
 			switch (e.type) {
 				case ConfigureNotify:
-					if (a__global_state.width == e.xconfigure.width
-							&& a__global_state.height == e.xconfigure.height) break;
-					a__global_state.width = e.xconfigure.width;
-					a__global_state.height = e.xconfigure.height;
+					if (a__app_state.width == e.xconfigure.width
+							&& a__app_state.height == e.xconfigure.height) break;
+					a__app_state.width = e.xconfigure.width;
+					a__app_state.height = e.xconfigure.height;
 					event.timestamp = aAppTime();
 					event.type = AET_Resize;
 					atto_app_event(&event);
