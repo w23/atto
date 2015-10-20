@@ -56,7 +56,12 @@ ATimeMs aAppTime() {
 }
 
 void aAppDebugPrintf(const char *fmt, ...) {
-	/* \todo */
+	va_list args;
+	va_start(args, fmt);
+	fprintf(stderr, "DBG: ");
+	vfprintf(stderr, fmt, args);
+	fprintf(stderr, "\n");
+	va_end(args);
 }
 
 void aAppTerminate(int code) {
@@ -254,7 +259,7 @@ static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 	int down = 0;
 	AKey key;
 	AEvent event;
-	ATTO_ASSERT(hwnd == g.hwnd);
+
 	switch (msg) {
 	case WM_SIZE:
 		{
