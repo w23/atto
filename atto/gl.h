@@ -81,6 +81,7 @@ typedef struct {
 	GLuint name;
 	GLsizei width, height;
 	AGLTextureFormat format;
+	/* \todo unsigned int sequence__; */
 } AGLTexture;
 
 AGLTexture aGLTextureCreate(void);
@@ -219,50 +220,68 @@ typedef enum {
 	AGLFF_CounterClockwise = GL_CCW /* default */
 } AGLFrontFace;
 
-typedef enum {
-	AGLDBM_None, /* Texture?, */
-	AGLDBM_16
-} AGLDepthBufferMode;
-
-typedef struct {
-	AGLTexture *color;
-	AGLDepthBufferMode depth_mode;
-} AGLFramebufferParams;
-
 /* The entire state required for one draw call */
 typedef struct {
+	AGLProgram program;
 	struct {
-		AGLAttribute *attribs;
-		int nattribs;
-		struct {
-			GLenum mode;
-			GLsizei count;
-			GLint first; /* -1 for indexed */
-			GLenum index_type;
-			const AGLBuffer *index_buffer;
-			const GLvoid *indices_ptr;
-			AGLCullMode cull_mode;
-			AGLFrontFace front_face;
-		} draw;
-	} src;
+		const AGLProgramUniform *p;
+		unsigned n;
+	} uniforms;
+	struct {
+		const AGLAttribute *p;
+		unsigned n;
+	} attribs;
+	struct {
+		GLenum mode;
+		GLsizei count;
+		GLint first; /* -1 for indexed */
+		GLenum index_type;
+		const AGLBuffer *index_buffer;
+		const GLvoid *indices_ptr;
+		AGLCullMode cull_mode;
+		AGLFrontFace front_face;
+	} primitive;
 
-	struct {
-		AGLProgram program;
-		AGLProgramUniform *uniforms;
-		int nuniforms;
-	} proc;
-
-	struct {
-		AGLBlendParams blend;
-		AGLDepthParams depth;
-		AGLFramebufferParams *framebuffer;
-	} dst;
+	AGLBlendParams blend;
+	AGLDepthParams depth;
 } AGLDrawParams;
 
 void aGLDrawParamsSetDefaults(AGLDrawParams *params);
 void aGLDraw(const AGLDrawParams *params);
 
-/*
+typedef struct {
+	float r, g, b, a;
+	float depth; /* default = 1 */
+	enum {
+		AGLCB_Color = GL_COLOR_BUFFER_BIT,
+		AGLCB_Depth = GL_DEPTH_BUFFER_BIT,
+		AGLCB_ColorAndDepth = AGLCB_Color | AGLCB_Depth,
+		AGLCB_Everything = AGLCB_ColorAndDepth
+	} bits;
+} AGLClearParams;
+
+AGLClearParams aGLClearParamsDefaults(void);
+void aGLClear(const AGLClearParams *params);
+
+typedef struct {
+	const AGLTexture *color;
+	struct {
+		enum {
+			AGLDBM_Texture,
+			AGLDBM_Best
+		} mode;
+		AGLTexture *texture;
+	} depth;
+} AGLFramebufferParams;
+
+typedef struct {
+	struct { unsigned x, y, w, h; } viewport;
+	AGLFramebufferParams *framebuffer;
+} AGLTargetParams;
+
+void aGLSetTarget(const AGLTargetParams *target);
+
+/* \todo
 typedef struct {
 	const char *a_gl_extensions;
 } AGLCapabilities;
@@ -502,36 +521,35 @@ void aGLBufferUpload(AGLBuffer *buffer, GLsizei size, const void *data) {
 }
 
 void aGLDrawParamsSetDefaults(AGLDrawParams *params) {
-	params->src.draw.cull_mode = AGLCM_Disable;
-	params->src.draw.front_face = AGLFF_CounterClockwise;
-	params->dst.blend.enable = 0;
-	params->dst.blend.color.r =
-		params->dst.blend.color.g =
-		params->dst.blend.color.b =
-		params->dst.blend.color.a = 0;
-	params->dst.blend.equation.rgb = params->dst.blend.equation.a = AGLBE_Add;
-	params->dst.blend.func.src_rgb = params->dst.blend.func.src_a = AGLBF_One;
-	params->dst.blend.func.dst_rgb = params->dst.blend.func.dst_a = AGLBF_Zero;
-	params->dst.depth.mode = AGLDM_Disabled;
-	params->dst.depth.func = AGLDF_Less;
+	params->primitive.cull_mode = AGLCM_Disable;
+	params->primitive.front_face = AGLFF_CounterClockwise;
+	params->blend.enable = 0;
+	params->blend.color.r =
+		params->blend.color.g =
+		params->blend.color.b =
+		params->blend.color.a = 0;
+	params->blend.equation.rgb = params->blend.equation.a = AGLBE_Add;
+	params->blend.func.src_rgb = params->blend.func.src_a = AGLBF_One;
+	params->blend.func.dst_rgb = params->blend.func.dst_a = AGLBF_Zero;
+	params->depth.mode = AGLDM_Disabled;
+	params->depth.func = AGLDF_Less;
 }
 
 void aGLDraw(const AGLDrawParams *p) {
-	a__GLFramebufferBind(p->dst.framebuffer);
-	a__GLDepthBind(p->dst.depth);
-	a__GLBlendBind(&p->dst.blend);
+	a__GLDepthBind(p->depth);
+	a__GLBlendBind(&p->blend);
 
-	a__GLProgramBind(p->proc.program, p->proc.uniforms, p->proc.nuniforms);
-	a__GLAttribsBind(p->src.attribs, p->src.nattribs, p->proc.program);
-	a__GLCullingBind(p->src.draw.cull_mode, p->src.draw.front_face);
-	if (p->src.draw.first < 0) {
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, p->src.draw.index_buffer->name);
-		glDrawElements(p->src.draw.mode, p->src.draw.count,
-			p->src.draw.index_type, p->src.draw.indices_ptr);
+	a__GLProgramBind(p->program, p->uniforms.p, p->uniforms.n);
+	a__GLAttribsBind(p->attribs.p, p->attribs.n, p->program);
+	a__GLCullingBind(p->primitive.cull_mode, p->primitive.front_face);
+	if (p->primitive.first < 0) {
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, p->primitive.index_buffer->name);
+		glDrawElements(p->primitive.mode, p->primitive.count,
+			p->primitive.index_type, p->primitive.indices_ptr);
 	} else
-		glDrawArrays(p->src.draw.mode, p->src.draw.first, p->src.draw.count);
+		glDrawArrays(p->primitive.mode, p->primitive.first, p->primitive.count);
 
-	a__GLAttribsUnbind(p->src.attribs, p->src.nattribs, p->proc.program);
+	a__GLAttribsUnbind(p->attribs.p, p->attribs.n, p->program);
 }
 
 static GLuint a__GLCreateShader(int type, const char * const *source) {
@@ -603,6 +621,26 @@ void a__GLProgramBind(AGLProgram program,
 				++texture_unit;
 		}
 	}
+}
+
+AGLClearParams aGLClearParamsDefaults(void) {
+	AGLClearParams params;
+	params.r = params.g = params.b = params.a = 0;
+	params.depth = 1.f;
+	params.bits = AGLCB_Everything;
+	return params;
+}
+
+void aGLClear(const AGLClearParams *params) {
+	glClearColor(params->r, params->g, params->b, params->a);
+	glClearDepthf(params->depth);
+	glClear(params->bits);
+}
+
+void aGLSetTarget(const AGLTargetParams *target) {
+	a__GLFramebufferBind(target->framebuffer);
+	glViewport(target->viewport.x, target->viewport.y,
+		target->viewport.w, target->viewport.h);
 }
 
 static void a__GLTextureBind(const AGLTexture *texture, GLint unit) {
@@ -726,14 +764,14 @@ static void a__GLFramebufferBind(const AGLFramebufferParams *fb) {
 		glBindFramebuffer(GL_FRAMEBUFFER,
 			a__gl_state.framebuffer.binding = a__gl_state.framebuffer.name);
 
-	depth = a__gl_state.framebuffer.params.depth_mode != fb->depth_mode;
+	depth = a__gl_state.framebuffer.params.depth.mode != fb->depth.mode;
 	color = a__gl_state.framebuffer.params.color != fb->color;
 
 	if (color)
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
 			GL_TEXTURE_2D, fb->color->name, 0);
 
-	if (fb->depth_mode != AGLDBM_None && (depth || color)) {
+	if (fb->depth.mode != AGLDBM_Texture && (depth || color)) {
 		glBindRenderbuffer(GL_RENDERBUFFER, a__gl_state.framebuffer.depth_buffer);
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT,
 			fb->color->width, fb->color->height);
@@ -741,7 +779,7 @@ static void a__GLFramebufferBind(const AGLFramebufferParams *fb) {
 			GL_RENDERBUFFER, a__gl_state.framebuffer.depth_buffer);
 	}
 
-	if (depth && fb->depth_mode == AGLDBM_None)
+	if (depth && fb->depth.mode == AGLDBM_Texture)
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
 			GL_RENDERBUFFER, 0);
 

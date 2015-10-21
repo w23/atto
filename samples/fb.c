@@ -73,34 +73,37 @@ static const float vertexes[] = {
 static const float screenquad[] = {
 	1.f, -1.f,
 	1.f, 1.f,
-	-1.f, -1.f
+	-1.f, -1.f,
 	-1.f, 1.f,
 };
 
 static struct {
-	AGLTexture framebuffer;
-	AGLFramebufferParams fbp;
 	AGLAttribute attr[1];
 	AGLProgramUniform uni[2];
-	AGLDrawParams draw, show;
 	AGLAttribute shattr[1];
+	AGLDrawParams draw, show;
+
+	AGLTargetParams screen, fb;
+	AGLTexture fbtex;
+	AGLFramebufferParams fbp;
+	AGLClearParams clear;
 } g;
 
 static void init(void) {
-	g.draw.proc.program = aGLProgramCreateSimple(shader_vertex, shader_fragment);
-	if (g.draw.proc.program <= 0) {
+	g.draw.program = aGLProgramCreateSimple(shader_vertex, shader_fragment);
+	if (g.draw.program <= 0) {
 		aAppDebugPrintf("shader error: %s", a_gl_error);
 		/* \fixme add fatal */
 	}
 
-	g.show.proc.program = aGLProgramCreateSimple(shader_vertex, shader_fragment_show);
-	if (g.draw.proc.program <= 0) {
+	g.show.program = aGLProgramCreateSimple(shader_vertex, shader_fragment_show);
+	if (g.show.program <= 0) {
 		aAppDebugPrintf("shader error: %s", a_gl_error);
 		/* \fixme add fatal */
 	}
 
-	g.framebuffer = aGLTextureCreate();
-
+	g.fbtex = aGLTextureCreate();
+	g.clear = aGLClearParamsDefaults();
 	aGLDrawParamsSetDefaults(&g.draw);
 	aGLDrawParamsSetDefaults(&g.show);
 
@@ -116,23 +119,22 @@ static void init(void) {
 	g.uni[0].type = AGLAT_Float;
 	g.uni[0].count = 1;
 
-	g.draw.src.draw.mode = GL_TRIANGLES;
-	g.draw.src.draw.count = 3;
-	g.draw.src.draw.first = 0;
-	g.draw.src.draw.index_buffer = 0;
-	g.draw.src.draw.indices_ptr = 0;
-	g.draw.src.draw.index_type = 0;
+	g.draw.primitive.mode = GL_TRIANGLES;
+	g.draw.primitive.count = 3;
+	g.draw.primitive.first = 0;
+	g.draw.primitive.index_buffer = 0;
+	g.draw.primitive.indices_ptr = 0;
+	g.draw.primitive.index_type = 0;
 	
-	g.draw.src.attribs = g.attr;
-	g.draw.src.nattribs = sizeof g.attr / sizeof *g.attr;
+	g.draw.attribs.p = g.attr;
+	g.draw.attribs.n = sizeof g.attr / sizeof *g.attr;
 
-	g.draw.proc.uniforms = g.uni;
-	g.draw.proc.nuniforms = sizeof g.uni / sizeof *g.uni;
+	g.draw.uniforms.p = g.uni;
+	g.draw.uniforms.n = 1;
 
-	g.draw.dst.framebuffer = &g.fbp;
-
-	g.fbp.depth_mode = AGLDBM_None;
-	g.fbp.color = &g.framebuffer;
+	g.fbp.depth.texture = 0;
+	g.fbp.depth.mode = AGLDBM_Texture;
+	g.fbp.color = &g.fbtex;
 
 	g.shattr[0].name = "av2_pos";
 	g.shattr[0].buffer = 0;
@@ -144,45 +146,54 @@ static void init(void) {
 
 	g.uni[1].name = "us2_texture";
 	g.uni[1].type = AGLAT_Texture;
-	g.uni[1].value.texture = &g.framebuffer;
+	g.uni[1].value.texture = &g.fbtex;
 	g.uni[1].count = 1;
 
-	g.show.src.draw.mode = GL_TRIANGLE_STRIP;
-	g.show.src.draw.count = 4;
-	g.show.src.draw.first = 0;
-	g.show.src.draw.index_buffer = 0;
-	g.show.src.draw.indices_ptr = 0;
-	g.show.src.draw.index_type = 0;
+	g.show.primitive.mode = GL_TRIANGLE_STRIP;
+	g.show.primitive.count = 4;
+	g.show.primitive.first = 0;
+	g.show.primitive.index_buffer = 0;
+	g.show.primitive.indices_ptr = 0;
+	g.show.primitive.index_type = 0;
 	
-	g.show.src.attribs = g.shattr;
-	g.show.src.nattribs = sizeof g.shattr / sizeof *g.shattr;
+	g.show.attribs.p = g.shattr;
+	g.show.attribs.n = sizeof g.shattr / sizeof *g.shattr;
 
-	g.show.proc.uniforms = g.uni;
-	g.show.proc.nuniforms = sizeof g.uni / sizeof *g.uni;
+	g.show.uniforms.p = g.uni;
+	g.show.uniforms.n = sizeof g.uni / sizeof *g.uni;
 
-	g.show.dst.framebuffer = 0;
+	g.screen.framebuffer = 0;
+	g.fb.framebuffer = &g.fbp;
 }
 
 static void resize(void) {
-	aGLTextureUpload(&g.framebuffer, AGLTF_U8_RGBA,
+	aGLTextureUpload(&g.fbtex, AGLTF_U8_RGBA,
 		a_app_state->width, a_app_state->height, 0);
 
-	glViewport(0, 0, a_app_state->width, a_app_state->height);
+	g.screen.viewport.x = 0;
+	g.screen.viewport.y = 0;
+	g.screen.viewport.w = a_app_state->width;
+	g.screen.viewport.h = a_app_state->height;
+
+	g.fb.viewport.x = 0;
+	g.fb.viewport.y = 0;
+	g.fb.viewport.w = a_app_state->width;
+	g.fb.viewport.h = a_app_state->height;
 }
 
 static void paint(ATimeMs timestamp) {
 	float t = timestamp * 1e-3f;
-/*
-	glClearColor(
-		sinf(timestamp*.001f),
-		sinf(timestamp*.002f),
-		sinf(timestamp*.003f),
-		1.f);
-	glClear(GL_COLOR_BUFFER_BIT);
-*/
+
+	g.clear.r = sinf(timestamp*.001f);
+	g.clear.g = sinf(timestamp*.002f);
+	g.clear.b = sinf(timestamp*.003f);
+
+	aGLSetTarget(&g.fb);
+	aGLClear(&g.clear);
 
 	g.uni[0].value.pf = &t;
 	aGLDraw(&g.draw);
 
+	aGLSetTarget(&g.screen);
 	aGLDraw(&g.show);
 }

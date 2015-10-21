@@ -90,7 +90,7 @@ static void init(void) {
 	g.draw.src.draw.index_buffer = 0;
 	g.draw.src.draw.indices_ptr = 0;
 	g.draw.src.draw.index_type = 0;
-	
+
 	g.draw.src.attribs = g.attr;
 	g.draw.src.nattribs = sizeof g.attr / sizeof *g.attr;
 
