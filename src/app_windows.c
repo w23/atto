@@ -13,6 +13,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <fcntl.h>
+#include <io.h>
 #include <windows.h>
 #include <GL/gl.h>
 /* #include "wglext.h"
@@ -51,8 +52,8 @@ ATimeMs aAppTime() {
 		QueryPerformanceCounter(&a__time_start);
 	}
 	QueryPerformanceCounter(&now);
-	return (now.QuadPart - a__time_start.QuadPart) * 1000ul
-		/ a__time_freq.QuadPart;
+	return (ATimeMs)((now.QuadPart - a__time_start.QuadPart) * 1000ul
+		/ a__time_freq.QuadPart);
 }
 
 void aAppDebugPrintf(const char *fmt, ...) {
