@@ -158,6 +158,41 @@ typedef struct {
 } AGLAttribute;
 
 typedef enum {
+	AGLCM_Disable = 0,
+	AGLCM_Front = GL_FRONT,
+	AGLCM_Back = GL_BACK, /* default */
+	AGLCM_FrontAndBack = GL_FRONT_AND_BACK
+} AGLCullMode;
+
+typedef enum {
+	AGLFF_Clockwise = GL_CW,
+	AGLFF_CounterClockwise = GL_CCW /* default */
+} AGLFrontFace;
+
+/* The entire state required for one draw call */
+typedef struct {
+	AGLProgram program;
+	struct {
+		const AGLProgramUniform *p;
+		unsigned n;
+	} uniforms;
+	struct {
+		const AGLAttribute *p;
+		unsigned n;
+	} attribs;
+	struct {
+		GLenum mode;
+		GLsizei count;
+		GLint first; /* -1 for indexed */
+		GLenum index_type;
+		const AGLBuffer *index_buffer;
+		const GLvoid *indices_ptr;
+		AGLCullMode cull_mode;
+		AGLFrontFace front_face;
+	} primitive;
+} AGLDrawSource;
+
+typedef enum {
 	AGLDF_Never = GL_NEVER,
 	AGLDF_Less = GL_LESS, /* default */
 	AGLDF_Equal = GL_EQUAL,
@@ -214,60 +249,10 @@ typedef struct {
 	} func;
 } AGLBlendParams;
 
-typedef enum {
-	AGLCM_Disable = 0,
-	AGLCM_Front = GL_FRONT,
-	AGLCM_Back = GL_BACK, /* default */
-	AGLCM_FrontAndBack = GL_FRONT_AND_BACK
-} AGLCullMode;
-
-typedef enum {
-	AGLFF_Clockwise = GL_CW,
-	AGLFF_CounterClockwise = GL_CCW /* default */
-} AGLFrontFace;
-
-/* The entire state required for one draw call */
 typedef struct {
-	AGLProgram program;
-	struct {
-		const AGLProgramUniform *p;
-		unsigned n;
-	} uniforms;
-	struct {
-		const AGLAttribute *p;
-		unsigned n;
-	} attribs;
-	struct {
-		GLenum mode;
-		GLsizei count;
-		GLint first; /* -1 for indexed */
-		GLenum index_type;
-		const AGLBuffer *index_buffer;
-		const GLvoid *indices_ptr;
-		AGLCullMode cull_mode;
-		AGLFrontFace front_face;
-	} primitive;
-
 	AGLBlendParams blend;
 	AGLDepthParams depth;
-} AGLDrawParams;
-
-void aGLDrawParamsSetDefaults(AGLDrawParams *params);
-void aGLDraw(const AGLDrawParams *params);
-
-typedef struct {
-	float r, g, b, a;
-	float depth; /* default = 1 */
-	enum {
-		AGLCB_Color = GL_COLOR_BUFFER_BIT,
-		AGLCB_Depth = GL_DEPTH_BUFFER_BIT,
-		AGLCB_ColorAndDepth = AGLCB_Color | AGLCB_Depth,
-		AGLCB_Everything = AGLCB_ColorAndDepth
-	} bits;
-} AGLClearParams;
-
-AGLClearParams aGLClearParamsDefaults(void);
-void aGLClear(const AGLClearParams *params);
+} AGLDrawMerge;
 
 typedef struct {
 	const AGLTexture *color;
@@ -283,9 +268,25 @@ typedef struct {
 typedef struct {
 	struct { unsigned x, y, w, h; } viewport;
 	AGLFramebufferParams *framebuffer;
-} AGLTargetParams;
+} AGLDrawTarget;
 
-void aGLSetTarget(const AGLTargetParams *target);
+void aGLDraw(
+	const AGLDrawSource *source,
+	const AGLDrawMerge *merge,
+	const AGLDrawTarget *target);
+
+typedef struct {
+	float r, g, b, a;
+	float depth; /* default = 1 */
+	enum {
+		AGLCB_Color = GL_COLOR_BUFFER_BIT,
+		AGLCB_Depth = GL_DEPTH_BUFFER_BIT,
+		AGLCB_ColorAndDepth = AGLCB_Color | AGLCB_Depth,
+		AGLCB_Everything = AGLCB_ColorAndDepth
+	} bits;
+} AGLClearParams;
+
+void aGLClear(const AGLClearParams *params, const AGLDrawTarget *target);
 
 /* \todo
 typedef struct {
@@ -391,6 +392,7 @@ static struct {
 		GLuint depth_buffer;
 		GLuint name, binding;
 	} framebuffer;
+	struct { unsigned x, y, w, h; } viewport;
 } a__gl_state;
 
 static GLuint a__GLCreateShader(int type, const char * const *source);
@@ -403,6 +405,7 @@ static void	a__GLCullingBind(AGLCullMode cull, AGLFrontFace front);
 static void a__GLDepthBind(AGLDepthParams depth);
 static void a__GLBlendBind(const AGLBlendParams *blend);
 static void a__GLFramebufferBind(const AGLFramebufferParams *fb);
+static void a__GLTargetBind(const AGLDrawTarget *target);
 
 #ifdef ATTO_PLATFORM_WINDOWS
 static PROC a__check_get_proc_address(const char *name) {
@@ -535,36 +538,34 @@ void aGLBufferUpload(AGLBuffer *buffer, GLsizei size, const void *data) {
 	glBufferData(buffer->type, size, data, GL_STATIC_DRAW);
 }
 
-void aGLDrawParamsSetDefaults(AGLDrawParams *params) {
-	params->primitive.cull_mode = AGLCM_Disable;
-	params->primitive.front_face = AGLFF_CounterClockwise;
-	params->blend.enable = 0;
-	params->blend.color.r =
-		params->blend.color.g =
-		params->blend.color.b =
-		params->blend.color.a = 0;
-	params->blend.equation.rgb = params->blend.equation.a = AGLBE_Add;
-	params->blend.func.src_rgb = params->blend.func.src_a = AGLBF_One;
-	params->blend.func.dst_rgb = params->blend.func.dst_a = AGLBF_Zero;
-	params->depth.mode = AGLDM_Disabled;
-	params->depth.func = AGLDF_Less;
+void aGLDraw(const AGLDrawSource *src,
+	const AGLDrawMerge *merge,
+	const AGLDrawTarget *target)
+{
+	a__GLTargetBind(target);
+
+	a__GLDepthBind(merge->depth);
+	a__GLBlendBind(&merge->blend);
+
+	a__GLProgramBind(src->program, src->uniforms.p, src->uniforms.n);
+	a__GLAttribsBind(src->attribs.p, src->attribs.n, src->program);
+	a__GLCullingBind(src->primitive.cull_mode, src->primitive.front_face);
+	if (src->primitive.first < 0) {
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, src->primitive.index_buffer->name);
+		glDrawElements(src->primitive.mode, src->primitive.count,
+			src->primitive.index_type, src->primitive.indices_ptr);
+	} else
+		glDrawArrays(src->primitive.mode, src->primitive.first, src->primitive.count);
+
+	a__GLAttribsUnbind(src->attribs.p, src->attribs.n, src->program);
 }
 
-void aGLDraw(const AGLDrawParams *p) {
-	a__GLDepthBind(p->depth);
-	a__GLBlendBind(&p->blend);
+void aGLClear(const AGLClearParams *params, const AGLDrawTarget *target) {
+	a__GLTargetBind(target);
 
-	a__GLProgramBind(p->program, p->uniforms.p, p->uniforms.n);
-	a__GLAttribsBind(p->attribs.p, p->attribs.n, p->program);
-	a__GLCullingBind(p->primitive.cull_mode, p->primitive.front_face);
-	if (p->primitive.first < 0) {
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, p->primitive.index_buffer->name);
-		glDrawElements(p->primitive.mode, p->primitive.count,
-			p->primitive.index_type, p->primitive.indices_ptr);
-	} else
-		glDrawArrays(p->primitive.mode, p->primitive.first, p->primitive.count);
-
-	a__GLAttribsUnbind(p->attribs.p, p->attribs.n, p->program);
+	glClearColor(params->r, params->g, params->b, params->a);
+	glClearDepthf(params->depth);
+	glClear(params->bits);
 }
 
 static GLuint a__GLCreateShader(int type, const char * const *source) {
@@ -638,24 +639,22 @@ void a__GLProgramBind(AGLProgram program,
 	}
 }
 
-AGLClearParams aGLClearParamsDefaults(void) {
-	AGLClearParams params;
-	params.r = params.g = params.b = params.a = 0;
-	params.depth = 1.f;
-	params.bits = AGLCB_Everything;
-	return params;
-}
-
-void aGLClear(const AGLClearParams *params) {
-	glClearColor(params->r, params->g, params->b, params->a);
-	glClearDepthf(params->depth);
-	glClear(params->bits);
-}
-
-void aGLSetTarget(const AGLTargetParams *target) {
+static void a__GLTargetBind(const AGLDrawTarget *target) {
 	a__GLFramebufferBind(target->framebuffer);
-	glViewport(target->viewport.x, target->viewport.y,
-		target->viewport.w, target->viewport.h);
+
+	if (target->viewport.x != a__gl_state.viewport.x ||
+		target->viewport.y != a__gl_state.viewport.y ||
+		target->viewport.w != a__gl_state.viewport.w ||
+		target->viewport.h != a__gl_state.viewport.h)
+	{
+		a__gl_state.viewport.x = target->viewport.x;
+		a__gl_state.viewport.y = target->viewport.y;
+		a__gl_state.viewport.w = target->viewport.w;
+		a__gl_state.viewport.h = target->viewport.h;
+		
+		glViewport(target->viewport.x, target->viewport.y,
+			target->viewport.w, target->viewport.h);
+	}
 }
 
 static void a__GLTextureBind(const AGLTexture *texture, GLint unit) {
@@ -748,7 +747,7 @@ static void a__GLBlendBind(const AGLBlendParams *blend) {
 	}
 }
 
-static void	a__GLCullingBind(AGLCullMode cull, AGLFrontFace front) {
+static void a__GLCullingBind(AGLCullMode cull, AGLFrontFace front) {
 	if (cull != a__gl_state.cull_mode) {
 		if (cull == AGLCM_Disable) {
 			glDisable(GL_CULL_FACE);

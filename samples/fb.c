@@ -81,9 +81,11 @@ static struct {
 	AGLAttribute attr[1];
 	AGLProgramUniform uni[2];
 	AGLAttribute shattr[1];
-	AGLDrawParams draw, show;
-
-	AGLTargetParams screen, fb;
+	
+	AGLDrawSource draw, show;
+	AGLDrawMerge merge;
+	AGLDrawTarget screen, fb;
+	
 	AGLTexture fbtex;
 	AGLFramebufferParams fbp;
 	AGLClearParams clear;
@@ -103,9 +105,10 @@ static void init(void) {
 	}
 
 	g.fbtex = aGLTextureCreate();
-	g.clear = aGLClearParamsDefaults();
-	aGLDrawParamsSetDefaults(&g.draw);
-	aGLDrawParamsSetDefaults(&g.show);
+	
+	g.clear.r = g.clear.g = g.clear.b = g.clear.a = 0;
+	g.clear.depth = 1;
+	g.clear.bits = AGLCB_Everything;
 
 	g.attr[0].name = "av2_pos";
 	g.attr[0].buffer = 0;
@@ -164,6 +167,9 @@ static void init(void) {
 
 	g.screen.framebuffer = 0;
 	g.fb.framebuffer = &g.fbp;
+
+	g.merge.blend.enable = 0;
+	g.merge.depth.mode = AGLDM_Disabled;
 }
 
 static void resize(void) {
@@ -193,12 +199,9 @@ static void paint(ATimeMs timestamp) {
 	g.clear.g = sinf(timestamp*.002f);
 	g.clear.b = sinf(timestamp*.003f);
 
-	aGLSetTarget(&g.fb);
-	aGLClear(&g.clear);
+	aGLClear(&g.clear, &g.fb);
 
 	g.uni[0].value.pf = &t;
-	aGLDraw(&g.draw);
-
-	aGLSetTarget(&g.screen);
-	aGLDraw(&g.show);
+	aGLDraw(&g.draw, &g.merge, &g.fb);
+	aGLDraw(&g.show, &g.merge, &g.screen);
 }
