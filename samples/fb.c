@@ -167,8 +167,13 @@ static void init(void) {
 }
 
 static void resize(void) {
-	aGLTextureUpload(&g.fbtex, AGLTF_U8_RGBA,
-		a_app_state->width, a_app_state->height, 0);
+	AGLTextureUploadData data;
+	data.format = AGLTF_U8_RGBA;
+	data.x = data.y = 0;
+	data.width = a_app_state->width;
+	data.height = a_app_state->height;
+	data.pixels = 0;
+	aGLTextureUpload(&g.fbtex, &data);
 
 	g.screen.viewport.x = 0;
 	g.screen.viewport.y = 0;

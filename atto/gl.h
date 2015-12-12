@@ -75,18 +75,24 @@ typedef enum {
 	AGLTF_U565_RGB,
 	AGLTF_U5551_RGBA,
 	AGLTF_U4444_RGBA
+/* TODO float formats */
 } AGLTextureFormat;
 
 typedef struct {
-	GLuint name;
-	GLsizei width, height;
 	AGLTextureFormat format;
+	GLsizei width, height;
+	GLuint name;
 	/* \todo unsigned int sequence__; */
 } AGLTexture;
 
+typedef struct {
+	AGLTextureFormat format;
+	int x, y, width, height;
+	const void *pixels;
+} AGLTextureUploadData;
+
 AGLTexture aGLTextureCreate(void);
-void aGLTextureUpload(AGLTexture *texture,
-	AGLTextureFormat format, int width, int height, const void *pixels);
+void aGLTextureUpload(AGLTexture* texture, const AGLTextureUploadData* data);
 #define aGLTextureDestroy(t) do{glDeleteTextures(1,&(t)->name);(t)->name=0;}while(0)
 
 /* Shader programs */
@@ -476,10 +482,11 @@ AGLTexture aGLTextureCreate(void) {
 	return tex;
 }
 
-void aGLTextureUpload(AGLTexture *tex,
-		AGLTextureFormat aformat, int width, int height, const void *pixels) {
+void aGLTextureUpload(AGLTexture* tex, const AGLTextureUploadData* data) {
 	GLenum internal, format, type;
-	switch (aformat) {
+	int maxwidth = data->x + data->width;
+	int maxheight = data->y + data->height;
+	switch (data->format) {
 		case AGLTF_U8_R:
 			internal = format = GL_LUMINANCE; type = GL_UNSIGNED_BYTE; break;
 		case AGLTF_U8_RA:
@@ -497,14 +504,22 @@ void aGLTextureUpload(AGLTexture *tex,
 		default: ATTO_ASSERT(!"Unknown format");
 	}
 	glBindTexture(GL_TEXTURE_2D, tex->name);
-	glTexImage2D(GL_TEXTURE_2D, 0, internal, width, height, 0,
-		format, type, pixels);
+	
+	if (data->x || data->y) {
+		if (maxwidth > data->width || maxheight > data->height)
+			glTexImage2D(GL_TEXTURE_2D, 0, internal, maxwidth, maxheight, 0, format, type, 0);
+		glTexSubImage2D(GL_TEXTURE_2D, 0, data->x, data->y, data->width, data->height,
+			format, type, data->pixels);
+	} else
+		glTexImage2D(GL_TEXTURE_2D, 0, internal, data->width, data->height, 0,
+			format, type, data->pixels);
+
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_LINEAR);
-	tex->width = width;
-	tex->height = height;
+	tex->width = data->width;
+	tex->height = data->height;
 	tex->format = format;
 }
 
