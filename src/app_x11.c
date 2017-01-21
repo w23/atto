@@ -10,41 +10,27 @@
 #define ATTO_APP_NAME "atto app"
 #endif
 
-#include <string.h>
-#include <stdlib.h> /* exit() */
-
-#include <atto/platform.h>
-#include <atto/app.h>
+#include "atto/platform.h"
+#include "atto/app.h"
 
 #define GL_GLEXT_PROTOTYPES 1
 #include <X11/Xlib.h>
 #include <GL/glx.h>
 
-static AAppState a__app_state;
-const AAppState *a_app_state = &a__app_state;
+#include <string.h>
+#include <stdlib.h> /* exit() */
 
-static const int a__glxattribs[] = {
-	GLX_X_RENDERABLE, True,
-	GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
-	GLX_RENDER_TYPE, GLX_RGBA_BIT,
-	GLX_CONFIG_CAVEAT, GLX_NONE,
-	GLX_RED_SIZE, 8,
-	GLX_GREEN_SIZE, 8,
-	GLX_BLUE_SIZE, 8,
-	GLX_ALPHA_SIZE, 8,
-	GLX_DOUBLEBUFFER, True,
-	0
-};
+static struct AAppState a__app_state;
+const struct AAppState *a_app_state = &a__app_state;
 
-static void a__appCleanup(void);
-static void a__appProcessXKeyEvent(XEvent *e);
+static struct AAppProctable a__app_proctable;
 
 void aAppTerminate(int code) {
-	a__appCleanup();
 	exit(code);
 }
 
 static void a__appProcessXKeyEvent(XEvent *e) {
+	ATimeUs timestamp = aAppTime();
 	int key = AK_Unknown, down = KeyPress == e->type;
 	switch(XLookupKeysym(&e->xkey, 0)) {
 #define ATTOMAPK__(x,a) case XK_##x: key = AK_##a; break;
@@ -80,14 +66,8 @@ static void a__appProcessXKeyEvent(XEvent *e) {
 
 	a__app_state.keys[key] = down;
 
-	{
-		AEvent event;
-		event.timestamp = aAppTime();
-		event.type = AET_Key;
-		event.data.key.key = key;
-		event.data.key.down = down;
-		atto_app_event(&event);
-	}
+	if (a__app_proctable.key)
+		a__app_proctable.key(timestamp, key, down);
 }
 
 static unsigned int a__appX11ToButton(unsigned int x11btn) {
@@ -101,6 +81,10 @@ static unsigned int a__appX11ToButton(unsigned int x11btn) {
 
 static void a__appProcessXButton(const XEvent *e) {
 	unsigned int button = 0;
+	ATimeUs timestamp = aAppTime();
+	int dx, dy;
+	unsigned int buttons_changed_bits;
+
 	switch (e->xbutton.button) {
 		case Button1: button = AB_Left; break;
 		case Button2: button = AB_Middle; break;
@@ -109,46 +93,56 @@ static void a__appProcessXButton(const XEvent *e) {
 		case Button5: button = AB_WheelDown; break;
 	}
 
-	{
-		AEvent event;
-		event.timestamp = aAppTime();
-		event.type = AET_Pointer;
-		event.data.pointer.dx = e->xbutton.x - a__app_state.pointer.x;
-		event.data.pointer.dy = e->xbutton.y - a__app_state.pointer.y;
-		event.data.pointer.buttons_diff = a__appX11ToButton(e->xbutton.state) ^ button;
-		a__app_state.pointer.x = e->xbutton.x;
-		a__app_state.pointer.y = e->xbutton.y;
-		a__app_state.pointer.buttons ^= event.data.pointer.buttons_diff;
-		atto_app_event(&event);
-	}
+	dx = e->xbutton.x - a__app_state.pointer.x;
+	dy = e->xbutton.y - a__app_state.pointer.y;
+	buttons_changed_bits = a__appX11ToButton(e->xbutton.state) ^ button;
+	a__app_state.pointer.x = e->xbutton.x;
+	a__app_state.pointer.y = e->xbutton.y;
+	a__app_state.pointer.buttons ^= buttons_changed_bits;
+
+	if (a__app_proctable.pointer)
+		a__app_proctable.pointer(timestamp, dx, dy, buttons_changed_bits);
 }
 
 static void a__appProcessXMotion(const XEvent *e) {
-	AEvent event;
-	event.timestamp = aAppTime();
-	event.type = AET_Pointer;
-	event.data.pointer.dx = e->xmotion.x - a__app_state.pointer.x;
-	event.data.pointer.dy = e->xmotion.y - a__app_state.pointer.y;
-	event.data.pointer.buttons_diff = 0;
+	ATimeUs timestamp = aAppTime();
+	int dx = e->xmotion.x - a__app_state.pointer.x,
+			dy = e->xmotion.y - a__app_state.pointer.y;
+
 	a__app_state.pointer.x = e->xmotion.x;
 	a__app_state.pointer.y = e->xmotion.y;
-	a__app_state.pointer.buttons = a__appX11ToButton(e->xmotion.state);
-	atto_app_event(&event);
+	/*a__app_state.pointer.buttons = a__appX11ToButton(e->xmotion.state);*/
+
+	if (a__app_proctable.pointer)
+		a__app_proctable.pointer(timestamp, dx, dy, 0);
 }
 
-static Display *display;
-static Window window;
-static GLXDrawable drawable;
-static GLXContext context;
+static const int a__glxattribs[] = {
+	GLX_X_RENDERABLE, True,
+	GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
+	GLX_RENDER_TYPE, GLX_RGBA_BIT,
+	GLX_CONFIG_CAVEAT, GLX_NONE,
+	GLX_RED_SIZE, 8,
+	GLX_GREEN_SIZE, 8,
+	GLX_BLUE_SIZE, 8,
+	GLX_ALPHA_SIZE, 8,
+	GLX_DOUBLEBUFFER, True,
+	0
+};
 
 int main(int argc, char *argv[]) {
-	AEvent event;
+	ATimeUs timestamp = aAppTime();
+	Display *display;
+	Window window;
+	GLXDrawable drawable;
+	GLXContext context;
+
 	XSetWindowAttributes winattrs;
 	Atom delete_message;
 	int nglxconfigs = 0;
 	GLXFBConfig *glxconfigs = NULL;
 	XVisualInfo *vinfo = NULL;
-	ATimeMs last_paint = 0;
+	ATimeUs last_paint = 0;
 
 	ATTO_ASSERT(display = XOpenDisplay(NULL));
 
@@ -193,18 +187,16 @@ int main(int argc, char *argv[]) {
 		StructureNotifyMask | KeyPressMask | KeyReleaseMask |
 		ButtonPressMask | ButtonReleaseMask | PointerMotionMask
 	);
-
 	a__app_state.argc = argc;
 	a__app_state.argv = (const char * const *)argv;
 	a__app_state.gl_version = AOGLV_21;
 	a__app_state.width = ATTO_APP_WIDTH;
 	a__app_state.height = ATTO_APP_HEIGHT;
 
-	event.timestamp = aAppTime();
-	event.type = AET_Init;
-	atto_app_event(&event);
-	event.type = AET_Resize;
-	atto_app_event(&event);
+	ATTO_APP_INIT_FUNC(&a__app_proctable);
+
+	if (a__app_proctable.resize)
+		a__app_proctable.resize(timestamp, 0, 0);
 
 	for (;;) {
 		while (XPending(display)) {
@@ -212,14 +204,20 @@ int main(int argc, char *argv[]) {
 			XNextEvent(display, &e);
 			switch (e.type) {
 				case ConfigureNotify:
-					if (a__app_state.width == e.xconfigure.width
-							&& a__app_state.height == e.xconfigure.height) break;
-					a__app_state.width = e.xconfigure.width;
-					a__app_state.height = e.xconfigure.height;
-					event.timestamp = aAppTime();
-					event.type = AET_Resize;
-					atto_app_event(&event);
-				break;
+					{
+						unsigned int oldw = a__app_state.width, oldh = a__app_state.height;
+
+						if (a__app_state.width == (unsigned int)e.xconfigure.width
+								&& a__app_state.height == (unsigned int)e.xconfigure.height) break;
+
+						a__app_state.width = e.xconfigure.width;
+						a__app_state.height = e.xconfigure.height;
+						timestamp = aAppTime();
+
+						if (a__app_proctable.resize)
+							a__app_proctable.resize(timestamp, oldw, oldh);
+					}
+					break;
 
 				case ButtonPress:
 				case ButtonRelease:
@@ -242,30 +240,29 @@ int main(int argc, char *argv[]) {
 		}
 
 		{
-			ATimeMs now = aAppTime();
+			ATimeUs now = aAppTime();
+			float dt;
 			if (!last_paint) last_paint = now;
-			event.timestamp = now;
-			event.type = AET_Paint;
-			event.data.paint.dt = (now - last_paint) * 1e-3f;
-			atto_app_event(&event);
+			dt = (now - last_paint) * 1e-6f;
+
+			if (a__app_proctable.paint)
+				a__app_proctable.paint(now, dt);
+
 			glXSwapBuffers(display, drawable);
 			last_paint = now;
 		}
 	}
 
 exit:
-	event.timestamp = aAppTime();
-	event.type = AET_Close;
-	atto_app_event(&event);
-	a__appCleanup();
-	return 0;
-}
+	if (a__app_proctable.close)
+		a__app_proctable.close();
 
-static void a__appCleanup() {
 	aAppDebugPrintf("cleaning up");
 	glXMakeContextCurrent(display, 0, 0, 0);
 	glXDestroyWindow(display, drawable);
 	glXDestroyContext(display, context);
 	XDestroyWindow(display, window);
 	XCloseDisplay(display);
+
+	return 0;
 }

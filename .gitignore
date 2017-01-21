@@ -1,0 +1,4 @@
+*.swp
+.workdir
+app
+libatto.a

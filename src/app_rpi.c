@@ -1,19 +1,20 @@
 #include <bcm_host.h>
 
-#include <atto/app.h>
+#include "atto/app.h"
 
 #include "app_egl.c"
 
-static AAppState a__global_state;
-const AAppState *a_app_state = &a__global_state;
+static struct AAppState a__global_state;
+const struct AAppState *a_app_state = &a__global_state;
+static struct AAppProctable a__app_proctable;
+
 static EGL_DISPMANX_WINDOW_T a__app_window;
 
 static void a__appCleanup(void);
 static void a__app_vc_init(void);
 
 int main(int argc, char *argv[]) {
-	AEvent event;
-	ATimeMs last_paint = 0;
+	ATimeUs timestamp, last_paint = 0;
 
 	a__app_vc_init();
 	a__appEglInit(EGL_DEFAULT_DISPLAY, &a__app_window);
@@ -22,26 +23,28 @@ int main(int argc, char *argv[]) {
 	a__global_state.argv = (const char**)argv;
 	a__global_state.gl_version = AOGLV_ES_20;
 
-	event.timestamp = aAppTime();
-	event.type = AET_Init;
-	atto_app_event(&event);
-	event.type = AET_Resize;
-	atto_app_event(&event);
+	timestamp = aAppTime();
+	ATTO_APP_INIT_FUNC(&a__app_proctable);
+
+	if (a__app_proctable.resize)
+		a__app_proctable.resize(timestamp, 0, 0);
 
 	for (;;) {
-		ATimeMs now = aAppTime();
+		ATimeUs now = aAppTime();
+		float dt;
 		if (!last_paint) last_paint = now;
-		event.timestamp = now;
-		event.type = AET_Paint;
-		event.data.paint.dt = (now - last_paint) * 1e-3f;
-		atto_app_event(&event);
+		dt = (now - last_paint) * 1e-6f;
+
+		if (a__app_proctable.paint)
+			a__app_proctable.paint(now, dt);
+
 		a__appEglSwap();
 		last_paint = now;
 	}
 
-	event.timestamp = aAppTime();
-	event.type = AET_Close;
-	atto_app_event(&event);
+	if (a__app_proctable.close)
+		a__app_proctable.close();
+
 	a__appCleanup();
 	return 0;
 }

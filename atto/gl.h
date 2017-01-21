@@ -40,7 +40,9 @@
  *   - assert, print and fatal macro
  *   - argument sanity check
  *   - gl error detection
+ *   - profiling
  * - framebuffer
+ *   - fb object
  *   - multiple attachments
  *   - depth texture attachment
  * - textures
@@ -49,7 +51,6 @@
  *   - compressed
  *   - mipmaps
  * - functionality
- *   - one-op clear
  *   - copy between buffers/textures
  * - capabilitues
  *   - limits

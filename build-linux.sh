@@ -5,7 +5,7 @@ WORKDIR=${WORKDIR:="./.workdir"}
 CC=${CC:="cc"}
 AR=${AR:="ar"}
 APP=${APP:="app"}
-LDFLAGS="$LDFLAGS -lX11 -lGL -latto -L."
+LDFLAGS="$LDFLAGS -lX11 -lGL -latto -lm -L."
 CFLAGS="$CFLAGS -I."
 
 mkdir -p "$WORKDIR"

@@ -1,7 +1,18 @@
 #ifndef ATTO_APP_H__DECLARED
 #define ATTO_APP_H__DECLARED
 
-typedef unsigned int ATimeMs;
+typedef unsigned int ATimeUs;
+
+ATimeUs aAppTime(void);
+void aAppDebugPrintf(const char *fmt, ...);
+/* Immediately terminate current process */
+void aAppTerminate(int code);
+
+#define ATTO_ASSERT(cond) \
+	if (!(cond)) { \
+		aAppDebugPrintf("ERROR @ %s:%d: (%s) failed", __FILE__, __LINE__, #cond); \
+		aAppTerminate(-1); \
+	}
 
 typedef enum {
 	AK_Unknown = 0, AK_Backspace = 8, AK_Tab = 9, AK_Enter = 13, AK_Space  = ' ',
@@ -22,79 +33,51 @@ typedef enum {
 } AKey;
 
 typedef enum {
-	AB_Left = 0x01,
-	AB_Right = 0x02,
-	AB_Middle = 0x04,
-	AB_WheelUp = 0x08,
-	AB_WheelDown = 0x10
+	AB_Left = 1 << 0,
+	AB_Right = 1 << 1,
+	AB_Middle = 1 << 2,
+	AB_WheelUp = 1 << 3,
+	AB_WheelDown = 1 << 4
 } AButton;
-
-typedef enum {
-	AET_Init,
-	AET_Resize,
-	AET_Paint,
-	AET_Key,
-	AET_Pointer,
-	AET_Close
-} AEventType;
 
 typedef enum {
 	AOGLV_21,
 	AOGLV_ES_20
 } AOpenGLVersion;
 
-typedef struct {
-	ATimeMs timestamp;
-	AEventType type;
-	union {
-		struct {
-			float dt;
-		} paint;
-		struct {
-			AKey key;
-			int down;
-		} key;
-		struct {
-			int dx, dy;
-			unsigned int buttons_diff;
-		} pointer;
-	} data;
-} AEvent;
-
-typedef struct {
+struct AAppState {
 	int argc;
 	const char *const *argv;
 	AOpenGLVersion gl_version;
-	int width, height;
+	unsigned int width, height;
 	AKey keys[AK_Max];
 	struct {
 		int x, y;
 		unsigned int buttons;
 	} pointer;
-} AAppState;
+};
 
-extern const AAppState *a_app_state;
+extern const struct AAppState *a_app_state;
 
-ATimeMs aAppTime(void);
+struct AAppProctable {
+	void (*resize)(ATimeUs ts, unsigned int old_width, unsigned int old_height);
+	void (*paint)(ATimeUs ts, float dt);
+	void (*key)(ATimeUs ts, AKey key, int down);
+	void (*pointer)(ATimeUs ts, int dx, int dy, unsigned int buttons_changed_bits);
+	void (*close)();
+};
 
-void aAppDebugPrintf(const char *fmt, ...);
+#ifndef ATTO_APP_INIT_FUNC
+#define ATTO_APP_INIT_FUNC attoAppInit
+#endif /* ATTO_APP_INIT */
 
-/* Immediately terminate the current process */
-void aAppTerminate(int code);
-
-/* A program that uses atto/app must implement just this one function.
- * atto/app guarantees that:
- *  - this function will be called from one thread only
- *  - that thread always has a valid OpenGL context installed
- *  - the first event is always AET_Init
- *  - the first AET_Resize will always precede the first AET_Paint
+/* An application using atto app must implement this function and set the
+ * relevant function pointers in proctable
+ * atto/app guarantees that this and all other functions:
+ *  - are be called from one thread only
+ *  - always have a valid OpenGL context set for the thread
+ *  - the first resize() will always precede the first paint()
  */
-void atto_app_event(const AEvent *event);
-
-#define ATTO_ASSERT(cond) \
-	if (!(cond)) { \
-		aAppDebugPrintf("ERROR @ %s:%d: (%s) failed", __FILE__, __LINE__, #cond); \
-		aAppTerminate(-1); \
-	}
+void ATTO_APP_INIT_FUNC(struct AAppProctable *proctable);
 
 #endif /* ifndef ATTO_APP_H__DECLARED */

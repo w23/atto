@@ -4,34 +4,6 @@
 #define ATTO_GL_H_IMPLEMENT
 #include <atto/gl.h>
 
-static void init(void);
-static void resize(void);
-static void paint(ATimeMs);
-
-void atto_app_event(const AEvent *event) {
-	switch(event->type) {
-		case AET_Init:
-			aGLInit();
-			init();
-			break;
-
-		case AET_Resize:
-			resize();
-			break;
-
-		case AET_Paint:
-			paint(event->timestamp);
-			break;
-
-		case AET_Key:
-			if (event->data.key.key == AK_Esc)
-				aAppTerminate(0);
-			break;
-
-		default: break;
-	}
-}
-
 static const char shader_vertex[] =
 	"attribute vec2 av2_pos;"
 	"varying vec2 vv2_pos;"
@@ -172,8 +144,10 @@ static void init(void) {
 	g.merge.depth.mode = AGLDM_Disabled;
 }
 
-static void resize(void) {
+static void resize(ATimeUs timestamp, unsigned int old_w, unsigned int old_h) {
 	AGLTextureUploadData data;
+	(void)(timestamp); (void)(old_w); (void)(old_h);
+
 	data.format = AGLTF_U8_RGBA;
 	data.x = data.y = 0;
 	data.width = a_app_state->width;
@@ -192,16 +166,32 @@ static void resize(void) {
 	g.fb.viewport.h = a_app_state->height;
 }
 
-static void paint(ATimeMs timestamp) {
-	float t = timestamp * 1e-3f;
+static void paint(ATimeUs timestamp, float dt) {
+	float t = timestamp * 1e-6f;
+	(void)(dt);
 
-	g.clear.r = sinf(timestamp*.001f);
-	g.clear.g = sinf(timestamp*.002f);
-	g.clear.b = sinf(timestamp*.003f);
+	g.clear.r = sinf(t*.1f);
+	g.clear.g = sinf(t*.2f);
+	g.clear.b = sinf(t*.3f);
 
 	aGLClear(&g.clear, &g.fb);
 
 	g.uni[0].value.pf = &t;
 	aGLDraw(&g.draw, &g.merge, &g.fb);
 	aGLDraw(&g.show, &g.merge, &g.screen);
+}
+
+static void keyPress(ATimeUs timestamp, AKey key, int pressed) {
+	(void)(timestamp); (void)(pressed);
+	if (key == AK_Esc)
+		aAppTerminate(0);
+}
+
+void attoAppInit(struct AAppProctable *proctable) {
+	aGLInit();
+	init();
+
+	proctable->resize = resize;
+	proctable->paint = paint;
+	proctable->key = keyPress;
 }
