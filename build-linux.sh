@@ -6,7 +6,7 @@ CC=${CC:="cc"}
 AR=${AR:="ar"}
 APP=${APP:="app"}
 LDFLAGS="$LDFLAGS -lX11 -lGL -latto -lm -L."
-CFLAGS="$CFLAGS -I."
+CFLAGS="$CFLAGS -I. -std=c99"
 
 mkdir -p "$WORKDIR"
 
