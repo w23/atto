@@ -552,7 +552,8 @@ void aGLDraw(const AGLDrawSource *src,
 	a__GLAttribsBind(src->attribs.p, src->attribs.n, src->program);
 	a__GLCullingBind(src->primitive.cull_mode, src->primitive.front_face);
 	if (src->primitive.first < 0) {
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, src->primitive.index_buffer->name);
+		if (src->primitive.index_buffer)
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, src->primitive.index_buffer->name);
 		glDrawElements(src->primitive.mode, src->primitive.count,
 			src->primitive.index_type, src->primitive.indices_ptr);
 	} else

@@ -11,15 +11,15 @@ RPI_VCDIR=${RPI_VCDIR:="$RPI_ROOT/raspberry-firmware/hardfp/opt/vc"}
 
 CC=${CC:="$RPI_TOOLCHAINDIR/bin/arm-linux-gnueabihf-gcc"}
 AR=${AR:="$RPI_TOOLCHAINDIR/bin/arm-linux-gnueabihf-ar"}
-CFLAGS="$CFLAGS -Wall -Werror"
+CFLAGS="$CFLAGS -Wall -Werror -pedantic -std=c99"
 CFLAGS="$CFLAGS -I. -I$RPI_VCDIR/include -I$RPI_VCDIR/include/interface/vcos/pthreads"
 CFLAGS="$CFLAGS -I$RPI_VCDIR/include/interface/vmcs_host/linux -DATTO_PLATFORM_RPI"
-LDFLAGS="$LDFLAGS -latto -L. -lGLESv2 -lEGL -lbcm_host -lvcos -lvchiq_arm -L$RPI_VCDIR/lib -lrt"
+LDFLAGS="$LDFLAGS -latto -L. -lGLESv2 -lEGL -lbcm_host -lvcos -lvchiq_arm -L$RPI_VCDIR/lib -lrt -lm"
 
 mkdir -p "$WORKDIR"
 
 $CC -c $CFLAGS -o $WORKDIR/app_linux.o src/app_linux.c || exit
-$CC -c $CFLAGS -Wno-error -std=gnu89 -o $WORKDIR/app_rpi.o src/app_rpi.c || exit
+$CC -c $CFLAGS -Wno-pedantic -Wno-error -std=gnu99 -o $WORKDIR/app_rpi.o src/app_rpi.c || exit
 
 $AR rcs libatto.a $WORKDIR/app_linux.o $WORKDIR/app_rpi.o
 

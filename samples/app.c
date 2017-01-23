@@ -60,7 +60,7 @@ static void appClose() {
 
 void attoAppInit(struct AAppProctable *proctable) {
 	int i;
-	aAppDebugPrintf("%s[%u]: argc = %d, argv = %p", __FUNCTION__,
+	aAppDebugPrintf("%s[%u]: argc = %d, argv = %p", __FUNCTION__, 0,
 		a_app_state->argc, a_app_state->argv);
 	for (i = 0; i < a_app_state->argc; ++i)
 		aAppDebugPrintf("\targv[%d] = '%s'", i, a_app_state->argv[i]);

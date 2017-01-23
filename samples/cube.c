@@ -1,7 +1,7 @@
 #include "atto/app.h"
-
 #define ATTO_GL_H_IMPLEMENT
 #include "atto/gl.h"
+#include "atto/math.h"
 
 #include <math.h>
 
@@ -12,16 +12,13 @@ static void keyPress(ATimeUs timestamp, AKey key, int pressed) {
 }
 
 static const char shader_vertex[] =
-	"uniform float uf_time;"
-	"attribute vec2 av2_pos;\n"
+	"uniform mat4 um4_proj, um4_world;\n"
+	"attribute vec3 av3_pos;\n"
 	"varying vec3 vv3_color;\n"
 	"void main() {\n"
-		"float a = 5. * atan(av2_pos.x, av2_pos.y);\n"
-		"vv3_color = abs(vec3(\n"
-			"sin(a+uf_time*4.),\n"
-			"sin(2.+a+uf_time*3.),\n"
-			"sin(4.+a+uf_time*5.)));\n"
-		"gl_Position = vec4(av2_pos, 0., 1.);\n"
+		"vec4 pos = vec4(av3_pos, 1.);\n"
+		"vv3_color = av3_pos * .5 + .5;\n"
+		"gl_Position = um4_proj * um4_world * pos;\n"
 	"}"
 ;
 
@@ -32,18 +29,33 @@ static const char shader_fragment[] =
 	"}"
 ;
 
-static const float vertexes[] = {
-	1.f, -1.f,
-	0.f, 1.f,
-	-1.f, -1.f
+static const struct AVec3f vertexes[8] = {
+	{ 1.f, -1.f,  1.f},
+	{ 1.f,  1.f,  1.f},
+	{ 1.f, -1.f, -1.f},
+	{ 1.f,  1.f, -1.f},
+	{-1.f, -1.f, -1.f},
+	{-1.f,  1.f, -1.f},
+	{-1.f, -1.f,  1.f},
+	{-1.f,  1.f,  1.f},
+};
+
+static const unsigned short indices[36] = {
+	0, 3, 1, 0, 2, 3,
+	2, 5, 3, 2, 4, 5,
+	4, 7, 5, 4, 6, 7,
+	6, 1, 7, 6, 0, 1,
+	6, 2, 0, 6, 4, 2,
+	1, 5, 7, 1, 3, 5,
 };
 
 static struct {
 	AGLAttribute attr[1];
-	AGLProgramUniform pun[1];
+	AGLProgramUniform pun[2];
 	AGLDrawSource draw;
 	AGLDrawMerge merge;
 	AGLDrawTarget target;
+	struct AMat4f projection;
 } g;
 
 static void init(void) {
@@ -53,33 +65,39 @@ static void init(void) {
 		/* \fixme add fatal */
 	}
 
-	g.attr[0].name = "av2_pos";
+	g.attr[0].name = "av3_pos";
 	g.attr[0].buffer = 0;
-	g.attr[0].size = 2;
+	g.attr[0].size = 3;
 	g.attr[0].type = GL_FLOAT;
 	g.attr[0].normalized = GL_FALSE;
 	g.attr[0].stride = 0;
 	g.attr[0].ptr = vertexes;
 
-	g.pun[0].name = "uf_time";
-	g.pun[0].type = AGLAT_Float;
+	g.pun[0].name = "um4_proj";
+	g.pun[0].type = AGLAT_Mat4;
 	g.pun[0].count = 1;
+	g.pun[0].value.pf = &g.projection.X.x;
+
+	g.pun[1].name = "um4_world";
+	g.pun[1].type = AGLAT_Mat4;
+	g.pun[1].count = 1;
 
 	g.draw.primitive.mode = GL_TRIANGLES;
-	g.draw.primitive.count = 3;
-	g.draw.primitive.first = 0;
+	g.draw.primitive.count = 36;
+	g.draw.primitive.first = -1;
 	g.draw.primitive.index_buffer = 0;
-	g.draw.primitive.indices_ptr = 0;
-	g.draw.primitive.index_type = 0;
+	g.draw.primitive.indices_ptr = indices;
+	g.draw.primitive.index_type = GL_UNSIGNED_SHORT;
 
 	g.draw.attribs.p = g.attr;
 	g.draw.attribs.n = sizeof g.attr / sizeof *g.attr;
 
 	g.draw.uniforms.p = g.pun;
-	g.draw.uniforms.n = sizeof g.pun / sizeof *g.pun;
+	g.draw.uniforms.n = sizeof g.pun / sizeof (*g.pun);
 
 	g.merge.blend.enable = 0;
-	g.merge.depth.mode = AGLDM_Disabled;
+	g.merge.depth.mode = AGLDM_TestAndWrite;
+	g.merge.depth.func = AGLDF_Less;
 }
 
 static void resize(ATimeUs timestamp, unsigned int old_w, unsigned int old_h) {
@@ -89,6 +107,9 @@ static void resize(ATimeUs timestamp, unsigned int old_w, unsigned int old_h) {
 	g.target.viewport.h = a_app_state->height;
 
 	g.target.framebuffer = 0;
+
+	const float dpm = 38e3f; /* ~96 dpi */
+	aMat4fPerspective(&g.projection, .1f, 100.f, a_app_state->width / dpm, a_app_state->height / dpm);
 }
 
 static void paint(ATimeUs timestamp, float dt) {
@@ -97,15 +118,22 @@ static void paint(ATimeUs timestamp, float dt) {
 	(void)(dt);
 
 	clear.a = 1;
-	clear.r = sinf(t*.1f);
-	clear.g = sinf(t*.2f);
-	clear.b = sinf(t*.3f);
-	clear.depth = 0;
+	clear.r = .3f*sinf(t*.1f);
+	clear.g = .3f*sinf(t*.2f);
+	clear.b = .3f*sinf(t*.3f);
+	clear.depth = 1;
 	clear.bits = AGLCB_Everything;
 
 	aGLClear(&clear, &g.target);
 
-	g.pun[0].value.pf = &t;
+	struct AMat3f rot;
+	//aMat3fRotateY(&rot, t);
+	aMat3fRotateAxis(&rot, aVec3fNormalize(aVec3f(.7*sinf(t*.37), .7, .7)), t);
+	struct AMat4f world;
+	aMat4f3(&world, &rot);
+	aMat4fTranslate(&world, aVec3f(0,0,-15.));
+	g.pun[1].value.pf = &world.X.x;
+
 	aGLDraw(&g.draw, &g.merge, &g.target);
 }
 

@@ -6,7 +6,7 @@ RPI_FLAGS = [
     '-I'+RPI_VCDIR+'/include/interface/vmcs_host/linux',
     '-DATTO_PLATFORM_RPI',
     '-std=gnu99']
-COMMON_FLAGS = ['-Wall', '-Wextra', '-pedantic', '-std=c89', '-I.', '-I..']
+COMMON_FLAGS = ['-Wall', '-Wextra', '-pedantic', '-std=c99', '-I.', '-I..']
 
 def FlagsForFile(filename, **kwargs):
     flags = COMMON_FLAGS
