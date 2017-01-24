@@ -133,7 +133,7 @@ void aMat3fMul(struct AMat3f *dst, struct AMat3f *a, struct AMat3f *b);
 
 void aMat4fIdentity(struct AMat4f *m);
 void aMat4fPerspective(struct AMat4f *m, float n, float f, float w, float h);
-void aMat4fTranslate(struct AMat4f *m, struct AVec3f t);
+void aMat4fTranslation(struct AMat4f *m, struct AVec3f t);
 void aMat4f3(struct AMat4f *m, struct AMat3f *o);
 void aMat4fMul(struct AMat4f *dst, struct AMat4f *a, struct AMat4f *b);
 
@@ -178,7 +178,7 @@ void aMat3fRotateAxis(struct AMat3f *m, struct AVec3f r, float a) {
 }
 
 void aMat3fMul(struct AMat3f *dst, struct AMat3f *a, struct AMat3f *b) {
-	const float *cols = &a->X.x, *rows = &b->X.x;
+	const float *cols = &b->X.x, *rows = &a->X.x;
 	float *result = &dst->X.x;
 
 	for (int row = 0; row < 3; ++row)
@@ -204,8 +204,11 @@ void aMat4fPerspective(struct AMat4f *m, float n, float f, float w, float h) {
 	m->W = aVec4f(0, 0, (2.f*f*n)/(n-f), 0);
 }
 
-void aMat4fTranslate(struct AMat4f *m, struct AVec3f t) {
-	m->W = aVec4fAdd(m->W, aVec4f3(t, 0));
+void aMat4fTranslation(struct AMat4f *m, struct AVec3f t) {
+	m->X = aVec4f(1, 0, 0, 0);
+	m->Y = aVec4f(0, 1, 0, 0);
+	m->Z = aVec4f(0, 0, 1, 0);
+	m->W = aVec4f3(t, 1);
 }
 
 void aMat4f3(struct AMat4f *m, struct AMat3f *o) {
@@ -216,7 +219,7 @@ void aMat4f3(struct AMat4f *m, struct AMat3f *o) {
 }
 
 void aMat4fMul(struct AMat4f *dst, struct AMat4f *a, struct AMat4f *b) {
-	const float *cols = &a->X.x, *rows = &b->X.x;
+	const float *cols = &b->X.x, *rows = &a->X.x;
 	float *result = &dst->X.x;
 
 	for (int row = 0; row < 4; ++row)

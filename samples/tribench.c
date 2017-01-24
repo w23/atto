@@ -14,17 +14,16 @@ static void keyPress(ATimeUs timestamp, AKey key, int pressed) {
 }
 
 static const char shader_vertex[] =
-	"uniform mat4 um4_proj, um4_world;\n"
+	"uniform mat4 um4_mvp, um4_model;\n"
 	"uniform vec3 uv3_lightpos;\n"
 	"attribute vec3 av3_pos, av3_normal, av3_color, av3_tricenter;\n"
 	"varying vec3 vv3_color;\n"
 	"void main() {\n"
-		"vec4 pos = um4_world * vec4(av3_pos, 1.);\n"
-		"vec3 lpos = (um4_world * vec4(uv3_lightpos, 1.)).xyz;\n"
-		"vec3 normal = (um4_world * vec4(av3_normal, 0.)).xyz;\n"
-		"vec3 ldir = lpos - pos.xyz;"
+		"vec4 pos = um4_model * vec4(av3_pos, 1.);\n"
+		"vec3 normal = (um4_model * vec4(av3_normal, 0.)).xyz;\n"
+		"vec3 ldir = uv3_lightpos - pos.xyz;"
 		"vv3_color = av3_color * max(0., dot(normalize(ldir), normal)) / dot(ldir,ldir);\n"
-		"gl_Position = um4_proj * pos;\n"
+		"gl_Position = um4_mvp * vec4(av3_pos, 1.);\n"
 	"}"
 ;
 
@@ -45,7 +44,7 @@ typedef enum {
 	VAttrPos, VAttrTriCenter, VAttrNormal, VAttrColor, VAttr_COUNT
 } VAttr;
 typedef enum {
-	VUniProj, VUniWorld, VUniLightDir, VUni_COUNT
+	VUniMVP, VUniModel, VUniLightDir, VUni_COUNT
 } VUni;
 static struct {
 	AGLAttribute attr[VAttr_COUNT];
@@ -128,14 +127,13 @@ static void init(void) {
 	g.attr[VAttrColor].stride = sizeof(*g.vertices);
 	g.attr[VAttrColor].ptr = &g.vertices[0].color;
 
-	g.pun[VUniProj].name = "um4_proj";
-	g.pun[VUniProj].type = AGLAT_Mat4;
-	g.pun[VUniProj].count = 1;
-	g.pun[VUniProj].value.pf = &g.projection.X.x;
+	g.pun[VUniMVP].name = "um4_mvp";
+	g.pun[VUniMVP].type = AGLAT_Mat4;
+	g.pun[VUniMVP].count = 1;
 
-	g.pun[VUniWorld].name = "um4_world";
-	g.pun[VUniWorld].type = AGLAT_Mat4;
-	g.pun[VUniWorld].count = 1;
+	g.pun[VUniModel].name = "um4_model";
+	g.pun[VUniModel].type = AGLAT_Mat4;
+	g.pun[VUniModel].count = 1;
 
 	g.pun[VUniLightDir].name = "uv3_lightpos";
 	g.pun[VUniLightDir].type = AGLAT_Vec3;
@@ -187,16 +185,19 @@ static void paint(ATimeUs timestamp, float dt) {
 
 	aGLClear(&clear, &g.target);
 
-	//struct AVec3f ldir = aVec3fNormalize(aVec3f(1,0,0));//aVec3f(sinf(t*.7f),sinf(t*.5f),sinf(t*.6f)));
-	struct AVec3f ldir = aVec3f(1,0,0);
-	g.pun[VUniLightDir].value.pf = &ldir.x;
+	struct AVec3f lpos = aVec3f(1,0,0);
+	g.pun[VUniLightDir].value.pf = &lpos.x;
 
-	struct AMat3f rot;
-	aMat3fRotateAxis(&rot, aVec3fNormalize(aVec3f(.7*sinf(t*.37), .7, .7)), t*.4f);
-	struct AMat4f world;
-	aMat4f3(&world, &rot);
-	aMat4fTranslate(&world, aVec3f(0,0,-10.));
-	g.pun[VUniWorld].value.pf = &world.X.x;
+	struct AMat3f model;
+	aMat3fRotateAxis(&model, aVec3fNormalize(aVec3f(.7*sinf(t*.37), .7, .7)), t*.4f);
+
+	struct AMat4f mvp4, model4, view4;
+	aMat4f3(&model4, &model);
+	aMat4fTranslation(&mvp4, aVec3f(0,0,-10));
+	aMat4fMul(&view4, &mvp4, &model4);
+	aMat4fMul(&mvp4, &g.projection, &view4);
+	g.pun[VUniModel].value.pf = &model4.X.x;
+	g.pun[VUniMVP].value.pf = &mvp4.X.x;
 
 	const unsigned int split = 8192 * 3;
 	for (unsigned int i = 0; i < g.vertices_count / split; ++i) {
