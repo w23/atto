@@ -4,8 +4,6 @@
 #include <math.h>
 #include <stdint.h>
 
-/* FIXME no ignore retval */
-
 struct AVec2f { float x, y; };
 struct AVec3f { float x, y, z; };
 struct AVec4f { float x, y, z, w; };
@@ -30,7 +28,7 @@ static inline float aRevSqrt(float f) { return 1.f / sqrtf(f); }
 /* Vector 2 */
 
 static inline struct AVec2f aVec2f(float x, float y) {
-	struct AVec2f r; r.x = x; r.y = y; return r;
+	const struct AVec2f r = {x, y}; return r;
 }
 
 static inline struct AVec2f aVec2fNeg(struct AVec2f a) {
@@ -60,7 +58,11 @@ static inline float aVec2fDot(struct AVec2f a, struct AVec2f b) {
 /* Vector 3 */
 
 static inline struct AVec3f aVec3f(float x, float y, float z) {
-	struct AVec3f r; r.x = x; r.y = y; r.z = z; return r;
+	const struct AVec3f r = {x, y, z}; return r;
+}
+
+static inline struct AVec3f aVec3ff(float f) {
+	const struct AVec3f r = {f, f, f}; return r;
 }
 
 static inline struct AVec3f aVec3fNeg(struct AVec3f a) {
@@ -106,11 +108,11 @@ static inline struct AVec3f aVec3fNormalize(struct AVec3f a) {
 /* Vector 4 */
 
 static inline struct AVec4f aVec4f(float x, float y, float z, float w) {
-	struct AVec4f r; r.x = x; r.y = y; r.z = z; r.w = w; return r;
+	const struct AVec4f r = {x, y, z, w}; return r;
 }
 
 static inline struct AVec4f aVec4f3(struct AVec3f v, float w) {
-	struct AVec4f r; r.x = v.x; r.y = v.y; r.z = v.z; r.w = w; return r;
+	const struct AVec4f r = {v.x, v.y, v.z, w}; return r;
 }
 
 static inline struct AVec4f aVec4fAdd(struct AVec4f a, struct AVec4f b) {
@@ -120,67 +122,57 @@ static inline struct AVec4f aVec4fAdd(struct AVec4f a, struct AVec4f b) {
 /* Matrix 3x3 */
 /* Intended usage: orthonormal basis manupulation */
 
-void aMat3fScale(struct AMat3f *m, float s);
-static inline void aMat3fIdentity(struct AMat3f *m) { aMat3fScale(m, 1.f); }
-void aMat3fRotateX(struct AMat3f *m, float a);
-void aMat3fRotateY(struct AMat3f *m, float a);
-void aMat3fRotateZ(struct AMat3f *m, float a);
-void aMat3fRotateAxis(struct AMat3f *m, struct AVec3f r, float a);
-void aMat3fMul(struct AMat3f *dst, struct AMat3f *a, struct AMat3f *b);
-
-/* Matrix 4 */
-/* Intended usage: homogenous coordinates */
-
-void aMat4fIdentity(struct AMat4f *m);
-void aMat4fPerspective(struct AMat4f *m, float n, float f, float w, float h);
-void aMat4fTranslation(struct AMat4f *m, struct AVec3f t);
-void aMat4f3(struct AMat4f *m, struct AMat3f *o);
-void aMat4fMul(struct AMat4f *dst, struct AMat4f *a, struct AMat4f *b);
-
-#ifdef ATTO_MATH_H_IMPLEMENT
-#ifndef ATTO_MATH_IMPLEMENTED
-#define ATTO_MATH_IMPLEMENTED
-#endif /* ifndef ATTO_MATH_IMPLEMENTED */
-#endif /* ifdef ATTO_MATH_H_IMPLEMENT */
-
-void aMat3fScale(struct AMat3f *m, float s) {
-	m->X = aVec3f(s, 0, 0);
-	m->Y = aVec3f(0, s, 0);
-	m->Z = aVec3f(0, 0, s);
+static inline struct AMat3f aMat3fv(
+		struct AVec3f x, struct AVec3f y, struct AVec3f z) {
+	const struct AMat3f m = {x, y, z}; return m;
 }
 
-void aMat3fRotateX(struct AMat3f *m, float a) {
+static inline float aMat3fTrace(struct AMat3f m) {
+	return m.X.x + m.Y.y + m.Z.z;
+}
+
+static inline struct AMat3f aMat3fScale(float s) {
+	const struct AMat3f m = aMat3fv(
+			aVec3f(s, 0, 0), aVec3f(0, s, 0), aVec3f(0, 0, s));
+	return m;
+}
+
+static inline struct AMat3f aMat3fIdentity() { return aMat3fScale(1.f); }
+
+static inline struct AMat3f aMat3fTranspose(struct AMat3f m) {
+	return aMat3fv(
+			aVec3f(m.X.x, m.Y.x, m.Z.x),
+			aVec3f(m.X.y, m.Y.y, m.Z.y),
+			aVec3f(m.X.z, m.Y.z, m.Z.z));
+}
+
+static inline struct AMat3f aMat3fRotateX(float a) {
 	const float c = cosf(a), s = sinf(a);
-	m->X = aVec3f(1, 0, 0);
-	m->Y = aVec3f(0, c, s);
-	m->Z = aVec3f(0, -s, c);
+	return aMat3fv(aVec3f(1, 0, 0), aVec3f(0, c, s), aVec3f(0, -s, c));
 }
 
-void aMat3fRotateY(struct AMat3f *m, float a) {
+static inline struct AMat3f aMat3fRotateY(float a) {
 	const float c = cosf(a), s = sinf(a);
-	m->X = aVec3f(c, 0, -s);
-	m->Y = aVec3f(0, 1, 0);
-	m->Z = aVec3f(s, 0, c);
+	return aMat3fv(aVec3f(c, 0, -s), aVec3f(0, 1, 0), aVec3f(s, 0, c));
 }
 
-void aMat3fRotateZ(struct AMat3f *m, float a) {
+static inline struct AMat3f aMat3fRotateZ(float a) {
 	const float c = cosf(a), s = sinf(a);
-	m->X = aVec3f(c, s, 0);
-	m->Y = aVec3f(-s, c, 0);
-	m->Z = aVec3f(0, 0, 1);
+	return aMat3fv(aVec3f(c, s, 0), aVec3f(-s, c, 0), aVec3f(0, 0, 1));
 }
 
-void aMat3fRotateAxis(struct AMat3f *m, struct AVec3f r, float a) {
+static inline struct AMat3f aMat3fRotateAxis(struct AVec3f r, float a) {
 	const float c = cosf(a), c1 = 1 - c, s = sinf(a);
-	m->X = aVec3f(c + c1*r.x*r.x, c1*r.x*r.y + r.z*s, c1*r.x*r.z - r.y*s);
-	m->Y = aVec3f(c1*r.x*r.y - r.z*s, c + c1*r.y*r.y, c1*r.y*r.z + r.x*s);
-	m->Z = aVec3f(c1*r.x*r.z + r.y*s, c1*r.y*r.z - r.x*s, c + c1*r.z*r.z);
+	return aMat3fv(
+			aVec3f(c + c1*r.x*r.x, c1*r.x*r.y + r.z*s, c1*r.x*r.z - r.y*s),
+			aVec3f(c1*r.x*r.y - r.z*s, c + c1*r.y*r.y, c1*r.y*r.z + r.x*s),
+			aVec3f(c1*r.x*r.z + r.y*s, c1*r.y*r.z - r.x*s, c + c1*r.z*r.z));
 }
 
-void aMat3fMul(struct AMat3f *dst, struct AMat3f *a, struct AMat3f *b) {
-	const float *cols = &b->X.x, *rows = &a->X.x;
-	float *result = &dst->X.x;
-
+static inline struct AMat3f aMat3fMul(struct AMat3f a, struct AMat3f b) {
+	const float *cols = &b.X.x, *rows = &a.X.x;
+	static struct AMat3f m;
+	float *result = &m.X.x;
 	for (int row = 0; row < 3; ++row)
 		for (int col = 0; col < 3; ++col) {
 			result[row + col*3] =
@@ -188,40 +180,52 @@ void aMat3fMul(struct AMat3f *dst, struct AMat3f *a, struct AMat3f *b) {
 				cols[col*3 + 1] * rows[row + 3] +
 				cols[col*3 + 2] * rows[row + 6];
 		}
+	return m;
 }
 
-void aMat4fIdentity(struct AMat4f *m) {
-	m->X = aVec4f(1, 0, 0, 0);
-	m->Y = aVec4f(0, 1, 0, 0);
-	m->Z = aVec4f(0, 0, 1, 0);
-	m->W = aVec4f(0, 0, 0, 1);
+/* Matrix 4 */
+/* Intended usage: homogenous coordinates */
+
+static inline struct AMat4f aMat4fIdentity() {
+	const struct AMat4f m = {
+			aVec4f(1, 0, 0, 0),
+			aVec4f(0, 1, 0, 0),
+			aVec4f(0, 0, 1, 0),
+			aVec4f(0, 0, 0, 1)};
+	return m;
 }
 
-void aMat4fPerspective(struct AMat4f *m, float n, float f, float w, float h) {
-	m->X = aVec4f(2.f*n / w, 0, 0, 0);
-	m->Y = aVec4f(0, 2.f*n / h, 0, 0);
-	m->Z = aVec4f(0, 0, (f+n)/(n-f), -1.f);
-	m->W = aVec4f(0, 0, (2.f*f*n)/(n-f), 0);
+static inline struct AMat4f aMat4fPerspective(float n, float f, float w, float h) {
+	const struct AMat4f m = {
+			aVec4f(2.f*n / w, 0, 0, 0),
+			aVec4f(0, 2.f*n / h, 0, 0),
+			aVec4f(0, 0, (f+n)/(n-f), -1.f),
+			aVec4f(0, 0, (2.f*f*n)/(n-f), 0)};
+	return m;
 }
 
-void aMat4fTranslation(struct AMat4f *m, struct AVec3f t) {
-	m->X = aVec4f(1, 0, 0, 0);
-	m->Y = aVec4f(0, 1, 0, 0);
-	m->Z = aVec4f(0, 0, 1, 0);
-	m->W = aVec4f3(t, 1);
+static inline struct AMat4f aMat4fTranslation(struct AVec3f t) {
+	const struct AMat4f m = {
+			aVec4f(1, 0, 0, 0),
+			aVec4f(0, 1, 0, 0),
+			aVec4f(0, 0, 1, 0),
+			aVec4f3(t, 1)};
+	return m;
 }
 
-void aMat4f3(struct AMat4f *m, struct AMat3f *o) {
-	m->X = aVec4f3(o->X, 0);
-	m->Y = aVec4f3(o->Y, 0);
-	m->Z = aVec4f3(o->Z, 0);
-	m->W = aVec4f(0, 0, 0, 1);
+static inline struct AMat4f aMat4f3(struct AMat3f o, struct AVec3f t) {
+	const struct AMat4f m = {
+			aVec4f3(o.X, 0),
+			aVec4f3(o.Y, 0),
+			aVec4f3(o.Z, 0),
+			aVec4f3(t, 1)};
+	return m;
 }
 
-void aMat4fMul(struct AMat4f *dst, struct AMat4f *a, struct AMat4f *b) {
-	const float *cols = &b->X.x, *rows = &a->X.x;
-	float *result = &dst->X.x;
-
+static inline struct AMat4f aMat4fMul(struct AMat4f a, struct AMat4f b) {
+	const float *cols = &b.X.x, *rows = &a.X.x;
+	static struct AMat4f m;
+	float *result = &m.X.x;
 	for (int row = 0; row < 4; ++row)
 		for (int col = 0; col < 4; ++col) {
 			result[row + col*4] =
@@ -230,6 +234,145 @@ void aMat4fMul(struct AMat4f *dst, struct AMat4f *a, struct AMat4f *b) {
 				cols[col*4 + 2] * rows[row + 8] +
 				cols[col*4 + 3] * rows[row + 12];
 		}
+	return m;
+}
+
+/* Quaternions (unit) */
+
+struct AQuat { struct AVec3f v; float w; };
+
+static inline struct AQuat aQuatIdentity() {
+	const struct AQuat q = {{0, 0, 0}, 1}; return q;
+}
+
+static inline struct AQuat aQuatRotation(struct AVec3f axis, float angle) {
+	const float c2 = cosf(angle * .5f), s2 = sinf(angle * .5f);
+	const struct AQuat q = {aVec3fMulf(axis, s2), c2};
+	return q;
+}
+
+static inline struct AQuat aQuatMul(struct AQuat a, struct AQuat b) {
+	const struct AQuat q = {
+		aVec3fAdd(aVec3fAdd(aVec3fCross(a.v, b.v),
+					aVec3fMulf(a.v, b.w)), aVec3fMulf(b.v, a.w)),
+		a.w * b.w - aVec3fDot(a.v, b.v)};
+	return q;
+}
+
+static inline float aQuatNorm2(struct AQuat q) {
+	return q.w * q.w + aVec3fDot(q.v, q.v);
+}
+
+static inline struct AQuat aQuatNormalize(struct AQuat q) {
+	const float factor = aRevSqrt(aQuatNorm2(q));
+	const struct AQuat r = {aVec3fMulf(q.v, factor), q.w * factor};
+	return r;
+}
+
+static inline struct AQuat aQuatConjugate(struct AQuat q) {
+	const struct AQuat r = {aVec3fNeg(q.v), q.w}; return r;
+}
+
+static inline struct AVec3f aQuatX(struct AQuat q) {
+	return aVec3f(
+			1.f - 2.f * (q.v.y * q.v.y + q.v.z * q.v.z),
+			2.f * (q.v.x * q.v.y + q.w * q.v.z),
+			2.f * (q.v.x * q.v.z - q.w * q.v.y));
+}
+
+static inline struct AVec3f aQuatY(struct AQuat q) {
+	return aVec3f(
+			2.f * (q.v.x * q.v.y - q.w * q.v.z),
+			1.f - 2.f * (q.v.x * q.v.x + q.v.z * q.v.z),
+			2.f * (q.v.y * q.v.z + q.w * q.v.x));
+}
+
+static inline struct AVec3f aQuatZ(struct AQuat q) {
+	return aVec3f(
+			2.f * (q.v.x * q.v.z + q.w * q.v.y),
+			2.f * (q.v.y * q.v.z - q.w * q.v.x),
+			1.f - 2.f * (q.v.x * q.v.x + q.v.y * q.v.y));
+}
+
+static inline struct AMat3f aMat3fQuat(struct AQuat q) {
+	return aMat3fv(aQuatX(q), aQuatY(q), aQuatZ(q));
+}
+
+static inline struct AQuat aQuatMat(struct AMat3f m) {
+	struct AQuat q;
+	const float tr = aMat3fTrace(m);
+	if (tr > 0) { /* will divide by at least .5, which means w is fine */
+		q.w = sqrtf(tr + 1.f) * .5f;
+		const float r4w = .25f / q.w;
+		q.v.x = (m.Y.z - m.Z.y) * r4w;
+		q.v.y = (m.Z.x - m.X.z) * r4w;
+		q.v.z = (m.X.y - m.Y.x) * r4w;
+	} else if (m.X.x > m.Y.y && m.X.x > m.Z.z) { /* x is the largest */
+		q.v.x = sqrtf(m.X.x - m.Y.y - m.Z.z + 1.f) * .5f;
+		const float r4x = .25f / q.v.x;
+		q.v.y = (m.Y.x + m.X.y) * r4x;
+		q.v.z = (m.Z.x + m.X.z) * r4x;
+		q.w   = (m.Y.z - m.Z.y) * r4x;
+	} else if (m.Y.y > m.Z.z) { /* y is the largest */
+		q.v.y = sqrtf(- m.X.x + m.Y.y - m.Z.z + 1.f) * .5f;
+		const float r4y = .25f / q.v.y;
+		q.v.x = (m.Y.x + m.X.y) * r4y;
+		q.v.z = (m.Z.y + m.Y.z) * r4y;
+		q.w   = (m.Z.x - m.X.z) * r4y;
+	} else { /* z is the largest */
+		q.v.z = sqrtf(- m.X.x - m.Y.y + m.Z.z + 1.f) * .5f;
+		const float r4z = .25f / q.v.z;
+		q.v.x = (m.Z.x + m.X.z) * r4z;
+		q.v.y = (m.Z.y + m.Y.z) * r4z;
+		q.w   = (m.X.y - m.Y.x) * r4z;
+	}
+	return q;
+}
+
+/* Frame of reference */
+
+struct AReFrame {
+	struct AQuat orient;
+	struct AVec3f transl;
+};
+
+static inline struct AReFrame aReFrameLookAt(struct AVec3f pos, struct AVec3f at, struct AVec3f up) {
+	const struct AVec3f
+			z = aVec3fNormalize(aVec3fSub(pos, at)),
+			x = aVec3fNormalize(aVec3fCross(up, z)),
+			y = aVec3fCross(z, x);
+	const struct AMat3f orient = aMat3fv(x, y, z);
+	const struct AReFrame f = {aQuatMat(orient), pos};
+	return f;
+}
+
+static inline struct AMat4f aMat4fReFrame(struct AReFrame f) {
+	return aMat4f3(aMat3fQuat(f.orient), f.transl);
+}
+
+static inline struct AVec3f aVec3fMulMat(struct AMat3f m, struct AVec3f v) {
+	return aVec3f(
+			aVec3fDot(v, aVec3f(m.X.x, m.Y.x, m.Z.x)),
+			aVec3fDot(v, aVec3f(m.X.y, m.Y.y, m.Z.y)),
+			aVec3fDot(v, aVec3f(m.X.z, m.Y.z, m.Z.z)));
+}
+
+static inline struct AReFrame aReFrameInverse(struct AReFrame f) {
+	f.orient = aQuatConjugate(f.orient);
+	const struct AMat3f m = aMat3fQuat(f.orient);
+	f.transl = aVec3fMulMat(m, aVec3fNeg(f.transl));
+	return f;
+}
+
+static inline struct AMat4f aMat4fLookAt(struct AVec3f pos, struct AVec3f at, struct AVec3f up) {
+	const struct AVec3f
+			z = aVec3fNormalize(aVec3fSub(pos, at)),
+			x = aVec3fNormalize(aVec3fCross(up, z)),
+			y = aVec3fCross(z, x);
+
+	return aMat4fMul(
+			aMat4f3(aMat3fTranspose(aMat3fv(x, y, z)), aVec3ff(0)),
+			aMat4fTranslation(aVec3fNeg(pos)));
 }
 
 #endif /* ifndef ATTO_MATH_DECLARED */

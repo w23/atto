@@ -1,7 +1,6 @@
 #include "atto/app.h"
 #define ATTO_GL_H_IMPLEMENT
 #include "atto/gl.h"
-#define ATTO_MATH_H_IMPLEMENT
 #include "atto/math.h"
 
 #include <math.h>
@@ -14,7 +13,7 @@ static void keyPress(ATimeUs timestamp, AKey key, int pressed) {
 }
 
 static const char shader_vertex[] =
-	"uniform mat4 um4_mvp, um4_model;\n"
+	"uniform mat4 um4_vp, um4_model;\n"
 	"uniform vec3 uv3_lightpos;\n"
 	"attribute vec3 av3_pos, av3_normal, av3_color, av3_tricenter;\n"
 	"varying vec3 vv3_color;\n"
@@ -23,7 +22,7 @@ static const char shader_vertex[] =
 		"vec3 normal = (um4_model * vec4(av3_normal, 0.)).xyz;\n"
 		"vec3 ldir = uv3_lightpos - pos.xyz;"
 		"vv3_color = av3_color * max(0., dot(normalize(ldir), normal)) / dot(ldir,ldir);\n"
-		"gl_Position = um4_mvp * vec4(av3_pos, 1.);\n"
+		"gl_Position = um4_vp * pos;\n"
 	"}"
 ;
 
@@ -44,7 +43,7 @@ typedef enum {
 	VAttrPos, VAttrTriCenter, VAttrNormal, VAttrColor, VAttr_COUNT
 } VAttr;
 typedef enum {
-	VUniMVP, VUniModel, VUniLightDir, VUni_COUNT
+	VUniVP, VUniModel, VUniLightDir, VUni_COUNT
 } VUni;
 static struct {
 	AGLAttribute attr[VAttr_COUNT];
@@ -127,9 +126,9 @@ static void init(void) {
 	g.attr[VAttrColor].stride = sizeof(*g.vertices);
 	g.attr[VAttrColor].ptr = &g.vertices[0].color;
 
-	g.pun[VUniMVP].name = "um4_mvp";
-	g.pun[VUniMVP].type = AGLAT_Mat4;
-	g.pun[VUniMVP].count = 1;
+	g.pun[VUniVP].name = "um4_vp";
+	g.pun[VUniVP].type = AGLAT_Mat4;
+	g.pun[VUniVP].count = 1;
 
 	g.pun[VUniModel].name = "um4_model";
 	g.pun[VUniModel].type = AGLAT_Mat4;
@@ -168,7 +167,7 @@ static void resize(ATimeUs timestamp, unsigned int old_w, unsigned int old_h) {
 	g.target.framebuffer = NULL;
 
 	const float dpm = 38e3f; /* ~96 dpi */
-	aMat4fPerspective(&g.projection, .1f, 100.f, a_app_state->width / dpm, a_app_state->height / dpm);
+	g.projection = aMat4fPerspective(.1f, 100.f, a_app_state->width / dpm, a_app_state->height / dpm);
 }
 
 static void paint(ATimeUs timestamp, float dt) {
@@ -188,16 +187,15 @@ static void paint(ATimeUs timestamp, float dt) {
 	struct AVec3f lpos = aVec3f(1,0,0);
 	g.pun[VUniLightDir].value.pf = &lpos.x;
 
-	struct AMat3f model;
-	aMat3fRotateAxis(&model, aVec3fNormalize(aVec3f(.7*sinf(t*.37), .7, .7)), t*.4f);
+	struct AReFrame frame;
+	frame.orient = aQuatRotation(aVec3fNormalize(aVec3f(.7*sinf(t*.37), .2, .7)), -t*.4f);
+	//frame.orient = aQuatRotation(aVec3fNormalize(aVec3f(1, 1, .6)), t*.1f);
+	frame.transl = aVec3f(0, 0, 0);
 
-	struct AMat4f mvp4, model4, view4;
-	aMat4f3(&model4, &model);
-	aMat4fTranslation(&mvp4, aVec3f(0,0,-10));
-	aMat4fMul(&view4, &mvp4, &model4);
-	aMat4fMul(&mvp4, &g.projection, &view4);
+	struct AMat4f model4 = aMat4fReFrame(frame),
+		vp4 = aMat4fMul(g.projection, aMat4fTranslation(aVec3f(0,0,-10)));
 	g.pun[VUniModel].value.pf = &model4.X.x;
-	g.pun[VUniMVP].value.pf = &mvp4.X.x;
+	g.pun[VUniVP].value.pf = &vp4.X.x;
 
 	const unsigned int split = 8192 * 3;
 	for (unsigned int i = 0; i < g.vertices_count / split; ++i) {

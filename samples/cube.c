@@ -12,13 +12,13 @@ static void keyPress(ATimeUs timestamp, AKey key, int pressed) {
 }
 
 static const char shader_vertex[] =
-	"uniform mat4 um4_proj, um4_world;\n"
+	"uniform mat4 um4_vp, um4_model;\n"
 	"attribute vec3 av3_pos;\n"
 	"varying vec3 vv3_color;\n"
 	"void main() {\n"
 		"vec4 pos = vec4(av3_pos, 1.);\n"
 		"vv3_color = av3_pos * .5 + .5;\n"
-		"gl_Position = um4_proj * um4_world * pos;\n"
+		"gl_Position = um4_vp * um4_model * pos;\n"
 	"}"
 ;
 
@@ -73,12 +73,11 @@ static void init(void) {
 	g.attr[0].stride = 0;
 	g.attr[0].ptr = vertexes;
 
-	g.pun[0].name = "um4_proj";
+	g.pun[0].name = "um4_vp";
 	g.pun[0].type = AGLAT_Mat4;
 	g.pun[0].count = 1;
-	g.pun[0].value.pf = &g.projection.X.x;
 
-	g.pun[1].name = "um4_world";
+	g.pun[1].name = "um4_model";
 	g.pun[1].type = AGLAT_Mat4;
 	g.pun[1].count = 1;
 
@@ -109,7 +108,7 @@ static void resize(ATimeUs timestamp, unsigned int old_w, unsigned int old_h) {
 	g.target.framebuffer = 0;
 
 	const float dpm = 38e3f; /* ~96 dpi */
-	aMat4fPerspective(&g.projection, .1f, 100.f, a_app_state->width / dpm, a_app_state->height / dpm);
+	g.projection = aMat4fPerspective(.1f, 100.f, a_app_state->width / dpm, a_app_state->height / dpm);
 }
 
 static void paint(ATimeUs timestamp, float dt) {
@@ -126,13 +125,14 @@ static void paint(ATimeUs timestamp, float dt) {
 
 	aGLClear(&clear, &g.target);
 
-	struct AMat3f rot;
-	//aMat3fRotateY(&rot, t);
-	aMat3fRotateAxis(&rot, aVec3fNormalize(aVec3f(.7*sinf(t*.37), .7, .7)), t);
-	struct AMat4f world;
-	aMat4f3(&world, &rot);
-	aMat4fTranslate(&world, aVec3f(0,0,-15.));
-	g.pun[1].value.pf = &world.X.x;
+	struct AReFrame frame;
+	frame.orient = aQuatRotation(aVec3fNormalize(aVec3f(.7*sinf(t*.37), .2, .7)), -t*.4f);
+	frame.transl = aVec3f(0, 0, 0);
+
+	struct AMat4f model4 = aMat4fReFrame(frame),
+		vp4 = aMat4fMul(g.projection, aMat4fTranslation(aVec3f(0,0,-10)));
+	g.pun[1].value.pf = &model4.X.x;
+	g.pun[0].value.pf = &vp4.X.x;
 
 	aGLDraw(&g.draw, &g.merge, &g.target);
 }
