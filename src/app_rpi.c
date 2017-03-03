@@ -3,6 +3,7 @@
 #include "atto/app.h"
 
 #include "app_egl.c"
+#include "app_evdev.c"
 
 static struct AAppState a__global_state;
 const struct AAppState *a_app_state = &a__global_state;
@@ -15,6 +16,8 @@ static void a__app_vc_init(void);
 
 int main(int argc, char *argv[]) {
 	ATimeUs timestamp, last_paint = 0;
+
+	a__EvdevInit(&a__global_state, &a__app_proctable);
 
 	a__app_vc_init();
 	a__appEglInit(EGL_DEFAULT_DISPLAY, &a__app_window);
@@ -29,11 +32,18 @@ int main(int argc, char *argv[]) {
 	if (a__app_proctable.resize)
 		a__app_proctable.resize(timestamp, 0, 0);
 
+	ATimeUs next_evdev_scan = 0;
 	for (;;) {
 		ATimeUs now = aAppTime();
 		float dt;
 		if (!last_paint) last_paint = now;
 		dt = (now - last_paint) * 1e-6f;
+
+		if (now >= next_evdev_scan) {
+			a__EvdevScan();
+			next_evdev_scan = now + 5000000;
+		}
+		a__EvdevProcess();
 
 		if (a__app_proctable.paint)
 			a__app_proctable.paint(now, dt);
@@ -46,6 +56,7 @@ int main(int argc, char *argv[]) {
 		a__app_proctable.close();
 
 	a__appCleanup();
+	a__EvdevClose();
 	return 0;
 }
 
