@@ -50,12 +50,16 @@ struct AAppState {
 	const char *const *argv;
 	AOpenGLVersion gl_version;
 	unsigned int width, height;
-	AKey keys[AK_Max];
+	int keys[AK_Max];
 	struct {
 		int x, y;
 		unsigned int buttons;
 	} pointer;
+	int grabbed;
 };
+
+/* hide cursor, pin mouse to window center and report only delta */
+void aAppGrabInput(int grab);
 
 extern const struct AAppState *a_app_state;
 

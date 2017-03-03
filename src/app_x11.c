@@ -15,6 +15,8 @@
 
 #define GL_GLEXT_PROTOTYPES 1
 #include <X11/Xlib.h>
+#include <X11/XKBlib.h>
+#include <X11/extensions/Xfixes.h>
 #include <GL/glx.h>
 
 #include <string.h>
@@ -28,6 +30,13 @@ static struct AAppProctable a__app_proctable;
 void aAppTerminate(int code) {
 	exit(code);
 }
+
+static struct {
+	Display *display;
+	Window window;
+	GLXDrawable drawable;
+	GLXContext context;
+} a__x11;
 
 static void a__appProcessXKeyEvent(XEvent *e) {
 	ATimeUs timestamp = aAppTime();
@@ -63,6 +72,9 @@ static void a__appProcessXKeyEvent(XEvent *e) {
 #undef ATTOMAPK_
 		default: return;
 	}
+
+	if (a__app_state.keys[key] == down)
+		return;
 
 	a__app_state.keys[key] = down;
 
@@ -113,6 +125,14 @@ static void a__appProcessXMotion(const XEvent *e) {
 	a__app_state.pointer.y = e->xmotion.y;
 	/*a__app_state.pointer.buttons = a__appX11ToButton(e->xmotion.state);*/
 
+	if (a__app_state.grabbed) {
+		if (e->xmotion.x == a__app_state.width / 2 && e->xmotion.y == a__app_state.height / 2)
+			return;
+
+		XWarpPointer(a__x11.display, None, a__x11.window, 0, 0, 0, 0,
+				a__app_state.width / 2, a__app_state.height / 2);
+	}
+
 	if (a__app_proctable.pointer)
 		a__app_proctable.pointer(timestamp, dx, dy, 0);
 }
@@ -133,11 +153,6 @@ static const int a__glxattribs[] = {
 
 int main(int argc, char *argv[]) {
 	ATimeUs timestamp = aAppTime();
-	Display *display;
-	Window window;
-	GLXDrawable drawable;
-	GLXContext context;
-
 	XSetWindowAttributes winattrs;
 	Atom delete_message;
 	int nglxconfigs = 0;
@@ -145,12 +160,12 @@ int main(int argc, char *argv[]) {
 	XVisualInfo *vinfo = NULL;
 	ATimeUs last_paint = 0;
 
-	ATTO_ASSERT(display = XOpenDisplay(NULL));
+	ATTO_ASSERT(a__x11.display = XOpenDisplay(NULL));
 
-	ATTO_ASSERT(glxconfigs = glXChooseFBConfig(display, 0, a__glxattribs, &nglxconfigs));
+	ATTO_ASSERT(glxconfigs = glXChooseFBConfig(a__x11.display, 0, a__glxattribs, &nglxconfigs));
 	ATTO_ASSERT(nglxconfigs);
 
-	ATTO_ASSERT(vinfo = glXGetVisualFromFBConfig(display, glxconfigs[0]));
+	ATTO_ASSERT(vinfo = glXGetVisualFromFBConfig(a__x11.display, glxconfigs[0]));
 
 	memset(&winattrs, 0, sizeof(winattrs));
 	winattrs.event_mask = KeyPressMask | KeyReleaseMask |
@@ -158,33 +173,35 @@ int main(int argc, char *argv[]) {
 		ExposureMask | VisibilityChangeMask | StructureNotifyMask;
 	winattrs.border_pixel = 0;
 	winattrs.bit_gravity = StaticGravity;
-	winattrs.colormap = XCreateColormap(display,
-		RootWindow(display, vinfo->screen),
+	winattrs.colormap = XCreateColormap(a__x11.display,
+		RootWindow(a__x11.display, vinfo->screen),
 		vinfo->visual, AllocNone);
 	winattrs.override_redirect = False;
 
-	window = XCreateWindow(display, RootWindow(display, vinfo->screen),
+	a__x11.window = XCreateWindow(a__x11.display, RootWindow(a__x11.display, vinfo->screen),
 		0, 0, ATTO_APP_WIDTH, ATTO_APP_HEIGHT,
 		0, vinfo->depth, InputOutput, vinfo->visual,
 		CWBorderPixel | CWBitGravity | CWEventMask | CWColormap,
 		&winattrs);
-	ATTO_ASSERT(window);
+	ATTO_ASSERT(a__x11.window);
 
-	XStoreName(display, window, ATTO_APP_NAME);
+	XStoreName(a__x11.display, a__x11.window, ATTO_APP_NAME);
 
-	delete_message = XInternAtom(display, "WM_DELETE_WINDOW", True);
-	XSetWMProtocols(display, window, &delete_message, 1);
+	delete_message = XInternAtom(a__x11.display, "WM_DELETE_WINDOW", True);
+	XSetWMProtocols(a__x11.display, a__x11.window, &delete_message, 1);
 
-	XMapWindow(display, window);
+	XMapWindow(a__x11.display, a__x11.window);
 
-	ATTO_ASSERT(context =
-		glXCreateNewContext(display, glxconfigs[0], GLX_RGBA_TYPE, 0, True));
+	XkbSetDetectableAutoRepeat(a__x11.display, True, NULL);
 
-	ATTO_ASSERT(drawable = glXCreateWindow(display, glxconfigs[0], window, 0));
+	ATTO_ASSERT(a__x11.context =
+		glXCreateNewContext(a__x11.display, glxconfigs[0], GLX_RGBA_TYPE, 0, True));
 
-	glXMakeContextCurrent(display, drawable, drawable, context);
+	ATTO_ASSERT(a__x11.drawable = glXCreateWindow(a__x11.display, glxconfigs[0], a__x11.window, 0));
 
-	XSelectInput(display, window,
+	glXMakeContextCurrent(a__x11.display, a__x11.drawable, a__x11.drawable, a__x11.context);
+
+	XSelectInput(a__x11.display, a__x11.window,
 		StructureNotifyMask | KeyPressMask | KeyReleaseMask |
 		ButtonPressMask | ButtonReleaseMask | PointerMotionMask
 	);
@@ -200,9 +217,9 @@ int main(int argc, char *argv[]) {
 		a__app_proctable.resize(timestamp, 0, 0);
 
 	for (;;) {
-		while (XPending(display)) {
+		while (XPending(a__x11.display)) {
 			XEvent e;
-			XNextEvent(display, &e);
+			XNextEvent(a__x11.display, &e);
 			switch (e.type) {
 				case ConfigureNotify:
 					{
@@ -249,7 +266,7 @@ int main(int argc, char *argv[]) {
 			if (a__app_proctable.paint)
 				a__app_proctable.paint(now, dt);
 
-			glXSwapBuffers(display, drawable);
+			glXSwapBuffers(a__x11.display, a__x11.drawable);
 			last_paint = now;
 		}
 	}
@@ -259,11 +276,26 @@ exit:
 		a__app_proctable.close();
 
 	aAppDebugPrintf("cleaning up");
-	glXMakeContextCurrent(display, 0, 0, 0);
-	glXDestroyWindow(display, drawable);
-	glXDestroyContext(display, context);
-	XDestroyWindow(display, window);
-	XCloseDisplay(display);
+	glXMakeContextCurrent(a__x11.display, 0, 0, 0);
+	glXDestroyWindow(a__x11.display, a__x11.drawable);
+	glXDestroyContext(a__x11.display, a__x11.context);
+	XDestroyWindow(a__x11.display, a__x11.window);
+	XCloseDisplay(a__x11.display);
 
 	return 0;
+}
+
+void aAppGrabInput(int grab) {
+	if (grab == a_app_state->grabbed) return;
+	if (grab) {
+		XGrabPointer(a__x11.display, a__x11.window, True, 0, GrabModeAsync, GrabModeAsync,
+				a__x11.window, None, CurrentTime);
+		XFixesHideCursor(a__x11.display, a__x11.window);
+		XWarpPointer(a__x11.display, None, a__x11.window, 0, 0, 0, 0,
+				a__app_state.width / 2, a__app_state.height / 2);
+	} else {
+		XFixesShowCursor(a__x11.display, a__x11.window);
+		XUngrabPointer(a__x11.display, CurrentTime);
+	}
+	a__app_state.grabbed = grab;
 }

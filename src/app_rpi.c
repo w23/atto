@@ -100,3 +100,9 @@ static void a__app_vc_init(void) {
 	a__app_window.height = h;
 	vc_dispmanx_update_submit_sync(dispman_update);
 }
+
+void aAppGrabInput(int grab) {
+	(void)grab;
+	/* No-op. Input is always 'grabbed' on rpi */
+	a__global_state.grabbed = grab;
+}
