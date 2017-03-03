@@ -141,9 +141,8 @@ static void init(void) {
 	g.draw.primitive.mode = GL_TRIANGLES;
 	g.draw.primitive.count = g.vertices_count;
 	g.draw.primitive.first = 0;
-	g.draw.primitive.index_buffer = NULL;
-	g.draw.primitive.indices_ptr = NULL;
-	g.draw.primitive.index_type = 0;
+	g.draw.primitive.index.buffer = NULL;
+	g.draw.primitive.index.data.ptr = NULL;
 	g.draw.primitive.cull_mode = AGLCM_Front;
 	g.draw.primitive.front_face = AGLFF_CounterClockwise;
 
@@ -199,7 +198,7 @@ static void paint(ATimeUs timestamp, float dt) {
 
 	const unsigned int split = 8192 * 3;
 	for (unsigned int i = 0; i < g.vertices_count / split; ++i) {
-		g.draw.primitive.indices_ptr = g.vertices + split * i;
+		g.draw.primitive.first = split * i;
 		g.draw.primitive.count = split;
 		aGLDraw(&g.draw, &g.merge, &g.target);
 	}
