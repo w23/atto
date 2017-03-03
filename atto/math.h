@@ -101,6 +101,10 @@ static inline struct AVec3f aVec3fCross(struct AVec3f a, struct AVec3f b) {
 	);
 }
 
+static inline float aVec3fLength(struct AVec3f v) {
+	return sqrtf(aVec3fDot(v,v));
+}
+
 static inline struct AVec3f aVec3fNormalize(struct AVec3f a) {
 	return aVec3fMulf(a, aRevSqrt(aVec3fDot(a,a)));
 }
@@ -115,8 +119,16 @@ static inline struct AVec4f aVec4f3(struct AVec3f v, float w) {
 	const struct AVec4f r = {v.x, v.y, v.z, w}; return r;
 }
 
+static inline struct AVec4f aVec4fMulf(struct AVec4f v, float f) {
+	v.x *= f; v.y *= f; v.z *= f; v.w *= f; return v;
+}
+
 static inline struct AVec4f aVec4fAdd(struct AVec4f a, struct AVec4f b) {
 	return aVec4f(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w);
+}
+
+static inline float aVec4fDot(struct AVec4f a, struct AVec4f b) {
+	return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
 }
 
 /* Matrix 3x3 */
