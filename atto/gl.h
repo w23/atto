@@ -267,13 +267,15 @@ typedef struct {
 	AGLDepthParams depth;
 } AGLDrawMerge;
 
+typedef enum {
+	AGLDBM_Texture,
+	AGLDBM_Best
+} AGLDepthBufferMode;
+
 typedef struct {
 	const AGLTexture *color;
 	struct {
-		enum {
-			AGLDBM_Texture,
-			AGLDBM_Best
-		} mode;
+		AGLDepthBufferMode mode;
 		AGLTexture *texture;
 	} depth;
 } AGLFramebufferParams;
@@ -288,15 +290,16 @@ void aGLDraw(
 	const AGLDrawMerge *merge,
 	const AGLDrawTarget *target);
 
+typedef enum {
+	AGLCB_Color = GL_COLOR_BUFFER_BIT,
+	AGLCB_Depth = GL_DEPTH_BUFFER_BIT,
+	AGLCB_ColorAndDepth = AGLCB_Color | AGLCB_Depth,
+	AGLCB_Everything = AGLCB_ColorAndDepth
+} AGLClearBits;
 typedef struct {
 	float r, g, b, a;
 	float depth; /* default = 1 */
-	enum {
-		AGLCB_Color = GL_COLOR_BUFFER_BIT,
-		AGLCB_Depth = GL_DEPTH_BUFFER_BIT,
-		AGLCB_ColorAndDepth = AGLCB_Color | AGLCB_Depth,
-		AGLCB_Everything = AGLCB_ColorAndDepth
-	} bits;
+	AGLClearBits bits;
 } AGLClearParams;
 
 void aGLClear(const AGLClearParams *params, const AGLDrawTarget *target);

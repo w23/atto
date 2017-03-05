@@ -40,7 +40,8 @@ static struct {
 
 static void a__appProcessXKeyEvent(XEvent *e) {
 	ATimeUs timestamp = aAppTime();
-	int key = AK_Unknown, down = KeyPress == e->type;
+	AKey key = AK_Unknown;
+	int down = KeyPress == e->type;
 	switch(XLookupKeysym(&e->xkey, 0)) {
 #define ATTOMAPK__(x,a) case XK_##x: key = AK_##a; break;
 		ATTOMAPK__(BackSpace,Backspace) ATTOMAPK__(Tab,Tab)
