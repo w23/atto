@@ -69,6 +69,10 @@
  *   - draw-sorting helper
  */
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 /* Initialize GL stuff, like load GL>=2 procs on Windows */
 void aGLInit();
 
@@ -870,3 +874,7 @@ static void a__GLFramebufferBind(const AGLFramebufferParams *fb) {
 }
 
 #endif /* ATTO_GL_H_IMPLEMENT */
+
+#if defined(__cplusplus)
+} /* extern "C" */
+#endif

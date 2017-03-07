@@ -1,6 +1,10 @@
 #ifndef ATTO_APP_H__DECLARED
 #define ATTO_APP_H__DECLARED
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef unsigned int ATimeUs;
 
 ATimeUs aAppTime(void);
@@ -83,5 +87,9 @@ struct AAppProctable {
  *  - the first resize() will always precede the first paint()
  */
 void ATTO_APP_INIT_FUNC(struct AAppProctable *proctable);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 #endif /* ifndef ATTO_APP_H__DECLARED */
