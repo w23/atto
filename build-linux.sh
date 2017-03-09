@@ -5,7 +5,7 @@ WORKDIR=${WORKDIR:="./.workdir"}
 CC=${CC:="cc"}
 AR=${AR:="ar"}
 APP=${APP:="app"}
-LDFLAGS="$LDFLAGS -Wl,--gc-sections -lX11 -lGL -latto -lm -L."
+LDFLAGS="$LDFLAGS -Wl,--gc-sections -lX11 -lXfixes -lGL -latto -lm -L."
 CFLAGS="$CFLAGS -I. -std=c99 -O3 -fdata-sections -ffunction-sections"
 #-g -O3"
 

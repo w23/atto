@@ -97,9 +97,9 @@ static void init(void) {
 	g.draw.primitive.mode = GL_TRIANGLES;
 	g.draw.primitive.count = 3;
 	g.draw.primitive.first = 0;
-	g.draw.primitive.index_buffer = 0;
-	g.draw.primitive.indices_ptr = 0;
-	g.draw.primitive.index_type = 0;
+	g.draw.primitive.index.buffer = 0;
+	g.draw.primitive.index.data.ptr = 0;
+	g.draw.primitive.index.type = 0;
 	
 	g.draw.attribs.p = g.attr;
 	g.draw.attribs.n = sizeof g.attr / sizeof *g.attr;
@@ -127,9 +127,9 @@ static void init(void) {
 	g.show.primitive.mode = GL_TRIANGLE_STRIP;
 	g.show.primitive.count = 4;
 	g.show.primitive.first = 0;
-	g.show.primitive.index_buffer = 0;
-	g.show.primitive.indices_ptr = 0;
-	g.show.primitive.index_type = 0;
+	g.show.primitive.index.buffer = 0;
+	g.show.primitive.index.data.ptr = 0;
+	g.show.primitive.index.type = 0;
 	
 	g.show.attribs.p = g.shattr;
 	g.show.attribs.n = sizeof g.shattr / sizeof *g.shattr;

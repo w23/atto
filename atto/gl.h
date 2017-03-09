@@ -415,8 +415,13 @@ static void a__GlPrintError(const char *message, int error) {
 }
 #define STR__(s) #s
 #define STR(s) STR__(s)
+#ifdef ATTO_GL_TRACE
+#define ATTO_GL_TRACE_PRINT aAppDebugPrintf
+#else
+#define ATTO_GL_TRACE_PRINT
+#endif
 #define AGL__CALL(f) do{\
-		/*aAppDebugPrintf("%s", #f);*/ \
+		ATTO_GL_TRACE_PRINT("%s", #f); \
 		f; \
 		const int glerror = glGetError(); \
 		if (glerror != GL_NO_ERROR) { \
@@ -566,6 +571,8 @@ void aGLTextureUpload(AGLTexture* tex, const AGLTextureUploadData* data) {
 			internal = format = GL_RGBA; type = GL_UNSIGNED_SHORT_5_5_5_1; break;
 		case AGLTF_U4444_RGBA:
 			internal = format = GL_RGBA; type = GL_UNSIGNED_SHORT_4_4_4_4; break;
+		case AGLTF_F32_RGBA:
+			internal = format = GL_RGBA; type = GL_FLOAT; break;
 		default: ATTO_ASSERT(!"Unknown format"); return;
 	}
 	AGL__CALL(glBindTexture(GL_TEXTURE_2D, tex->name));
