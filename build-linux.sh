@@ -6,7 +6,7 @@ CC=${CC:="cc"}
 AR=${AR:="ar"}
 APP=${APP:="app"}
 LDFLAGS="$LDFLAGS -Wl,--gc-sections -lX11 -lXfixes -lGL -latto -lm -L."
-CFLAGS="$CFLAGS -I. -std=c99 -O3 -fdata-sections -ffunction-sections"
+CFLAGS="$CFLAGS -D_POSIX_C_SOURCE=200809L -I. -std=c99 -O3 -fdata-sections -ffunction-sections"
 #-g -O3"
 
 mkdir -p "$WORKDIR"

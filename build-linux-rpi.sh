@@ -11,7 +11,7 @@ RPI_VCDIR=${RPI_VCDIR:="$RPI_ROOT/raspberry-firmware/hardfp/opt/vc"}
 
 CC=${CC:="$RPI_TOOLCHAINDIR/bin/arm-linux-gnueabihf-gcc"}
 AR=${AR:="$RPI_TOOLCHAINDIR/bin/arm-linux-gnueabihf-ar"}
-CFLAGS="$CFLAGS -Wall -Werror -pedantic -std=c99"
+CFLAGS="$CFLAGS -D_POSIX_C_SOURCE=200809L -Wall -Werror -pedantic -std=c99"
 CFLAGS="$CFLAGS -I. -I$RPI_VCDIR/include -I$RPI_VCDIR/include/interface/vcos/pthreads"
 CFLAGS="$CFLAGS -I$RPI_VCDIR/include/interface/vmcs_host/linux -DATTO_PLATFORM_RPI"
 LDFLAGS="$LDFLAGS -latto -L. -lGLESv2 -lEGL -lbcm_host -lvcos -lvchiq_arm -L$RPI_VCDIR/lib -lrt -lm"
