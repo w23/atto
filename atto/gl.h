@@ -413,8 +413,8 @@ static void a__GlPrintError(const char *message, int error) {
 	};
 	aAppDebugPrintf("%s %s (%#x)", message, errstr, error);
 }
-#define STR__(s) #s
-#define STR(s) STR__(s)
+#define ATTO__GL_STR__(s) #s
+#define ATTO__GL_STR(s) ATTO__GL_STR__(s)
 #ifdef ATTO_GL_TRACE
 #define ATTO_GL_TRACE_PRINT aAppDebugPrintf
 #else
@@ -425,7 +425,7 @@ static void a__GlPrintError(const char *message, int error) {
 		f; \
 		const int glerror = glGetError(); \
 		if (glerror != GL_NO_ERROR) { \
-			a__GlPrintError(__FILE__ ":" STR(__LINE__) ": " #f " returned ", glerror); \
+			a__GlPrintError(__FILE__ ":" ATTO__GL_STR(__LINE__) ": " #f " returned ", glerror); \
 			abort(); \
 		} \
 	}while(0)
