@@ -14,6 +14,10 @@ struct AMat4f { struct AVec4f X, Y, Z, W; };
 
 /* Scalar helpers */
 
+#define ATTO_MATH_MAKE_MAX(type) \
+	static inline type type##Max(type a, type b) { return (a > b) ? a : b; }
+ATTO_MATH_MAKE_MAX(float)
+
 struct ALCGRand { uint64_t state_; };
 static inline uint32_t aLcgRandu(struct ALCGRand *r) {
 	r->state_ = r->state_ * 6364136223846793005ull + 1442695040888963407ull;
@@ -35,6 +39,10 @@ static inline struct AVec2f aVec2fNeg(struct AVec2f a) {
 	return aVec2f(-a.x, -a.y);
 }
 
+static inline struct AVec2f aVec2fMulf(struct AVec2f v, float f) {
+	return aVec2f(v.x * f, v.y * f);
+}
+
 static inline struct AVec2f aVec2fAdd(struct AVec2f a, struct AVec2f b) {
 	return aVec2f(a.x + b.x, a.y + b.y);
 }
@@ -53,6 +61,14 @@ static inline struct AVec2f aVec2fDiv(struct AVec2f a, struct AVec2f b) {
 
 static inline float aVec2fDot(struct AVec2f a, struct AVec2f b) {
 	return a.x * b.x + a.y * b.y;
+}
+
+static inline float aVec2fLength(struct AVec2f v) {
+	return sqrtf(aVec2fDot(v, v));
+}
+
+static inline struct AVec2f aVec2fMix(struct AVec2f a, struct AVec2f b, float t) {
+	return aVec2fAdd(a, aVec2fMulf(aVec2fSub(b, a), t));
 }
 
 /* Vector 3 */
@@ -109,6 +125,12 @@ static inline struct AVec3f aVec3fNormalize(struct AVec3f a) {
 	return aVec3fMulf(a, aRevSqrt(aVec3fDot(a,a)));
 }
 
+static inline float aVec3fLength2(struct AVec3f v) { return aVec3fDot(v,v); }
+
+static inline struct AVec3f aVec3fMix(struct AVec3f a, struct AVec3f b, float t) {
+	return aVec3fAdd(a, aVec3fMulf(aVec3fSub(b, a), t));
+}
+
 /* Vector 4 */
 
 static inline struct AVec4f aVec4f(float x, float y, float z, float w) {
@@ -117,6 +139,10 @@ static inline struct AVec4f aVec4f(float x, float y, float z, float w) {
 
 static inline struct AVec4f aVec4f3(struct AVec3f v, float w) {
 	const struct AVec4f r = {v.x, v.y, v.z, w}; return r;
+}
+
+static inline struct AVec4f aVec4fNeg(struct AVec4f v) {
+	return aVec4f(-v.x, -v.y, -v.z, -v.w);
 }
 
 static inline struct AVec4f aVec4fMulf(struct AVec4f v, float f) {
