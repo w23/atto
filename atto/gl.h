@@ -572,7 +572,7 @@ void aGLTextureUpload(AGLTexture* tex, const AGLTextureUploadData* data) {
 		case AGLTF_U4444_RGBA:
 			internal = format = GL_RGBA; type = GL_UNSIGNED_SHORT_4_4_4_4; break;
 		case AGLTF_F32_RGBA:
-			internal = format = GL_RGBA; type = GL_FLOAT; break;
+			internal = GL_RGBA32F; format = GL_RGBA; type = GL_FLOAT; break;
 		default: ATTO_ASSERT(!"Unknown format"); return;
 	}
 	AGL__CALL(glBindTexture(GL_TEXTURE_2D, tex->name));
