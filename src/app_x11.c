@@ -97,6 +97,7 @@ static void a__appProcessXButton(const XEvent *e) {
 	ATimeUs timestamp = aAppTime();
 	int dx, dy;
 	unsigned int buttons_changed_bits;
+	const unsigned int pressed = e->xbutton.type == ButtonPress;
 
 	switch (e->xbutton.button) {
 		case Button1: button = AB_Left; break;
@@ -106,12 +107,17 @@ static void a__appProcessXButton(const XEvent *e) {
 		case Button5: button = AB_WheelDown; break;
 	}
 
+	if (pressed)
+		buttons_changed_bits = a__app_state.pointer.buttons ^ button;
+	else
+		buttons_changed_bits = a__app_state.pointer.buttons & button;
+
+	a__app_state.pointer.buttons ^= buttons_changed_bits;
+
 	dx = e->xbutton.x - a__app_state.pointer.x;
 	dy = e->xbutton.y - a__app_state.pointer.y;
-	buttons_changed_bits = a__appX11ToButton(e->xbutton.state) ^ button;
 	a__app_state.pointer.x = e->xbutton.x;
 	a__app_state.pointer.y = e->xbutton.y;
-	a__app_state.pointer.buttons ^= buttons_changed_bits;
 
 	if (a__app_proctable.pointer)
 		a__app_proctable.pointer(timestamp, dx, dy, buttons_changed_bits);
