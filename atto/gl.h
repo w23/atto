@@ -418,7 +418,7 @@ static void a__GlPrintError(const char *message, int error) {
 #ifdef ATTO_GL_TRACE
 #define ATTO_GL_TRACE_PRINT aAppDebugPrintf
 #else
-#define ATTO_GL_TRACE_PRINT
+#define ATTO_GL_TRACE_PRINT(...)
 #endif
 #define AGL__CALL(f) do{\
 		ATTO_GL_TRACE_PRINT("%s", #f); \
@@ -572,7 +572,9 @@ void aGLTextureUpload(AGLTexture* tex, const AGLTextureUploadData* data) {
 		case AGLTF_U4444_RGBA:
 			internal = format = GL_RGBA; type = GL_UNSIGNED_SHORT_4_4_4_4; break;
 		case AGLTF_F32_RGBA:
+#ifdef GL_RGBA32F
 			internal = GL_RGBA32F; format = GL_RGBA; type = GL_FLOAT; break;
+#endif
 		default: ATTO_ASSERT(!"Unknown format"); return;
 	}
 	AGL__CALL(glBindTexture(GL_TEXTURE_2D, tex->name));
@@ -590,8 +592,10 @@ void aGLTextureUpload(AGLTexture* tex, const AGLTextureUploadData* data) {
 	AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
 	//AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
 	//AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-	AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
-	AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+	//AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+	//AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+	AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
+	AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
 	tex->width = data->width;
 	tex->height = data->height;
 	tex->format = data->format;
