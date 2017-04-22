@@ -90,10 +90,37 @@ typedef enum {
 	AGLTF_F32_RGBA
 } AGLTextureFormat;
 
+typedef enum {
+	AGLTmF_Nearest = GL_NEAREST,
+	AGLTmF_Linear = GL_LINEAR,
+	AGLTmF_NearestMipNearest = GL_NEAREST_MIPMAP_NEAREST,
+	AGLTmF_NearestMipLinear = GL_NEAREST_MIPMAP_LINEAR,
+	AGLTmF_LinearMipNearest = GL_LINEAR_MIPMAP_NEAREST,
+	AGLTmF_LinearMipLinear = GL_LINEAR_MIPMAP_LINEAR,
+} AGLTextureMinFilter;
+
+typedef enum {
+	AGLTMF_Nearest = GL_NEAREST,
+	AGLTMF_Linear = GL_LINEAR,
+} AGLTextureMagFilter;
+
+typedef enum {
+	AGLTW_Clamp = GL_CLAMP_TO_EDGE,
+	AGLTW_Repeat = GL_REPEAT,
+	AGLTW_MirroredRepeat = GL_MIRRORED_REPEAT
+} AGLTextureWrap;
+
 typedef struct {
 	AGLTextureFormat format;
 	GLsizei width, height;
-	GLuint name;
+	AGLTextureMinFilter min_filter;
+	AGLTextureMagFilter mag_filter;
+	AGLTextureWrap wrap_s, wrap_t;
+	struct {
+		GLuint name;
+		GLenum min_filter, mag_filter;
+		GLenum wrap_s, wrap_t;
+	} _;
 	/* \todo unsigned int sequence__; */
 } AGLTexture;
 
@@ -105,10 +132,11 @@ typedef struct {
 
 AGLTexture aGLTextureCreate(void);
 void aGLTextureUpload(AGLTexture* texture, const AGLTextureUploadData* data);
-#define aGLTextureDestroy(t) do{glDeleteTextures(1,&(t)->name);(t)->name=0;}while(0)
+#define aGLTextureDestroy(t) do{glDeleteTextures(1,&(t)->_.name);(t)->_.name=0;}while(0)
 
 /* Shader programs */
 
+/* FIXME rename */
 typedef enum {
 	AGLAT_Float,
 	AGLAT_Vec2,
@@ -546,9 +574,14 @@ GLint aGLProgramCreateSimple(const char *vertex, const char *fragment) {
 
 AGLTexture aGLTextureCreate(void) {
 	AGLTexture tex;
-	AGL__CALL(glGenTextures(1, &tex.name));
+	AGL__CALL(glGenTextures(1, &tex._.name));
 	tex.width = tex.height = 0;
 	tex.format = AGLTF_Unknown;
+	tex._.mag_filter = tex._.min_filter = -1;
+	tex._.wrap_s = tex._.wrap_t = -1;
+	tex.mag_filter = AGLTMF_Linear;
+	tex.min_filter = AGLTmF_LinearMipLinear;
+	tex.wrap_s = tex.wrap_t = AGLTW_Repeat;
 	return tex;
 }
 
@@ -577,7 +610,7 @@ void aGLTextureUpload(AGLTexture* tex, const AGLTextureUploadData* data) {
 #endif
 		default: ATTO_ASSERT(!"Unknown format"); return;
 	}
-	AGL__CALL(glBindTexture(GL_TEXTURE_2D, tex->name));
+	AGL__CALL(glBindTexture(GL_TEXTURE_2D, tex->_.name));
 
 	if (data->x || data->y) {
 		if (maxwidth > data->width || maxheight > data->height)
@@ -588,14 +621,8 @@ void aGLTextureUpload(AGLTexture* tex, const AGLTextureUploadData* data) {
 		AGL__CALL(glTexImage2D(GL_TEXTURE_2D, 0, internal, data->width, data->height, 0,
 			format, type, data->pixels));
 
-	AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-	AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-	//AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-	//AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-	//AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
-	//AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
-	AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
-	AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
+	glGenerateMipmap(GL_TEXTURE_2D);
+
 	tex->width = data->width;
 	tex->height = data->height;
 	tex->format = data->format;
@@ -741,7 +768,25 @@ static void a__GLTargetBind(const AGLDrawTarget *target) {
 
 static void a__GLTextureBind(const AGLTexture *texture, GLint unit) {
 	AGL__CALL(glActiveTexture(GL_TEXTURE0  + unit));
-	AGL__CALL(glBindTexture(GL_TEXTURE_2D, texture->name));
+	AGL__CALL(glBindTexture(GL_TEXTURE_2D, texture->_.name));
+
+	AGLTexture *mutable_texture = (AGLTexture*)texture;
+	if (mutable_texture->_.min_filter != mutable_texture->min_filter) {
+		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, mutable_texture->min_filter));
+		mutable_texture->_.min_filter = mutable_texture->min_filter;
+	}
+	if (mutable_texture->_.mag_filter != mutable_texture->mag_filter) {
+		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, mutable_texture->mag_filter));
+		mutable_texture->_.mag_filter = mutable_texture->mag_filter;
+	}
+	if (mutable_texture->_.wrap_s != mutable_texture->wrap_s) {
+		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, mutable_texture->wrap_s));
+		mutable_texture->_.wrap_s = mutable_texture->wrap_s;
+	}
+	if (mutable_texture->_.wrap_t != mutable_texture->wrap_t) {
+		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, mutable_texture->wrap_t));
+		mutable_texture->_.wrap_t = mutable_texture->wrap_t;
+	}
 }
 
 static void a__GLAttribsBind(const AGLAttribute *attribs, int nattribs,
@@ -864,7 +909,7 @@ static void a__GLFramebufferBind(const AGLFramebufferParams *fb) {
 
 	if (color)
 		AGL__CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-			GL_TEXTURE_2D, fb->color->name, 0));
+			GL_TEXTURE_2D, fb->color->_.name, 0));
 
 	if (fb->depth.mode != AGLDBM_Texture && (depth || color)) {
 		AGL__CALL(glBindRenderbuffer(GL_RENDERBUFFER, a__gl_state.framebuffer.depth_buffer));
