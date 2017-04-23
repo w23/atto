@@ -83,15 +83,6 @@ static void a__appProcessXKeyEvent(XEvent *e) {
 		a__app_proctable.key(timestamp, key, down);
 }
 
-static unsigned int a__appX11ToButton(unsigned int x11btn) {
-	return 0
-		| ((x11btn & Button1Mask) ? AB_Left : 0)
-		| ((x11btn & Button2Mask) ? AB_Middle : 0)
-		| ((x11btn & Button3Mask) ? AB_Right : 0)
-		| ((x11btn & Button4Mask) ? AB_WheelUp : 0)
-		| ((x11btn & Button5Mask) ? AB_WheelDown : 0);
-}
-
 static void a__appProcessXButton(const XEvent *e) {
 	unsigned int button = 0;
 	ATimeUs timestamp = aAppTime();
@@ -130,7 +121,6 @@ static void a__appProcessXMotion(const XEvent *e) {
 
 	a__app_state.pointer.x = e->xmotion.x;
 	a__app_state.pointer.y = e->xmotion.y;
-	/*a__app_state.pointer.buttons = a__appX11ToButton(e->xmotion.state);*/
 
 	if (a__app_state.grabbed) {
 		if (e->xmotion.x == a__app_state.width / 2 && e->xmotion.y == a__app_state.height / 2)
