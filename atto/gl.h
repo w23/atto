@@ -427,6 +427,16 @@ ATTO__FUNCLIST
 	}
 #endif /* ifndef ATTO_ASSERT */
 
+#ifdef ATTO_GL_PROFILE_FUNC
+#define ATTO_GL_PROFILE_PREAMBLE const ATimeUs start = aAppTime();
+#define ATTO_GL_PROFILE_START const ATimeUs agl_profile_start_ = aAppTime();
+#define ATTO_GL_PROFILE_END ATTO_GL_PROFILE_FUNC(__FUNCTION__, aAppTime() - agl_profile_start_);
+#define ATTO_GL_PROFILE_END_NAME(name) ATTO_GL_PROFILE_FUNC(name, aAppTime() - agl_profile_start_);
+#else
+#define ATTO_GL_PROFILE_PREAMBLE
+#define ATTO_GL_PROFILE_FUNC(...)
+#endif
+
 #ifndef ATTO_GL_DEBUG
 #define AGL__CALL(f) (f)
 #else
@@ -459,7 +469,9 @@ static void a__GlPrintError(const char *message, int error) {
 #endif
 #define AGL__CALL(f) do{\
 		ATTO_GL_TRACE_PRINT("%s", #f); \
+		ATTO_GL_PROFILE_PREAMBLE \
 		f; \
+		ATTO_GL_PROFILE_FUNC(#f, aAppTime() - start); \
 		const int glerror = glGetError(); \
 		if (glerror != GL_NO_ERROR) { \
 			a__GlPrintError(__FILE__ ":" ATTO__GL_STR(__LINE__) ": " #f " returned ", glerror); \
@@ -473,6 +485,10 @@ static void a__GlPrintError(const char *message, int error) {
 #endif /* ifndef ATTO_GL_ERROR_BUFFER_SIZE */
 
 char a_gl_error[ATTO_GL_ERROR_BUFFER_SIZE];
+
+#ifndef ATTO_GL_MAX_ATTRIBS
+#define ATTO_GL_MAX_ATTRIBS 8
+#endif
 
 typedef struct {
 	unsigned int vertices;
@@ -676,6 +692,7 @@ void aGLDraw(const AGLDrawSource *src,
 	const AGLDrawMerge *merge,
 	const AGLDrawTarget *target)
 {
+	ATTO_GL_PROFILE_PREAMBLE
 	a__GLTargetBind(target);
 
 	a__GLDepthBind(merge->depth);
@@ -697,6 +714,7 @@ void aGLDraw(const AGLDrawSource *src,
 			src->primitive.index.type, src->primitive.index.data.ptr));
 	} else
 		AGL__CALL(glDrawArrays(src->primitive.mode, src->primitive.first, src->primitive.count));
+	ATTO_GL_PROFILE_FUNC("aGLDraw", aAppTime() - start);
 }
 
 void aGLClear(const AGLClearParams *params, const AGLDrawTarget *target) {
@@ -731,9 +749,11 @@ static GLuint a__GLCreateShader(int type, const char * const *source) {
 
 void a__GLProgramBind(AGLProgram program,
 		const AGLProgramUniform *uniforms, int nuniforms) {
+	ATTO_GL_PROFILE_START
 	int i, texture_unit = 0;
 	AGL__CALL(glUseProgram(program));
 	for (i = 0; i < nuniforms; ++i) {
+		ATTO_GL_PROFILE_START
 		const int loc = uniforms[i]._.location;
 		if (loc == -1) { /*aAppDebugPrintf("Skipping %s", uniforms[i].name);*/ continue; }
 		switch(uniforms[i].type) {
@@ -775,10 +795,13 @@ void a__GLProgramBind(AGLProgram program,
 				AGL__CALL(glUniform1i(loc, texture_unit));
 				++texture_unit;
 		}
+		ATTO_GL_PROFILE_END_NAME("per uniform")
 	}
+	ATTO_GL_PROFILE_END
 }
 
 static void a__GLTargetBind(const AGLDrawTarget *target) {
+	ATTO_GL_PROFILE_PREAMBLE
 	a__GLFramebufferBind(target->framebuffer);
 
 	if (target->viewport.x != a__gl_state.viewport.x ||
@@ -794,9 +817,11 @@ static void a__GLTargetBind(const AGLDrawTarget *target) {
 		AGL__CALL(glViewport(target->viewport.x, target->viewport.y,
 			target->viewport.w, target->viewport.h));
 	}
+		ATTO_GL_PROFILE_FUNC(__FUNCTION__, aAppTime() - start);
 }
 
 static void a__GLTextureBind(const AGLTexture *texture, GLint unit) {
+	ATTO_GL_PROFILE_START
 	AGL__CALL(glActiveTexture(GL_TEXTURE0  + unit));
 	AGL__CALL(glBindTexture(GL_TEXTURE_2D, texture->_.name));
 
@@ -817,9 +842,11 @@ static void a__GLTextureBind(const AGLTexture *texture, GLint unit) {
 		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, mutable_texture->wrap_t));
 		mutable_texture->_.wrap_t = mutable_texture->wrap_t;
 	}
+	ATTO_GL_PROFILE_END
 }
 
 static void a__GLAttribsBind(const AGLAttribute *attribs, int nattribs) {
+	ATTO_GL_PROFILE_START
 	int i;
 	++a__gl_state.attribs_serial;
 	for (i = 0; i < nattribs; ++i) {
@@ -852,6 +879,7 @@ static void a__GLAttribsBind(const AGLAttribute *attribs, int nattribs) {
 			a__gl_state.attribs[i].buffer = -1;
 		}
 	}
+	ATTO_GL_PROFILE_END
 }
 
 static void a__GLDepthBind(AGLDepthParams depth) {
