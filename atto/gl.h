@@ -161,6 +161,9 @@ typedef struct {
 		const AGLTexture *texture;
 	} value;
 	GLsizei count;
+	struct {
+		GLint location;
+	} _;
 } AGLProgramUniform;
 
 typedef GLint AGLProgram;
@@ -168,6 +171,7 @@ typedef GLint AGLProgram;
 AGLProgram aGLProgramCreate(const char * const *vertex, const char * const *fragment);
 AGLProgram aGLProgramCreateSimple(const char *vertex, const char *fragment);
 #define aGLProgramDestroy(p) do{glDeleteProgram(p);}while(0)
+void aGLUniformLocate(AGLProgram program, AGLProgramUniform *uniforms, int count);
 
 /* Array buffers */
 
@@ -195,7 +199,12 @@ typedef struct {
 	GLboolean normalized;
 	GLsizei stride;
 	const GLvoid *ptr;
+	struct {
+		GLint location;
+	} _;
 } AGLAttribute;
+
+void aGLAttributeLocate(AGLProgram program, AGLAttribute *attribs, int count);
 
 typedef enum {
 	AGLCM_Disable = 0,
@@ -479,6 +488,12 @@ static struct {
 	AGLFrontFace front_face;
 	AGLBlendParams blend;
 	AGLDepthParams depth;
+	unsigned attribs_serial;
+	struct {
+		GLint buffer;
+		AGLAttribute attrib;
+		unsigned serial;
+	} attribs[ATTO_GL_MAX_ATTRIBS];
 	struct {
 		AGLFramebufferParams params;
 		/* store color explicitly by value? */
@@ -494,8 +509,7 @@ static GLuint a__GLCreateShader(int type, const char * const *source);
 static void a__GLProgramBind(AGLProgram program,
 	const AGLProgramUniform *uniforms, int nuniforms);
 static void a__GLTextureBind(const AGLTexture *texture, GLint unit);
-static void a__GLAttribsBind(const AGLAttribute *attrs, int nattrs, AGLProgram program);
-static void a__GLAttribsUnbind(const AGLAttribute *attrs, int nattrs, AGLProgram program);
+static void a__GLAttribsBind(const AGLAttribute *attrs, int nattrs);
 static void	a__GLCullingBind(AGLCullMode cull, AGLFrontFace front);
 static void a__GLDepthBind(AGLDepthParams depth);
 static void a__GLBlendBind(const AGLBlendParams *blend);
@@ -525,6 +539,12 @@ void aGLInit() {
 	a__gl_state.blend.func.dst_rgb = a__gl_state.blend.func.dst_a = AGLBF_Zero;
 	a__gl_state.depth.mode = AGLDM_Disabled;
 	a__gl_state.depth.func = AGLDF_Less;
+
+	a__gl_state.attribs_serial = 0;
+	for (int i = 0; i < ATTO_GL_MAX_ATTRIBS; ++i) {
+		a__gl_state.attribs[i].buffer = -1;
+		a__gl_state.attribs[i].serial = 0;
+	}
 
 	AGL__CALL(glGenFramebuffers(1, &a__gl_state.framebuffer.name));
 	AGL__CALL(glGenRenderbuffers(1, &a__gl_state.framebuffer.depth_buffer));
@@ -570,6 +590,18 @@ GLint aGLProgramCreateSimple(const char *vertex, const char *fragment) {
 	vvertex[0] = vertex;
 	vfragment[0] = fragment;
 	return aGLProgramCreate(vvertex, vfragment);
+}
+
+void aGLUniformLocate(AGLProgram program, AGLProgramUniform *uniforms, int count) {
+	for (int i = 0; i < count; ++i) {
+		uniforms[i]._.location = glGetUniformLocation(program, uniforms[i].name);
+	}
+}
+
+void aGLAttributeLocate(AGLProgram program, AGLAttribute *attribs, int count) {
+	for (int i = 0; i < count; ++i) {
+		attribs[i]._.location = glGetAttribLocation(program, attribs[i].name);
+	}
 }
 
 AGLTexture aGLTextureCreate(void) {
@@ -650,7 +682,7 @@ void aGLDraw(const AGLDrawSource *src,
 	a__GLBlendBind(&merge->blend);
 
 	a__GLProgramBind(src->program, src->uniforms.p, src->uniforms.n);
-	a__GLAttribsBind(src->attribs.p, src->attribs.n, src->program);
+	a__GLAttribsBind(src->attribs.p, src->attribs.n);
 	a__GLCullingBind(src->primitive.cull_mode, src->primitive.front_face);
 
 	if (src->primitive.index.buffer || src->primitive.index.data.ptr) {
@@ -665,8 +697,6 @@ void aGLDraw(const AGLDrawSource *src,
 			src->primitive.index.type, src->primitive.index.data.ptr));
 	} else
 		AGL__CALL(glDrawArrays(src->primitive.mode, src->primitive.first, src->primitive.count));
-
-	a__GLAttribsUnbind(src->attribs.p, src->attribs.n, src->program);
 }
 
 void aGLClear(const AGLClearParams *params, const AGLDrawTarget *target) {
@@ -704,7 +734,7 @@ void a__GLProgramBind(AGLProgram program,
 	int i, texture_unit = 0;
 	AGL__CALL(glUseProgram(program));
 	for (i = 0; i < nuniforms; ++i) {
-		int loc = glGetUniformLocation(program, uniforms[i].name);
+		const int loc = uniforms[i]._.location;
 		if (loc == -1) { /*aAppDebugPrintf("Skipping %s", uniforms[i].name);*/ continue; }
 		switch(uniforms[i].type) {
 			case AGLAT_Float:
@@ -789,27 +819,38 @@ static void a__GLTextureBind(const AGLTexture *texture, GLint unit) {
 	}
 }
 
-static void a__GLAttribsBind(const AGLAttribute *attribs, int nattribs,
-		AGLProgram program) {
+static void a__GLAttribsBind(const AGLAttribute *attribs, int nattribs) {
 	int i;
+	++a__gl_state.attribs_serial;
 	for (i = 0; i < nattribs; ++i) {
 		const AGLAttribute *a = attribs + i;
-		GLint loc = glGetAttribLocation(program, a->name);
+		const GLint loc = a->_.location;
+		GLint buffer = a->buffer ? a->buffer->name : 0;
 		if (loc < 0) { /*aAppDebugPrintf("Skipping %s", a->name);*/ continue; }
-		AGL__CALL(glBindBuffer(GL_ARRAY_BUFFER, a->buffer ? a->buffer->name : 0));
-		AGL__CALL(glEnableVertexAttribArray(loc));
-		AGL__CALL(glVertexAttribPointer(loc, a->size, a->type, a->normalized, a->stride, a->ptr));
-	}
-}
+		if (loc >= ATTO_GL_MAX_ATTRIBS) { ATTO_ASSERT("Attrib location is too large"); }
+		if (a__gl_state.attribs[loc].buffer < 0)
+			AGL__CALL(glEnableVertexAttribArray(loc));
+		if (a__gl_state.attribs[loc].buffer != buffer) {
+			AGL__CALL(glBindBuffer(GL_ARRAY_BUFFER, buffer));
+			a__gl_state.attribs[loc].buffer = buffer;
+		}
 
-static void a__GLAttribsUnbind(const AGLAttribute *attribs, int nattribs,
-		AGLProgram program) {
-	int i;
-	for (i = 0; i < nattribs; ++i) {
-		const AGLAttribute *a = attribs + i;
-		GLint loc = glGetAttribLocation(program, a->name);
-		if (loc < 0) continue;
-		AGL__CALL(glDisableVertexAttribArray(loc));
+		a__gl_state.attribs[loc].serial = a__gl_state.attribs_serial;
+		if (a__gl_state.attribs[loc].attrib.size != a->size ||
+				a__gl_state.attribs[loc].attrib.type != a->type ||
+				a__gl_state.attribs[loc].attrib.normalized != a->normalized ||
+				a__gl_state.attribs[loc].attrib.stride != a->stride ||
+				a__gl_state.attribs[loc].attrib.ptr != a->ptr) {
+			AGL__CALL(glVertexAttribPointer(loc, a->size, a->type, a->normalized, a->stride, a->ptr));
+			a__gl_state.attribs[loc].attrib = *a;
+		}
+	}
+
+	for(i = 0; i < ATTO_GL_MAX_ATTRIBS; ++i) {
+		if (a__gl_state.attribs[i].buffer >= 0 && a__gl_state.attribs[i].serial != a__gl_state.attribs_serial) {
+			AGL__CALL(glDisableVertexAttribArray(i));
+			a__gl_state.attribs[i].buffer = -1;
+		}
 	}
 }
 
