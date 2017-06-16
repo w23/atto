@@ -443,6 +443,9 @@ extern "C" {
 #else
 #define ATTO_GL_PROFILE_PREAMBLE
 #define ATTO_GL_PROFILE_FUNC(...)
+#define ATTO_GL_PROFILE_START
+#define ATTO_GL_PROFILE_END
+#define ATTO_GL_PROFILE_END_NAME(name)
 #endif
 
 #ifndef ATTO_GL_DEBUG
