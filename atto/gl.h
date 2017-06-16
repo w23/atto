@@ -411,13 +411,21 @@ ATTO__FUNCLIST
 #undef ATTO__FUNCLIST_DO
 #endif /* ifdef ATTO_PLATFORM_WINDOWS */
 
-#endif /* ifndef __ATTO_GL_H__DECLARED */
+#if defined(__cplusplus)
+} /* extern "C" */
+#endif
+
+#endif /* ifndef ATTO_GL_H__DECLARED */
 
 #ifdef ATTO_GL_H_IMPLEMENT
 #ifdef ATTO__GL_H_IMPLEMENTED
 #error atto_gl.h must be implemented only once
 #endif /* ifdef ATTO__GL_H_IMPLEMENTED */
 #define ATTO__GL_H_IMPLEMENTED
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
 #ifndef ATTO_ASSERT
 #define ATTO_ASSERT(cond) \
@@ -998,8 +1006,8 @@ static void a__GLFramebufferBind(const AGLFramebufferParams *fb) {
 	a__gl_state.framebuffer.params = *fb;
 }
 
-#endif /* ATTO_GL_H_IMPLEMENT */
-
 #if defined(__cplusplus)
 } /* extern "C" */
 #endif
+
+#endif /* ATTO_GL_H_IMPLEMENT */
