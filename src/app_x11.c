@@ -123,7 +123,7 @@ static void a__appProcessXMotion(const XEvent *e) {
 	a__app_state.pointer.y = e->xmotion.y;
 
 	if (a__app_state.grabbed) {
-		if (e->xmotion.x == a__app_state.width / 2 && e->xmotion.y == a__app_state.height / 2)
+		if (e->xmotion.x == (int)a__app_state.width / 2 && e->xmotion.y == (int)a__app_state.height / 2)
 			return;
 
 		XWarpPointer(a__x11.display, None, a__x11.window, 0, 0, 0, 0,
