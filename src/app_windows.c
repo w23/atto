@@ -160,26 +160,7 @@ static void a__AppCleanup(void) {
 }
 
 static void a__AppOpenConsole(void) {
-	HANDLE handle;
-	int hCrt;
-	FILE* hf;
-	extern FILE *_fdopen(int, const char *);
-
 	AllocConsole();
-	/*
-	handle= GetStdHandle(STD_OUTPUT_HANDLE);
-	hCrt = _open_osfhandle((long)handle, _O_TEXT);
-	hf = _fdopen(hCrt, "w");
-	setvbuf(hf, NULL, _IONBF, 0);
-	*stdout = *stderr = *hf;
-
-	handle = GetStdHandle(STD_INPUT_HANDLE);
-	hCrt = _open_osfhandle((long)handle, _O_TEXT);
-	hf = _fdopen(hCrt, "r");
-	setvbuf(hf, NULL, _IONBF, 128);
-	*stdin = *hf;
-	*/
-
 	freopen("CONIN$", "r", stdin);
 	freopen("CONOUT$", "w", stdout);
 	freopen("CONOUT$", "w", stderr);
