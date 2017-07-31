@@ -27,8 +27,9 @@ static void a__AppCleanup(void);
 static AKey a__AppMapKey(int key);
 static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 
-static AAppState a__app_state;
-const AAppState *a_app_state = &a__app_state;
+static struct AAppState a__app_state;
+const struct AAppState *a_app_state = &a__app_state;
+static struct AAppProctable a__app_proctable;
 
 static const PIXELFORMATDESCRIPTOR a__pfd = {
 	sizeof(a__pfd), 0, PFD_DOUBLEBUFFER | PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL,
@@ -45,14 +46,14 @@ static struct {
 } g;
 
 
-ATimeMs aAppTime() {
+ATimeUs aAppTime() {
 	LARGE_INTEGER now;
 	if (a__time_start.QuadPart == 0) {
 		QueryPerformanceFrequency(&a__time_freq);
 		QueryPerformanceCounter(&a__time_start);
 	}
 	QueryPerformanceCounter(&now);
-	return (ATimeMs)((now.QuadPart - a__time_start.QuadPart) * 1000ul
+	return (ATimeUs)((now.QuadPart - a__time_start.QuadPart) * 1000000ul
 		/ a__time_freq.QuadPart);
 }
 
@@ -62,6 +63,7 @@ void aAppDebugPrintf(const char *fmt, ...) {
 	fprintf(stderr, "DBG: ");
 	vfprintf(stderr, fmt, args);
 	fprintf(stderr, "\n");
+	fflush(stderr);
 	va_end(args);
 }
 
@@ -74,8 +76,7 @@ int WINAPI WinMain(
 		HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		LPSTR lpCmdLine, int nCmdShow) {
 	WNDCLASSEX wndclass;
-	AEvent event;
-	ATimeMs last_paint = 0;
+	ATimeUs last_paint = 0;
 
 	(void)hPrevInstance;
 	(void)lpCmdLine;
@@ -119,11 +120,9 @@ int WINAPI WinMain(
 	a__app_state.width = ATTO_APP_WIDTH;
 	a__app_state.height = ATTO_APP_HEIGHT;
 	
-	event.timestamp = aAppTime();
-	event.type = AET_Init;
-	atto_app_event(&event);
-	event.type = AET_Resize;
-	atto_app_event(&event);
+	ATTO_APP_INIT_FUNC(&a__app_proctable);
+	if (a__app_proctable.resize)
+		a__app_proctable.resize(aAppTime(), 0, 0);
 
 	ShowWindow(g.hwnd, nCmdShow);
 
@@ -136,21 +135,19 @@ int WINAPI WinMain(
 		}
 
 		{
-			ATimeMs now = aAppTime();
+			ATimeUs now = aAppTime();
 			if (!last_paint) last_paint = now;
-			event.timestamp = now;
-			event.type = AET_Paint;
-			event.data.paint.dt = (now - last_paint) * 1e-3f;
-			atto_app_event(&event);
+			float dt = (now - last_paint) * 1e-6f;
+			if (a__app_proctable.paint)
+				a__app_proctable.paint(now, dt);
 			SwapBuffers(g.hdc);
 			last_paint = now;
 		}
 	}
 
 exit:
-	event.timestamp = aAppTime();
-	event.type = AET_Close;
-	atto_app_event(&event);
+	if (a__app_proctable.close)
+		a__app_proctable.close();
 	a__AppCleanup();
 	return 0;
 }
@@ -169,10 +166,11 @@ static void a__AppOpenConsole(void) {
 	extern FILE *_fdopen(int, const char *);
 
 	AllocConsole();
+	/*
 	handle= GetStdHandle(STD_OUTPUT_HANDLE);
 	hCrt = _open_osfhandle((long)handle, _O_TEXT);
 	hf = _fdopen(hCrt, "w");
-	setvbuf(hf, NULL, _IONBF, 1);
+	setvbuf(hf, NULL, _IONBF, 0);
 	*stdout = *stderr = *hf;
 
 	handle = GetStdHandle(STD_INPUT_HANDLE);
@@ -180,6 +178,11 @@ static void a__AppOpenConsole(void) {
 	hf = _fdopen(hCrt, "r");
 	setvbuf(hf, NULL, _IONBF, 128);
 	*stdin = *hf;
+	*/
+
+	freopen("CONIN$", "r", stdin);
+	freopen("CONOUT$", "w", stdout);
+	freopen("CONOUT$", "w", stderr);
 }
 
 #if 0
@@ -259,19 +262,18 @@ static AKey a__AppMapKey(int key) {
 static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	int down = 0;
 	AKey key;
-	AEvent event;
 
 	switch (msg) {
 	case WM_SIZE:
 		{
+		unsigned int oldw = a__app_state.width, oldh = a__app_state.height;
 			int width = lparam & 0xffff, height = lparam >> 16;
 			if (a__app_state.width == width
-					&& a__app_state.height == height) break;
+				&& a__app_state.height == height) break;
 			a__app_state.width = width;
 			a__app_state.height = height;
-			event.timestamp = aAppTime();
-			event.type = AET_Resize;
-			atto_app_event(&event);
+			if (a__app_proctable.resize)
+				a__app_proctable.resize(aAppTime(), oldw, oldh);
 		}
 		break;
 
@@ -279,13 +281,16 @@ static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 		down = 1;
 	case WM_KEYUP:
 		key = a__AppMapKey(wparam);
-		if (key != AK_Unknown) {
-			event.timestamp = aAppTime();
-			event.type = AET_Key;
-			event.data.key.key = key;
-			event.data.key.down = down;
-			atto_app_event(&event);
-		}
+		if (key == AK_Unknown)
+			break;
+
+		if (a__app_state.keys[key] == down)
+			break;
+
+		a__app_state.keys[key] = down;
+
+		if (a__app_proctable.key)
+			a__app_proctable.key(aAppTime(), key, down);
 		break;
 
 	case WM_CLOSE:

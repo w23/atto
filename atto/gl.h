@@ -405,7 +405,10 @@ extern char a_gl_error[];
 	ATTO__FUNCLIST_DO(PFNGLGETPROGRAMIVPROC, GetProgramiv) \
 	ATTO__FUNCLIST_DO(PFNGLCHECKFRAMEBUFFERSTATUSPROC, CheckFramebufferStatus) \
 	ATTO__FUNCLIST_DO(PFNGLENABLEVERTEXATTRIBARRAYPROC, EnableVertexAttribArray) \
-	ATTO__FUNCLIST_DO(PFNGLVERTEXATTRIBPOINTERPROC, VertexAttribPointer)
+	ATTO__FUNCLIST_DO(PFNGLVERTEXATTRIBPOINTERPROC, VertexAttribPointer) \
+	ATTO__FUNCLIST_DO(PFNGLGENERATEMIPMAPPROC, GenerateMipmap) \
+	ATTO__FUNCLIST_DO(PFNGLCLEARDEPTHFPROC, ClearDepthf) \
+	ATTO__FUNCLIST_DO(PFNGLDRAWBUFFERSPROC, DrawBuffers)
 #define ATTO__FUNCLIST_DO(T,N) T gl##N = 0;
 ATTO__FUNCLIST
 #undef ATTO__FUNCLIST_DO
@@ -545,7 +548,7 @@ static void a__GLTargetBind(const AGLDrawTarget *target);
 
 #ifdef ATTO_PLATFORM_WINDOWS
 static PROC a__check_get_proc_address(const char *name) {
-	PROC ret = wAGL__CALL(glGetProcAddress(name));
+	PROC ret = wglGetProcAddress(name);
 	ATTO_ASSERT(ret);
 	return ret;
 }
