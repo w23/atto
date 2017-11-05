@@ -15,6 +15,7 @@
 #include <fcntl.h>
 #include <io.h>
 #include <windows.h>
+#include <windowsx.h> /* GET_X/Y_LPARAM */
 #include <GL/gl.h>
 /* #include "wglext.h"
 #include <atto/platform.h> */
@@ -44,7 +45,6 @@ static struct {
 	HDC hdc;
 	HGLRC hglrc;
 } g;
-
 
 ATimeUs aAppTime() {
 	LARGE_INTEGER now;
@@ -224,6 +224,9 @@ static AKey a__AppMapKey(int key) {
 	/* case VK_SNAPSHOT: return AK_Printscreen; */
 	case VK_INSERT: return AK_Ins;
 	case VK_DELETE: return AK_Del;
+	case VK_SHIFT: return AK_LeftShift;
+	case VK_LSHIFT: return AK_LeftShift;
+	case VK_RSHIFT: return AK_RightShift;
 	case VK_F1: return AK_F1;
 	case VK_F2: return AK_F2;
 	case VK_F3: return AK_F3;
@@ -243,6 +246,12 @@ static AKey a__AppMapKey(int key) {
 static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	int down = 0;
 	AKey key;
+
+	enum {
+		NoEvent,
+		MouseClickEvent,
+	} late_event = NoEvent;
+	unsigned int new_button_state = a__app_state.pointer.buttons;
 
 	switch (msg) {
 	case WM_SIZE:
@@ -278,9 +287,87 @@ static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 		ExitProcess(0);
 		break;
 
+	case WM_LBUTTONDOWN:
+		late_event = MouseClickEvent;
+		new_button_state |= AB_Left;
+		break;
+	case WM_LBUTTONUP:
+		late_event = MouseClickEvent;
+		new_button_state &= ~AB_Left;
+		break;
+	case WM_RBUTTONDOWN:
+		late_event = MouseClickEvent;
+		new_button_state |= AB_Right;
+		break;
+	case WM_RBUTTONUP:
+		late_event = MouseClickEvent;
+		new_button_state &= ~AB_Right;
+		break;
+
+	case WM_MOUSEMOVE:
+		if (!a__app_state.grabbed)
+		{
+			const int x = GET_X_LPARAM(lparam), y = GET_Y_LPARAM(lparam);
+			const int dx = x - a__app_state.pointer.x, dy = y - a__app_state.pointer.y;
+
+			if (a__app_proctable.pointer)
+				a__app_proctable.pointer(aAppTime(), dx, dy, 0);
+		}
+		break;
+
+	case WM_INPUT:
+	{
+		RAWINPUT ri;
+		UINT ri_size = sizeof(ri);
+		if (ri_size < GetRawInputData(lparam, RID_INPUT, &ri, &ri_size, sizeof(RAWINPUTHEADER))) {
+			aAppDebugPrintf("GetRawInputData corrupts memory");
+		}
+
+		switch (ri.header.dwType) {
+		case RIM_TYPEMOUSE:
+			/* FIXME: always relative? mouse buttons */
+			if (a__app_proctable.pointer)
+				a__app_proctable.pointer(aAppTime(), ri.data.mouse.lLastX, ri.data.mouse.lLastY, 0);
+			break;
+		}
+	}
+		break;
+
 	default:
 		return DefWindowProc(hwnd, msg, wparam, lparam);
+	}
+
+	if (late_event == MouseClickEvent && new_button_state != a__app_state.pointer.buttons) {
+		const unsigned int btn_diff = a__app_state.pointer.buttons ^ new_button_state;
+		a__app_state.pointer.buttons = new_button_state;
+
+		if (a__app_proctable.pointer)
+			a__app_proctable.pointer(aAppTime(), 0, 0, btn_diff);
 	}
 	return 0;
 }
 
+void aAppGrabInput(int grab) {
+	RAWINPUTDEVICE devices[] = {
+		{1, 2, grab ? RIDEV_NOLEGACY /*| RIDEV_CAPTUREMOUSE*/: RIDEV_REMOVE, grab ? g.hwnd : NULL}, /* mouse */
+		/* {1, 6, RIDEV_NOLEGACY, NULL}, /* keyboard */
+	};
+
+	if (grab == a__app_state.grabbed)
+		return;
+
+	if (!RegisterRawInputDevices(devices, _countof(devices), sizeof(*devices)))
+		aAppDebugPrintf("Failed to register raw input devices");
+	else {
+		if (grab) {
+			RECT r;
+			GetClientRect(g.hwnd, &r);
+			ClipCursor(&r);
+			ShowCursor(FALSE);
+		} else {
+			ClipCursor(NULL);
+			ShowCursor(TRUE);
+		}
+		a__app_state.grabbed = grab;
+	}
+}
