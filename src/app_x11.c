@@ -240,7 +240,7 @@ int main(int argc, char *argv[]) {
 					break;
 				case MotionNotify:
 					a__appProcessXMotion(&e);
-
+					break;
 				case KeyPress:
 				case KeyRelease:
 					a__appProcessXKeyEvent(&e);
