@@ -84,15 +84,19 @@ static void init(void) {
 	g.draw.primitive.mode = GL_TRIANGLES;
 	g.draw.primitive.count = 36;
 	g.draw.primitive.first = -1;
-	g.draw.primitive.index_buffer = 0;
-	g.draw.primitive.indices_ptr = indices;
-	g.draw.primitive.index_type = GL_UNSIGNED_SHORT;
+	g.draw.primitive.index.buffer = 0;
+	g.draw.primitive.index.data.ptr = indices;
+	g.draw.primitive.index.type = GL_UNSIGNED_SHORT;
 
 	g.draw.attribs.p = g.attr;
 	g.draw.attribs.n = sizeof g.attr / sizeof *g.attr;
 
+	aGLAttributeLocate(g.draw.program, g.attr, g.draw.attribs.n);
+
 	g.draw.uniforms.p = g.pun;
-	g.draw.uniforms.n = sizeof g.pun / sizeof (*g.pun);
+	g.draw.uniforms.n = sizeof g.pun / sizeof *g.pun;
+
+	aGLUniformLocate(g.draw.program, g.pun, g.draw.uniforms.n);
 
 	g.merge.blend.enable = 0;
 	g.merge.depth.mode = AGLDM_TestAndWrite;

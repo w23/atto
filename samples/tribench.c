@@ -149,8 +149,12 @@ static void init(void) {
 	g.draw.attribs.p = g.attr;
 	g.draw.attribs.n = sizeof g.attr / sizeof *g.attr;
 
+	aGLAttributeLocate(g.draw.program, g.attr, g.draw.attribs.n);
+
 	g.draw.uniforms.p = g.pun;
 	g.draw.uniforms.n = sizeof g.pun / sizeof *g.pun;
+
+	aGLUniformLocate(g.draw.program, g.pun, g.draw.uniforms.n);
 
 	g.merge.blend.enable = 0;
 	g.merge.depth.mode = AGLDM_TestAndWrite;
