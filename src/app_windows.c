@@ -44,6 +44,8 @@ static struct {
 	HWND hwnd;
 	HDC hdc;
 	HGLRC hglrc;
+
+	struct { int resetAbsolute; long x, y; } rawMouse;
 } g;
 
 ATimeUs aAppTime() {
@@ -319,15 +321,41 @@ static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 	{
 		RAWINPUT ri;
 		UINT ri_size = sizeof(ri);
-		if (ri_size < GetRawInputData(lparam, RID_INPUT, &ri, &ri_size, sizeof(RAWINPUTHEADER))) {
-			aAppDebugPrintf("GetRawInputData corrupts memory");
-		}
+		GetRawInputData(lparam, RID_INPUT, &ri, &ri_size, sizeof(RAWINPUTHEADER));
 
 		switch (ri.header.dwType) {
 		case RIM_TYPEMOUSE:
-			/* FIXME: always relative? mouse buttons */
-			if (a__app_proctable.pointer)
+			if (!a__app_proctable.pointer)
+				break;
+
+			/*aAppDebugPrintf("%02x %u %04x %u %04x %d %d %u",
+				ri.data.mouse.usFlags,
+				ri.data.mouse.ulButtons,
+				ri.data.mouse.usButtonFlags,
+				ri.data.mouse.usButtonData,
+				ri.data.mouse.ulRawButtons,
+				ri.data.mouse.lLastX,
+				ri.data.mouse.lLastY,
+				ri.data.mouse.ulExtraInformation);*/
+
+			if (ri.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE) {
+				if (g.rawMouse.resetAbsolute)
+					g.rawMouse.resetAbsolute = 0;
+				else {
+					// TODO check on other absolute devices besides Synergy
+					const int dx = (ri.data.mouse.lLastX - g.rawMouse.x) * GetSystemMetrics(SM_CXSCREEN) / 65536;
+					const int dy = (ri.data.mouse.lLastY - g.rawMouse.y) * GetSystemMetrics(SM_CYSCREEN) / 65536;
+
+					a__app_proctable.pointer(aAppTime(), dx, dy, 0);
+				}
+
+				g.rawMouse.x = ri.data.mouse.lLastX;
+				g.rawMouse.y = ri.data.mouse.lLastY;
+			} else if (ri.data.mouse.usFlags == MOUSE_MOVE_RELATIVE) {
+				g.rawMouse.resetAbsolute = 1;
 				a__app_proctable.pointer(aAppTime(), ri.data.mouse.lLastX, ri.data.mouse.lLastY, 0);
+			}
+
 			break;
 		}
 	}
@@ -356,18 +384,22 @@ void aAppGrabInput(int grab) {
 	if (grab == a__app_state.grabbed)
 		return;
 
-	if (!RegisterRawInputDevices(devices, _countof(devices), sizeof(*devices)))
+	if (!RegisterRawInputDevices(devices, _countof(devices), sizeof(*devices))) {
 		aAppDebugPrintf("Failed to register raw input devices");
-	else {
-		if (grab) {
-			RECT r;
-			GetClientRect(g.hwnd, &r);
-			ClipCursor(&r);
-			ShowCursor(FALSE);
-		} else {
-			ClipCursor(NULL);
-			ShowCursor(TRUE);
-		}
-		a__app_state.grabbed = grab;
+		return;
 	}
+
+	g.rawMouse.resetAbsolute = 1;
+
+	if (grab) {
+		RECT r;
+		GetClientRect(g.hwnd, &r);
+		ClipCursor(&r);
+		ShowCursor(FALSE);
+	} else {
+		ClipCursor(NULL);
+		ShowCursor(TRUE);
+	}
+
+	a__app_state.grabbed = grab;
 }
