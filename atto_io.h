@@ -1,6 +1,10 @@
 #ifndef ATTO_IO_H__DECLARED
 #define ATTO_IO_H__DECLARED
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int aIoFileRead(const char *filename, void *buffer, int size);
 int aIoFileWrite(const char *filename, void *buffer, int size);
 
@@ -9,6 +13,10 @@ struct Aio_monitor_t;
 struct Aio_monitor_t *aIoMonitorOpen(const char *filename);
 int aIoMonitorCheck(struct Aio_monitor_t *monitor);
 void aIoMonitorClose(struct Aio_monitor_t *monitor);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* ifndef ATTO_IO_H__DECLARED */
 
@@ -33,6 +41,10 @@ void aIoMonitorClose(struct Aio_monitor_t *monitor);
 #include <fcntl.h>
 #include <unistd.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int aIoFileRead(const char *filename, void *buffer, int size) {
 	int fd;
 	ssize_t rd;
@@ -50,7 +62,7 @@ int aIoFileWrite(const char *filename, void *buffer, int size) {
 	int fd;
 	ssize_t rd;
 
-	fd = open(filename, O_WRONLY | O_CREAT);
+	fd = open(filename, O_WRONLY | O_CREAT, 0660);
 	if (fd < 0)
 		return 0;
 
@@ -64,41 +76,46 @@ int aIoFileWrite(const char *filename, void *buffer, int size) {
 #ifdef ATTO_PLATFORM_LINUX
 #include <sys/inotify.h>
 #include <limits.h>
+#include <stdlib.h>
+#include <string.h>
 static int a__io_inotifyfd = -1;
 
-struct a__io_monitor_t {
+struct Aio_monitor_t {
 	const char *filename;
 	int watch;
 	int event;
 };
 
-struct a__io_monitor_t a__io_monitors[ATTO_IO_MONITORS_MAX];
+struct Aio_monitor_t Aio_monitors[ATTO_IO_MONITORS_MAX];
 
-int aIoMonitorOpen(const char *filename) {
+Aio_monitor_t *aIoMonitorOpen(const char *filename) {
 	int i;
 	if (a__io_inotifyfd < 0) {
-		memset(a__io_monitors, 0, sizeof(a__io_monitors));
+		memset(Aio_monitors, 0, sizeof(Aio_monitors));
 		a__io_inotifyfd = inotify_init1(IN_NONBLOCK);
 		if (a__io_inotifyfd < 0)
-			return -1;
+			return NULL;
 	}
 
 	for (i = 0; i < ATTO_IO_MONITORS_MAX; ++i)
-		if (a__io_monitors[i].filename == 0) {
-			a__io_monitors[i].watch = -1;
-			a__io_monitors[i].event = 0;
-			a__io_monitors[i].filename = filename;
-			return i;
+		if (Aio_monitors[i].filename == 0) {
+			Aio_monitors[i].watch = -1;
+			Aio_monitors[i].event = 0;
+			Aio_monitors[i].filename = filename;
+			return Aio_monitors + i;
 		}
-	return -1;
+	return NULL;
 }
 
-int aIoMonitorCheck(int monitor) {
+int aIoMonitorCheck(Aio_monitor_t *m) {
 	char buffer[sizeof(struct inotify_event) + NAME_MAX + 1];
 	const struct inotify_event *e = (const struct inotify_event*)buffer;
-	struct a__io_monitor_t *m = a__io_monitors + monitor;
 	int retval;
 	int i;
+
+	if (!m)
+		return 0;
+
 	if (m->watch == -1) {
 		m->watch = inotify_add_watch(
 			a__io_inotifyfd, m->filename,
@@ -115,7 +132,7 @@ int aIoMonitorCheck(int monitor) {
 		}
 
 		for (i = 0; i < ATTO_IO_MONITORS_MAX; ++i) {
-			struct a__io_monitor_t *mm = a__io_monitors + i;
+			struct Aio_monitor_t *mm = Aio_monitors + i;
 			if (mm->watch != e->wd)
 				continue;
 
@@ -135,12 +152,18 @@ int aIoMonitorCheck(int monitor) {
 	return retval;
 }
 
-void aIoMonitorClose(int monitor) {
-	struct a__io_monitor_t *m = a__io_monitors + monitor;
+void aIoMonitorClose(Aio_monitor_t *m) {
+	if (!m)
+		return;
 
 	if (m->watch != -1) inotify_rm_watch(a__io_inotifyfd, m->watch);
 	m->filename = 0;
 }
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
 #elif defined(ATTO_PLATFORM_WINDOWS)
 #include <shellapi.h>
 
@@ -268,7 +291,7 @@ struct Aio_monitor_t {
 };
 
 static int a__io_kq = -1;
-struct Aio_monitor_t a__io_monitors[ATTO_IO_MONITORS_MAX];
+struct Aio_monitor_t Aio_monitors[ATTO_IO_MONITORS_MAX];
 
 struct Aio_monitor_t *aIoMonitorOpen(const char *filename) {
 	int i;
@@ -279,7 +302,7 @@ struct Aio_monitor_t *aIoMonitorOpen(const char *filename) {
 	}
 	
 	for (i = 0; i < ATTO_IO_MONITORS_MAX; ++i) {
-		struct Aio_monitor_t *m = a__io_monitors + i;
+		struct Aio_monitor_t *m = Aio_monitors + i;
 		if (m->filename == 0) {
 			m->filename = filename;
 			m->fd = -1;
