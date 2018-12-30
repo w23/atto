@@ -7,8 +7,14 @@ extern "C" {
 
 typedef unsigned int ATimeUs;
 
+#ifndef _WIN32
+#define PRINTF_ARGS(a, b) __attribute__ ((format (printf,a,b)))
+#else
+#define PRINTF_ARGS(a, b)
+#endif
+
 ATimeUs aAppTime(void);
-void aAppDebugPrintf(const char *fmt, ...);
+void aAppDebugPrintf(const char *fmt, ...) PRINTF_ARGS(1,2);
 /* Immediately terminate current process */
 void aAppTerminate(int code);
 
