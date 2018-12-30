@@ -14,8 +14,10 @@ static const EGLint a__app_egl_context_attrs[] = {
 	EGL_NONE
 };
 
+// Can be referenced from outside by using extern
+EGLDisplay a_app_egl_display;
+
 static struct a__EglContext {
-	EGLDisplay display;
 	EGLContext context;
 	EGLSurface surface;
 } a__app_egl;
@@ -28,38 +30,38 @@ static void a__appEglInit(
 	EGLConfig config;
 	EGLint num_config;
 
-	ATTO_ASSERT(EGL_NO_DISPLAY != (a__app_egl.display = eglGetDisplay(native_display)));
-	ATTO_ASSERT(eglInitialize(a__app_egl.display, &ver_maj, &ver_min));
+	ATTO_ASSERT(EGL_NO_DISPLAY != (a_app_egl_display = eglGetDisplay(native_display)));
+	ATTO_ASSERT(eglInitialize(a_app_egl_display, &ver_maj, &ver_min));
 
 	aAppDebugPrintf("EGL: version %d.%d", ver_maj, ver_min);
 	aAppDebugPrintf("EGL: EGL_VERSION: '%s'",
-		eglQueryString(a__app_egl.display, EGL_VERSION));
+		eglQueryString(a_app_egl_display, EGL_VERSION));
 	aAppDebugPrintf("EGL: EGL_VENDOR: '%s'",
-		eglQueryString(a__app_egl.display, EGL_VENDOR));
+		eglQueryString(a_app_egl_display, EGL_VENDOR));
 	aAppDebugPrintf("EGL: EGL_CLIENT_APIS: '%s'",
-		eglQueryString(a__app_egl.display, EGL_CLIENT_APIS));
+		eglQueryString(a_app_egl_display, EGL_CLIENT_APIS));
 	aAppDebugPrintf("EGL: EGL_EXTENSIONS: '%s'",
-		eglQueryString(a__app_egl.display, EGL_EXTENSIONS));
+		eglQueryString(a_app_egl_display, EGL_EXTENSIONS));
 
-	ATTO_ASSERT(eglChooseConfig(a__app_egl.display, a__app_egl_config_attrs,
+	ATTO_ASSERT(eglChooseConfig(a_app_egl_display, a__app_egl_config_attrs,
 		&config, 1, &num_config));
 
-	a__app_egl.context = eglCreateContext(a__app_egl.display, config,
+	a__app_egl.context = eglCreateContext(a_app_egl_display, config,
 		EGL_NO_CONTEXT, a__app_egl_context_attrs);
 	ATTO_ASSERT(EGL_NO_CONTEXT != a__app_egl.context);
 
-	a__app_egl.surface = eglCreateWindowSurface(a__app_egl.display, config, native_window, 0);
+	a__app_egl.surface = eglCreateWindowSurface(a_app_egl_display, config, native_window, 0);
 	ATTO_ASSERT(EGL_NO_SURFACE != a__app_egl.surface);
 
-	ATTO_ASSERT(eglMakeCurrent(a__app_egl.display, a__app_egl.surface,
+	ATTO_ASSERT(eglMakeCurrent(a_app_egl_display, a__app_egl.surface,
 		a__app_egl.surface, a__app_egl.context));
 }
 
 static void a__appEglSwap(void) {
-	ATTO_ASSERT(eglSwapBuffers(a__app_egl.display, a__app_egl.surface));
+	ATTO_ASSERT(eglSwapBuffers(a_app_egl_display, a__app_egl.surface));
 }
 
 static void a__appEglDeinit(void) {
-	ATTO_ASSERT(a__app_egl.display != EGL_NO_DISPLAY);
-	eglTerminate(a__app_egl.display);
+	ATTO_ASSERT(a_app_egl_display != EGL_NO_DISPLAY);
+	eglTerminate(a_app_egl_display);
 }
