@@ -1,0 +1,5 @@
+language: c
+script: make examples
+compiler:
+  - clang
+  - gcc
