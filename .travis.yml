@@ -16,4 +16,4 @@ matrix:
         - wget https://github.com/raspberrypi/firmware/archive/master.tar.gz -O raspi-firmware.tar.gz
         - tar xzf raspi-firmware.tar.gz
         - popd
-      script: make RASPBERRY=1 CROSS=1 RPI_ROOT=/tmp/tools-master RPI_VCDIR=/tmp/firmware-master/opt/vc examples
+      script: make RASPBERRY=1 CROSS=1 RPI_TOOLS=/tmp/tools-master RPI_VCDIR=/tmp/firmware-master/hardfp/opt/vc examples

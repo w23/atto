@@ -4,7 +4,7 @@ MAKEFLAGS += -r --no-print-directory
 
 BUILDDIR ?= build
 CC ?= cc
-CFLAGS += -Wall -Wextra -Werror -pedantic -I$(ATTO_BASEDIR)/include -I$(ATTO_BASEDIR)/src
+CFLAGS += -Wall -Wextra -Werror -I$(ATTO_BASEDIR)/include -I$(ATTO_BASEDIR)/src
 
 ifeq ($(DEBUG), 1)
 	CONFIG = dbg
@@ -18,10 +18,12 @@ ifeq ($(RASPBERRY), 1)
 	PLATFORM = pi
 
 	ifeq ($(CROSS), 1)
-		RPI_ROOT ?= /opt/raspberry-pi
+		RPI_ROOT ?= $(HOME)/opt/raspberry-pi
+		RPI_TOOLS ?= $(RPI_ROOT)/tools
 		RPI_TOOLCHAIN ?= gcc-linaro-arm-linux-gnueabihf-raspbian-x64
-		RPI_TOOLCHAINDIR ?= $(RPI_ROOT)/raspberry-tools/arm-bcm2708/$(RPI_TOOLCHAIN)
-		RPI_VCDIR ?= $(RPI_ROOT)/raspberry-firmware/hardfp/opt/vc
+		RPI_TOOLCHAINDIR ?= $(RPI_TOOLS)/arm-bcm2708/$(RPI_TOOLCHAIN)
+		RPI_FIRMWARE ?= $(RPI_ROOT)/firmware
+		RPI_VCDIR ?= $(RPI_FIRMWARE)/hardfp/opt/vc
 		CC = $(RPI_TOOLCHAINDIR)/bin/arm-linux-gnueabihf-gcc
 		COMPILER = gcc
 	else
@@ -31,7 +33,7 @@ ifeq ($(RASPBERRY), 1)
 
 	CFLAGS += -I$(RPI_VCDIR)/include -I$(RPI_VCDIR)/include/interface/vcos/pthreads
 	CFLAGS += -I$(RPI_VCDIR)/include/interface/vmcs_host/linux -DATTO_PLATFORM_RPI
-	LIBS += -lbrcmGLESv2 -lbrcmEGL -lbcm_host -L$(RPI_VCDIR)/lib -lrt -lm
+	LIBS += -lbrcmGLESv2 -lbrcmEGL -lbcm_host -lvchiq_arm -lvcos -L$(RPI_VCDIR)/lib -lrt -lm
 
 	ATTO_SOURCES += \
 		src/app_linux.c \
@@ -41,6 +43,7 @@ else
 	PLATFORM = linux-x11
 	COMPILER ?= $(CC)
 	CC ?= cc
+	CFLAGS += -pedantic
 	LIBS += -lX11 -lXfixes -lGL -lm -pthread
 	ATTO_SOURCES += \
 		src/app_linux.c \
