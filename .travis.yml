@@ -6,11 +6,13 @@ compiler:
 
 matrix:
   include:
-    - language: c
+    - name: "Raspberry Pi examples (cross)"
+      language: c
+      compiler: gcc
       before_install:
         - cd /tmp
         - wget https://github.com/raspberrypi/tools/archive/master.tar.gz -O raspi-tools.tar.gz
         - tar xzf raspi-tools.tar.gz
         - wget https://github.com/raspberrypi/firmware/archive/master.tar.gz -O raspi-firmware.tar.gz
         - tar xzf raspi-firmware.tar.gz
-      script: make -DRASPBERRY=1 -DCROSS=1 -DRPI_ROOT=/tmp/tools-master -DRPI_VCDIR=/tmp/firmware-master/opt/vc examples
+      script: make RASPBERRY=1 CROSS=1 RPI_ROOT=/tmp/tools-master RPI_VCDIR=/tmp/firmware-master/opt/vc examples
