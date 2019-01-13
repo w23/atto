@@ -3,3 +3,8 @@
 app
 libatto.a
 build/
+*.suo
+*.user
+*~
+*.db
+*.opendb
