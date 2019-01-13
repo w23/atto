@@ -6,7 +6,7 @@ compiler:
 
 matrix:
   include:
-    - name: "Raspberry Pi examples (cross)"
+    - name: "Examples-release-rasberry-cross"
       language: c
       compiler: gcc
       before_install:
@@ -17,3 +17,11 @@ matrix:
         - tar xzf raspi-firmware.tar.gz
         - popd
       script: make RASPBERRY=1 CROSS=1 RPI_TOOLS=/tmp/tools-master RPI_VCDIR=/tmp/firmware-master/hardfp/opt/vc examples
+  include:
+    - name: "Examples-release-win64"
+      os: windows
+      env:
+        - MSBUILD_PATH="c:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\MSBuild\15.0\Bin"
+      script:
+        - export PATH=$MSBUILD_PATH:$PATH
+        - msbuild.exe vs2015/examples.sln -p:Configuration=Release -p:Platform=x64 -t:examples
