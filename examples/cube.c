@@ -130,7 +130,7 @@ static void paint(ATimeUs timestamp, float dt) {
 	aGLClear(&clear, &g.target);
 
 	struct AReFrame frame;
-	frame.orient = aQuatRotation(aVec3fNormalize(aVec3f(.7*sinf(t*.37), .2, .7)), -t*.4f);
+	frame.orient = aQuatRotation(aVec3fNormalize(aVec3f(.7f*sinf(t*.37f), .2f, .7f)), -t*.4f);
 	frame.transl = aVec3f(0, 0, 0);
 
 	struct AMat4f model4 = aMat4fReFrame(frame),

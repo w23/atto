@@ -25,7 +25,7 @@
 static char *wchar_to_utf8(const WCHAR *string, int length, int *out_length);
 static void a__AppOpenConsole(void);
 static void a__AppCleanup(void);
-static AKey a__AppMapKey(int key);
+static AKey a__AppMapKey(WPARAM key);
 static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 
 static struct AAppState a__app_state;
@@ -203,7 +203,7 @@ static void a__message_and_exit(const char *message, const char *file, int line)
 #endif
 */
 
-static AKey a__AppMapKey(int key) {
+static AKey a__AppMapKey(WPARAM key) {
 	if (key >= 'A' && key <= 'Z') return AK_A + key - 'A';
 	if (key >= '0' && key <= '9') return AK_A + key - '0';
 
@@ -258,8 +258,8 @@ static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 	switch (msg) {
 	case WM_SIZE:
 		{
-		unsigned int oldw = a__app_state.width, oldh = a__app_state.height;
-			int width = lparam & 0xffff, height = lparam >> 16;
+			const unsigned int oldw = a__app_state.width, oldh = a__app_state.height;
+			const int width = (int)(lparam & 0xffff), height = (int)(lparam >> 16);
 			if (a__app_state.width == width
 				&& a__app_state.height == height) break;
 			a__app_state.width = width;
@@ -321,7 +321,8 @@ static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 	{
 		RAWINPUT ri;
 		UINT ri_size = sizeof(ri);
-		GetRawInputData(lparam, RID_INPUT, &ri, &ri_size, sizeof(RAWINPUTHEADER));
+		const HRAWINPUT hrawinput = (HRAWINPUT)lparam;
+		GetRawInputData(hrawinput, RID_INPUT, &ri, &ri_size, sizeof(RAWINPUTHEADER));
 
 		switch (ri.header.dwType) {
 		case RIM_TYPEMOUSE:

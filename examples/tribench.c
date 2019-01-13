@@ -191,7 +191,7 @@ static void paint(ATimeUs timestamp, float dt) {
 	g.pun[VUniLightDir].value.pf = &lpos.x;
 
 	struct AReFrame frame;
-	frame.orient = aQuatRotation(aVec3fNormalize(aVec3f(.7*sinf(t*.37), .2, .7)), -t*.4f);
+	frame.orient = aQuatRotation(aVec3fNormalize(aVec3f(.7f*sinf(t*.37f), .2f, .7f)), -t*.4f);
 	//frame.orient = aQuatRotation(aVec3fNormalize(aVec3f(1, 1, .6)), t*.1f);
 	frame.transl = aVec3f(0, 0, 0);
 
