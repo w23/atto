@@ -17,7 +17,6 @@ matrix:
         - tar xzf raspi-firmware.tar.gz
         - popd
       script: make RASPBERRY=1 CROSS=1 RPI_TOOLS=/tmp/tools-master RPI_VCDIR=/tmp/firmware-master/hardfp/opt/vc examples
-  include:
     - name: "Examples-release-win64"
       os: windows
       env:
