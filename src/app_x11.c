@@ -17,7 +17,11 @@
 #include <X11/Xlib.h>
 #include <X11/XKBlib.h>
 #include <X11/extensions/Xfixes.h>
+#ifndef ATTO_EGL
 #include <GL/glx.h>
+#else
+#include <EGL/egl.h>
+#endif
 
 #include <string.h>
 #include <stdlib.h> /* exit() */
@@ -34,8 +38,10 @@ void aAppTerminate(int code) {
 static struct {
 	Display *display;
 	Window window;
+#ifndef ATTO_EGL
 	GLXDrawable drawable;
 	GLXContext context;
+#endif
 } a__x11;
 
 static void a__appProcessXKeyEvent(XEvent *e) {
@@ -134,6 +140,7 @@ static void a__appProcessXMotion(const XEvent *e) {
 		a__app_proctable.pointer(timestamp, dx, dy, 0);
 }
 
+#ifndef ATTO_EGL
 static const int a__glxattribs[] = {
 	GLX_X_RENDERABLE, True,
 	GLX_DRAWABLE_TYPE, GLX_WINDOW_BIT,
@@ -147,22 +154,90 @@ static const int a__glxattribs[] = {
 	GLX_DOUBLEBUFFER, True,
 	0
 };
+#else
+static struct a__EglContext {
+	EGLContext context;
+	EGLSurface surface;
+} a__app_egl;
+
+static const EGLint a__app_egl_config_attrs[] = {
+	EGL_BUFFER_SIZE, 32,
+	EGL_RED_SIZE, 8,
+	EGL_GREEN_SIZE, 8,
+	EGL_BLUE_SIZE, 8,
+	EGL_ALPHA_SIZE, 8,
+
+	EGL_DEPTH_SIZE, 24,
+	EGL_STENCIL_SIZE, EGL_DONT_CARE,
+
+	EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
+	EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+
+	EGL_NONE
+};
+
+static const EGLint a__app_egl_context_attrs[] = {
+	EGL_CONTEXT_CLIENT_VERSION, 2,
+	EGL_NONE
+};
+
+// Can be referenced from outside by using extern
+EGLDisplay a_app_egl_display;
+#endif
 
 int main(int argc, char *argv[]) {
 	ATimeUs timestamp = aAppTime();
 	XSetWindowAttributes winattrs;
 	Atom delete_message;
+#ifndef ATTO_EGL
 	int nglxconfigs = 0;
 	GLXFBConfig *glxconfigs = NULL;
+#endif
 	XVisualInfo *vinfo = NULL;
 	ATimeUs last_paint = 0;
 
 	ATTO_ASSERT(a__x11.display = XOpenDisplay(NULL));
 
+#ifndef ATTO_EGL
 	ATTO_ASSERT(glxconfigs = glXChooseFBConfig(a__x11.display, 0, a__glxattribs, &nglxconfigs));
 	ATTO_ASSERT(nglxconfigs);
 
 	ATTO_ASSERT(vinfo = glXGetVisualFromFBConfig(a__x11.display, glxconfigs[0]));
+
+#else
+	EGLint ver_min, ver_maj;
+	EGLConfig config;
+	EGLint num_config;
+
+	eglBindAPI(EGL_OPENGL_API);
+
+	ATTO_ASSERT(EGL_NO_DISPLAY != (a_app_egl_display = eglGetDisplay(a__x11.display)));
+	ATTO_ASSERT(eglInitialize(a_app_egl_display, &ver_maj, &ver_min));
+
+	aAppDebugPrintf("EGL: version %d.%d", ver_maj, ver_min);
+	aAppDebugPrintf("EGL: EGL_VERSION: '%s'",
+		eglQueryString(a_app_egl_display, EGL_VERSION));
+	aAppDebugPrintf("EGL: EGL_VENDOR: '%s'",
+		eglQueryString(a_app_egl_display, EGL_VENDOR));
+	aAppDebugPrintf("EGL: EGL_CLIENT_APIS: '%s'",
+		eglQueryString(a_app_egl_display, EGL_CLIENT_APIS));
+	aAppDebugPrintf("EGL: EGL_EXTENSIONS: '%s'",
+		eglQueryString(a_app_egl_display, EGL_EXTENSIONS));
+
+	ATTO_ASSERT(eglChooseConfig(a_app_egl_display, a__app_egl_config_attrs,
+		&config, 1, &num_config));
+
+	ATTO_ASSERT(num_config > 0);
+
+	{
+		XVisualInfo xvisual_info = {0};
+		int num_visuals;
+		ATTO_ASSERT(eglGetConfigAttrib(a_app_egl_display, config, EGL_NATIVE_VISUAL_ID, (EGLint*)&xvisual_info.visualid));
+		//xvisual_info.screen = DefaultScreen(a__x11.display);
+
+		ATTO_ASSERT(vinfo = XGetVisualInfo(a__x11.display, VisualScreenMask | VisualIDMask, &xvisual_info, &num_visuals));
+	}
+#endif // ATTO_EGL
 
 	memset(&winattrs, 0, sizeof(winattrs));
 	winattrs.event_mask = KeyPressMask | KeyReleaseMask |
@@ -173,6 +248,7 @@ int main(int argc, char *argv[]) {
 	winattrs.colormap = XCreateColormap(a__x11.display,
 		RootWindow(a__x11.display, vinfo->screen),
 		vinfo->visual, AllocNone);
+	ATTO_ASSERT(winattrs.colormap != None);
 	winattrs.override_redirect = False;
 
 	a__x11.window = XCreateWindow(a__x11.display, RootWindow(a__x11.display, vinfo->screen),
@@ -191,12 +267,25 @@ int main(int argc, char *argv[]) {
 
 	XkbSetDetectableAutoRepeat(a__x11.display, True, NULL);
 
+#ifndef ATTO_EGL
 	ATTO_ASSERT(a__x11.context =
 		glXCreateNewContext(a__x11.display, glxconfigs[0], GLX_RGBA_TYPE, 0, True));
 
 	ATTO_ASSERT(a__x11.drawable = glXCreateWindow(a__x11.display, glxconfigs[0], a__x11.window, 0));
 
 	glXMakeContextCurrent(a__x11.display, a__x11.drawable, a__x11.drawable, a__x11.context);
+#else
+	a__app_egl.context = eglCreateContext(a_app_egl_display, config,
+		EGL_NO_CONTEXT, a__app_egl_context_attrs);
+	ATTO_ASSERT(EGL_NO_CONTEXT != a__app_egl.context);
+
+	a__app_egl.surface = eglCreateWindowSurface(a_app_egl_display, config, a__x11.window, 0);
+	//a__app_egl.surface = eglCreatePlatformWindowSurface(a_app_egl_display, config, &native_window, 0);
+	ATTO_ASSERT(EGL_NO_SURFACE != a__app_egl.surface);
+
+	ATTO_ASSERT(eglMakeCurrent(a_app_egl_display, a__app_egl.surface,
+		a__app_egl.surface, a__app_egl.context));
+#endif // !ATTO_EGL
 
 	XSelectInput(a__x11.display, a__x11.window,
 		StructureNotifyMask | KeyPressMask | KeyReleaseMask |
@@ -263,7 +352,11 @@ int main(int argc, char *argv[]) {
 			if (a__app_proctable.paint)
 				a__app_proctable.paint(now, dt);
 
+#ifndef ATTO_EGL
 			glXSwapBuffers(a__x11.display, a__x11.drawable);
+#else
+			ATTO_ASSERT(eglSwapBuffers(a_app_egl_display, a__app_egl.surface));
+#endif
 			last_paint = now;
 		}
 	}
@@ -273,9 +366,14 @@ exit:
 		a__app_proctable.close();
 
 	aAppDebugPrintf("cleaning up");
+#ifndef ATTO_EGL
 	glXMakeContextCurrent(a__x11.display, 0, 0, 0);
 	glXDestroyWindow(a__x11.display, a__x11.drawable);
 	glXDestroyContext(a__x11.display, a__x11.context);
+#else
+	ATTO_ASSERT(a_app_egl_display != EGL_NO_DISPLAY);
+	eglTerminate(a_app_egl_display);
+#endif
 	XDestroyWindow(a__x11.display, a__x11.window);
 	XCloseDisplay(a__x11.display);
 
