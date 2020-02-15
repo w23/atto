@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.10)
 ############## atto lib ##############
 
 project(atto C)
+
+set(OpenGL_GL_PREFERENCE GLVND)
 find_package(OpenGL REQUIRED)
 
 if (WIN32)
@@ -12,6 +14,7 @@ elseif(CMAKE_SYSTEM_NAME MATCHES ".*Linux")
   set(ATTO_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/app_linux.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/app_x11.c)
+  set(ATTO_LIBS X11 Xfixes m)
 else()
   message(FATAL_ERROR "Not ported")
 endif()
