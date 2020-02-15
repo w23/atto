@@ -7,7 +7,7 @@ project(atto C)
 set(OpenGL_GL_PREFERENCE GLVND)
 find_package(OpenGL REQUIRED)
 
-if (WIN32)
+if(WIN32)
   set(ATTO_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/app_windows.c)
 elseif(CMAKE_SYSTEM_NAME MATCHES ".*Linux")
@@ -31,7 +31,11 @@ set_target_properties(atto PROPERTIES
 
 function(add_example EXAMPLE_NAME)
   project(${EXAMPLE_NAME})
-  add_executable(${EXAMPLE_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/examples/${EXAMPLE_NAME}.c)
+  if(WIN32)
+    set(ATTO_EXE_SYSTEM WIN32)
+  endif()
+  add_executable(${EXAMPLE_NAME} ${ATTO_EXE_SYSTEM}
+    ${CMAKE_CURRENT_SOURCE_DIR}/examples/${EXAMPLE_NAME}.c)
   target_link_libraries(${EXAMPLE_NAME} atto)
   set_target_properties(${EXAMPLE_NAME} PROPERTIES
     C_STANDARD 99

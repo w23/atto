@@ -1,5 +1,15 @@
 language: c
-script: make examples
+addons:
+  apt:
+    packages:
+      - libgl1-mesa-dev
+      - libgl1-mesa-glx
+      - mesa-utils
+script:
+  - mkdir build
+  - cd build
+  - cmake -DCMAKE_BUILD_TYPE=Release ..
+  - make
 compiler:
   - clang
   - gcc
@@ -29,11 +39,17 @@ matrix:
         - MSBUILD_PATH="c:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\MSBuild\15.0\Bin"
       script:
         - export PATH=$MSBUILD_PATH:$PATH
-        - msbuild.exe vs2015/examples.sln -p:Configuration=Release -p:Platform=x64 -t:examples
+        - mkdir build
+        - cd build
+        - cmake -G "Visual Studio 15 2017" -A x64 ..
+        - cmake --build . --config Release
     - name: "Examples-release-win32"
       os: windows
       env:
         - MSBUILD_PATH="c:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\MSBuild\15.0\Bin"
       script:
         - export PATH=$MSBUILD_PATH:$PATH
-        - msbuild.exe vs2015/examples.sln -p:Configuration=Release -p:Platform=x86 -t:examples
+        - mkdir build
+        - cd build
+        - cmake -G "Visual Studio 15 2017" -A Win32 ..
+        - cmake --build . --config Release
