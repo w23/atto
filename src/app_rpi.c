@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
 	a__appEglInit(EGL_DEFAULT_DISPLAY, &a__app_window);
 
 	a__global_state.argc = argc;
-	a__global_state.argv = (const char**)argv;
+	a__global_state.argv = (const char **)argv;
 	a__global_state.gl_version = AOGLV_ES_20;
 
 	timestamp = aAppTime();
@@ -36,7 +36,8 @@ int main(int argc, char *argv[]) {
 	for (;;) {
 		ATimeUs now = aAppTime();
 		float dt;
-		if (!last_paint) last_paint = now;
+		if (!last_paint)
+			last_paint = now;
 		dt = (now - last_paint) * 1e-6f;
 
 		if (now >= next_evdev_scan) {
@@ -102,8 +103,7 @@ static void a__app_vc_init(void) {
 
 	dispman_display = vc_dispmanx_display_open(0);
 	dispman_update = vc_dispmanx_update_start(0);
-	dispman_element = vc_dispmanx_element_add(
-		dispman_update, dispman_display, 0, &dst_rect, 0, &src_rect,
+	dispman_element = vc_dispmanx_element_add(dispman_update, dispman_display, 0, &dst_rect, 0, &src_rect,
 		DISPMANX_PROTECTION_NONE, &alpha, 0, DISPMANX_NO_ROTATE);
 
 	a__app_window.element = dispman_element;

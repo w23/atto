@@ -7,9 +7,11 @@
 #include <stdlib.h> /* malloc */
 
 static void keyPress(ATimeUs timestamp, AKey key, int pressed) {
-	(void)(timestamp); (void)(pressed);
-	if (key == AK_Esc)
+	(void)(timestamp);
+	(void)(pressed);
+	if (key == AK_Esc) {
 		aAppTerminate(0);
+	}
 }
 
 static const char shader_vertex[] =
@@ -18,20 +20,18 @@ static const char shader_vertex[] =
 	"attribute vec3 av3_pos, av3_normal, av3_color, av3_tricenter;\n"
 	"varying vec3 vv3_color;\n"
 	"void main() {\n"
-		"vec4 pos = um4_model * vec4(av3_pos, 1.);\n"
-		"vec3 normal = (um4_model * vec4(av3_normal, 0.)).xyz;\n"
-		"vec3 ldir = uv3_lightpos - pos.xyz;"
-		"vv3_color = av3_color * max(0., dot(normalize(ldir), normal)) / dot(ldir,ldir);\n"
-		"gl_Position = um4_vp * pos;\n"
-	"}"
-;
+	"  vec4 pos = um4_model * vec4(av3_pos, 1.);\n"
+	"  vec3 normal = (um4_model * vec4(av3_normal, 0.)).xyz;\n"
+	"  vec3 ldir = uv3_lightpos - pos.xyz;"
+	"  vv3_color = av3_color * max(0., dot(normalize(ldir), normal)) / dot(ldir,ldir);\n"
+	"  gl_Position = um4_vp * pos;\n"
+	"}";
 
 static const char shader_fragment[] =
 	"varying vec3 vv3_color;\n"
 	"void main() {\n"
-		"gl_FragColor = vec4(vv3_color, 1.);\n"
-	"}"
-;
+	"  gl_FragColor = vec4(vv3_color, 1.);\n"
+	"}";
 
 const unsigned int triangles = 8192 * 2;
 
@@ -39,12 +39,10 @@ struct TriVertex {
 	struct AVec3f pos, tricenter, normal, color;
 };
 
-typedef enum {
-	VAttrPos, VAttrTriCenter, VAttrNormal, VAttrColor, VAttr_COUNT
-} VAttr;
-typedef enum {
-	VUniVP, VUniModel, VUniLightDir, VUni_COUNT
-} VUni;
+typedef enum { VAttrPos, VAttrTriCenter, VAttrNormal, VAttrColor, VAttr_COUNT } VAttr;
+
+typedef enum { VUniVP, VUniModel, VUniLightDir, VUni_COUNT } VUni;
+
 static struct {
 	AGLAttribute attr[VAttr_COUNT];
 	AGLProgramUniform pun[VUni_COUNT];
@@ -58,12 +56,11 @@ static struct {
 } g;
 
 static struct AVec3f randomVector(struct ALCGRand *rng, float scale) {
-	return aVec3fMulf(aVec3fSubf(
-			aVec3f(aLcgRandf(rng),aLcgRandf(rng),aLcgRandf(rng)), .5f), 2.f * scale);
+	return aVec3fMulf(aVec3fSubf(aVec3f(aLcgRandf(rng), aLcgRandf(rng), aLcgRandf(rng)), .5f), 2.f * scale);
 }
 
 static void generateTriangles(unsigned int triangles) {
-	struct ALCGRand rng = { triangles };
+	struct ALCGRand rng = {triangles};
 
 	g.vertices_count = triangles * 6;
 	g.vertices = malloc(sizeof(*g.vertices) * g.vertices_count);
@@ -74,13 +71,13 @@ static void generateTriangles(unsigned int triangles) {
 		v[0].pos = aVec3fAdd(center, randomVector(&rng, .1f));
 		v[1].pos = aVec3fAdd(center, randomVector(&rng, .1f));
 		v[2].pos = aVec3fAdd(center, randomVector(&rng, .1f));
-		v[0].normal = v[1].normal = v[2].normal = aVec3fNormalize(
-				aVec3fCross(
-					aVec3fSub(v[0].pos, v[1].pos), aVec3fSub(v[2].pos, v[1].pos)));
-		v[0].color = v[1].color = v[2].color
-			= aVec3f(aLcgRandf(&rng),aLcgRandf(&rng),aLcgRandf(&rng));
+		v[0].normal = v[1].normal = v[2].normal =
+			aVec3fNormalize(aVec3fCross(aVec3fSub(v[0].pos, v[1].pos), aVec3fSub(v[2].pos, v[1].pos)));
+		v[0].color = v[1].color = v[2].color = aVec3f(aLcgRandf(&rng), aLcgRandf(&rng), aLcgRandf(&rng));
 
-		v[3] = v[0]; v[4] = v[2]; v[5] = v[1];
+		v[3] = v[0];
+		v[4] = v[2];
+		v[5] = v[1];
 		v[3].normal = v[4].normal = v[5].normal = aVec3fMulf(v[0].normal, -1.f);
 	}
 }
@@ -162,7 +159,9 @@ static void init(void) {
 }
 
 static void resize(ATimeUs timestamp, unsigned int old_w, unsigned int old_h) {
-	(void)(timestamp); (void)(old_w); (void)(old_h);
+	(void)(timestamp);
+	(void)(old_w);
+	(void)(old_h);
 	g.target.viewport.x = g.target.viewport.y = 0;
 	g.target.viewport.w = a_app_state->width;
 	g.target.viewport.h = a_app_state->height;
@@ -179,24 +178,23 @@ static void paint(ATimeUs timestamp, float dt) {
 	(void)(dt);
 
 	clear.a = 1;
-	clear.r = .0f*sinf(t*.1f);
-	clear.g = .0f*sinf(t*.2f);
-	clear.b = .0f*sinf(t*.3f);
+	clear.r = .0f * sinf(t * .1f);
+	clear.g = .0f * sinf(t * .2f);
+	clear.b = .0f * sinf(t * .3f);
 	clear.depth = 1;
 	clear.bits = AGLCB_Everything;
 
 	aGLClear(&clear, &g.target);
 
-	struct AVec3f lpos = aVec3f(1,0,0);
+	struct AVec3f lpos = aVec3f(1, 0, 0);
 	g.pun[VUniLightDir].value.pf = &lpos.x;
 
 	struct AReFrame frame;
-	frame.orient = aQuatRotation(aVec3fNormalize(aVec3f(.7f*sinf(t*.37f), .2f, .7f)), -t*.4f);
-	//frame.orient = aQuatRotation(aVec3fNormalize(aVec3f(1, 1, .6)), t*.1f);
+	frame.orient = aQuatRotation(aVec3fNormalize(aVec3f(.7f * sinf(t * .37f), .2f, .7f)), -t * .4f);
+	// frame.orient = aQuatRotation(aVec3fNormalize(aVec3f(1, 1, .6)), t*.1f);
 	frame.transl = aVec3f(0, 0, 0);
 
-	struct AMat4f model4 = aMat4fReFrame(frame),
-		vp4 = aMat4fMul(g.projection, aMat4fTranslation(aVec3f(0,0,-10)));
+	struct AMat4f model4 = aMat4fReFrame(frame), vp4 = aMat4fMul(g.projection, aMat4fTranslation(aVec3f(0, 0, -10)));
 	g.pun[VUniModel].value.pf = &model4.X.x;
 	g.pun[VUniVP].value.pf = &vp4.X.x;
 

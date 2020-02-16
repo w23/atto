@@ -17,14 +17,18 @@
 #define ATTO_EVDEV_DEVICE_MAX_NAME 16
 
 #ifndef ATTO_PRINT
-#include <stdio.h> /* printf */
-#define STR_(a) #a
-#define STR(a) STR_(a)
-#define ATTO_PRINT(fmt, ...) fprintf(stderr, __FILE__ ":" STR(__LINE__) ": " fmt "\n", __VA_ARGS__)
+	#include <stdio.h> /* printf */
+	#define STR_(a) #a
+	#define STR(a) STR_(a)
+	#define ATTO_PRINT(fmt, ...) fprintf(stderr, __FILE__ ":" STR(__LINE__) ": " fmt "\n", __VA_ARGS__)
 #endif
 #ifndef ATTO_ASSERT
-#include <stdlib.h> /* abort() */
-#define ATTO_ASSERT(cond) if(!(cond)){ATTO_PRINT("%s", "ASSERT(" #cond ") failed"); abort();}
+	#include <stdlib.h> /* abort() */
+	#define ATTO_ASSERT(cond) \
+		if (!(cond)) { \
+			ATTO_PRINT("%s", "ASSERT(" #cond ") failed"); \
+			abort(); \
+		}
 #endif
 
 struct A__EvdevDevice {
@@ -57,9 +61,10 @@ void a__EvdevScan() {
 	close(evdir);
 
 	for (long i = 0; i + (long)sizeof(struct linux_dirent) < bytes;) {
-		const struct linux_dirent *dent = (void*)(buffer + i);
+		const struct linux_dirent *dent = (void *)(buffer + i);
 		const long length = dent->d_reclen - 2 - offsetof(struct linux_dirent, d_name);
-		if (i + length > bytes) break;
+		if (i + length > bytes)
+			break;
 		const char d_type = dent->d_name[length + 1];
 		/*
 		ATTO_PRINT("@%ld d_ino=%lu d_off=%lu d_reclen=%d d_name=%s d_type=%d",
@@ -67,13 +72,13 @@ void a__EvdevScan() {
 		*/
 		i += dent->d_reclen;
 
-		if (strncmp(dent->d_name, "event", 5)) continue;
+		if (strncmp(dent->d_name, "event", 5))
+			continue;
 
 		/* ATTO_PRINT("entry=%s type=%d", dent->d_name, d_type); */
 
 		if (length > ATTO_EVDEV_DEVICE_MAX_NAME - 1) {
-			ATTO_PRINT("Warning: device name is too long (%ld >= %d), skipping",
-					length, ATTO_EVDEV_DEVICE_MAX_NAME);
+			ATTO_PRINT("Warning: device name is too long (%ld >= %d), skipping", length, ATTO_EVDEV_DEVICE_MAX_NAME);
 			continue;
 		}
 
@@ -83,9 +88,10 @@ void a__EvdevScan() {
 			for (; idev < ATTO_EVDEV_MAX_DEVICES; ++idev) {
 				struct A__EvdevDevice *dev = a__evdev.devices + idev;
 				if (dev->fd < 0) {
-					if (!dev_empty)	dev_empty = dev;
-				} else
-					if (strcmp(dev->name, dent->d_name) == 0) break;
+					if (!dev_empty)
+						dev_empty = dev;
+				} else if (strcmp(dev->name, dent->d_name) == 0)
+					break;
 			} /* for max devices */
 
 			if (idev == ATTO_EVDEV_MAX_DEVICES) {
@@ -99,7 +105,7 @@ void a__EvdevScan() {
 					if (dev_empty->fd < 0) {
 						ATTO_PRINT("Failed to open device \"%s\"", device_name);
 					} else {
-    				ioctl(dev_empty->fd, EVIOCGRAB, 1);
+						ioctl(dev_empty->fd, EVIOCGRAB, 1);
 						strcpy(dev_empty->name, dent->d_name);
 						ATTO_PRINT("Device %s opened as fd=%d", dev_empty->name, dev_empty->fd);
 					}
@@ -120,87 +126,87 @@ void a__EvdevInit(struct AAppState *state, struct AAppProctable *proc) {
 
 static AKey a__evdevKey(int code) {
 	switch (code) {
-		case KEY_BACKSPACE: return AK_Backspace;
-		case KEY_TAB: return AK_Tab;
-		case KEY_ENTER: return AK_Enter;
-		case KEY_SPACE: return AK_Space;
-		case KEY_ESC: return AK_Esc;
-		case KEY_PAGEUP: return AK_PageUp;
-		case KEY_PAGEDOWN: return AK_PageDown;
-		case KEY_LEFT: return AK_Left;
-		case KEY_UP: return AK_Up;
-		case KEY_RIGHT: return AK_Right;
-		case KEY_DOWN: return AK_Down;
-		case KEY_COMMA: return AK_Comma;
-		case KEY_MINUS: return AK_Minus;
-		case KEY_DOT: return AK_Dot;
-		case KEY_SLASH: return AK_Slash;
-		case KEY_0: return AK_0;
-		case KEY_1: return AK_1;
-		case KEY_2: return AK_2;
-		case KEY_3: return AK_3;
-		case KEY_4: return AK_4;
-		case KEY_5: return AK_5;
-		case KEY_6: return AK_6;
-		case KEY_7: return AK_7;
-		case KEY_8: return AK_8;
-		case KEY_9: return AK_9;
-		case KEY_EQUAL: return AK_Equal;
-		case KEY_A: return AK_A;
-		case KEY_B: return AK_B;
-		case KEY_C: return AK_C;
-		case KEY_D: return AK_D;
-		case KEY_E: return AK_E;
-		case KEY_F: return AK_F;
-		case KEY_G: return AK_G;
-		case KEY_H: return AK_H;
-		case KEY_I: return AK_I;
-		case KEY_J: return AK_J;
-		case KEY_K: return AK_K;
-		case KEY_L: return AK_L;
-		case KEY_M: return AK_M;
-		case KEY_N: return AK_N;
-		case KEY_O: return AK_O;
-		case KEY_P: return AK_P;
-		case KEY_Q: return AK_Q;
-		case KEY_R: return AK_R;
-		case KEY_S: return AK_S;
-		case KEY_T: return AK_T;
-		case KEY_U: return AK_U;
-		case KEY_V: return AK_V;
-		case KEY_W: return AK_W;
-		case KEY_X: return AK_X;
-		case KEY_Y: return AK_Y;
-		case KEY_Z: return AK_Z;
-		case KEY_APOSTROPHE: return AK_Tilda;
-		case KEY_DELETE: return AK_Del;
-		case KEY_INSERT: return AK_Ins;
-		case KEY_LEFTALT: return AK_LeftAlt;
-		case KEY_LEFTCTRL: return AK_LeftCtrl;
-		case KEY_LEFTMETA: return AK_LeftMeta;
-		case KEY_LEFTSHIFT: return AK_LeftShift;
-		case KEY_RIGHTALT: return AK_RightAlt;
-		case KEY_RIGHTCTRL: return AK_RightCtrl;
-		case KEY_RIGHTMETA: return AK_RightMeta;
-		case KEY_RIGHTSHIFT: return AK_RightShift;
-		case KEY_F1: return AK_F1;
-		case KEY_F2: return AK_F2;
-		case KEY_F3: return AK_F3;
-		case KEY_F4: return AK_F4;
-		case KEY_F5: return AK_F5;
-		case KEY_F6: return AK_F6;
-		case KEY_F7: return AK_F7;
-		case KEY_F8: return AK_F8;
-		case KEY_F9: return AK_F9;
-		case KEY_F10: return AK_F10;
-		case KEY_F11: return AK_F11;
-		case KEY_F12: return AK_F12;
-		case KEY_KPASTERISK: return AK_KeypadAsterisk;
-		case KEY_KPPLUS: return AK_KeypadPlus;
-		case KEY_KPMINUS: return AK_KeypadMinus;
-		case KEY_HOME: return AK_Home;
-		case KEY_END: return AK_End;
-		case KEY_CAPSLOCK: return AK_Capslock;
+	case KEY_BACKSPACE: return AK_Backspace;
+	case KEY_TAB: return AK_Tab;
+	case KEY_ENTER: return AK_Enter;
+	case KEY_SPACE: return AK_Space;
+	case KEY_ESC: return AK_Esc;
+	case KEY_PAGEUP: return AK_PageUp;
+	case KEY_PAGEDOWN: return AK_PageDown;
+	case KEY_LEFT: return AK_Left;
+	case KEY_UP: return AK_Up;
+	case KEY_RIGHT: return AK_Right;
+	case KEY_DOWN: return AK_Down;
+	case KEY_COMMA: return AK_Comma;
+	case KEY_MINUS: return AK_Minus;
+	case KEY_DOT: return AK_Dot;
+	case KEY_SLASH: return AK_Slash;
+	case KEY_0: return AK_0;
+	case KEY_1: return AK_1;
+	case KEY_2: return AK_2;
+	case KEY_3: return AK_3;
+	case KEY_4: return AK_4;
+	case KEY_5: return AK_5;
+	case KEY_6: return AK_6;
+	case KEY_7: return AK_7;
+	case KEY_8: return AK_8;
+	case KEY_9: return AK_9;
+	case KEY_EQUAL: return AK_Equal;
+	case KEY_A: return AK_A;
+	case KEY_B: return AK_B;
+	case KEY_C: return AK_C;
+	case KEY_D: return AK_D;
+	case KEY_E: return AK_E;
+	case KEY_F: return AK_F;
+	case KEY_G: return AK_G;
+	case KEY_H: return AK_H;
+	case KEY_I: return AK_I;
+	case KEY_J: return AK_J;
+	case KEY_K: return AK_K;
+	case KEY_L: return AK_L;
+	case KEY_M: return AK_M;
+	case KEY_N: return AK_N;
+	case KEY_O: return AK_O;
+	case KEY_P: return AK_P;
+	case KEY_Q: return AK_Q;
+	case KEY_R: return AK_R;
+	case KEY_S: return AK_S;
+	case KEY_T: return AK_T;
+	case KEY_U: return AK_U;
+	case KEY_V: return AK_V;
+	case KEY_W: return AK_W;
+	case KEY_X: return AK_X;
+	case KEY_Y: return AK_Y;
+	case KEY_Z: return AK_Z;
+	case KEY_APOSTROPHE: return AK_Tilda;
+	case KEY_DELETE: return AK_Del;
+	case KEY_INSERT: return AK_Ins;
+	case KEY_LEFTALT: return AK_LeftAlt;
+	case KEY_LEFTCTRL: return AK_LeftCtrl;
+	case KEY_LEFTMETA: return AK_LeftMeta;
+	case KEY_LEFTSHIFT: return AK_LeftShift;
+	case KEY_RIGHTALT: return AK_RightAlt;
+	case KEY_RIGHTCTRL: return AK_RightCtrl;
+	case KEY_RIGHTMETA: return AK_RightMeta;
+	case KEY_RIGHTSHIFT: return AK_RightShift;
+	case KEY_F1: return AK_F1;
+	case KEY_F2: return AK_F2;
+	case KEY_F3: return AK_F3;
+	case KEY_F4: return AK_F4;
+	case KEY_F5: return AK_F5;
+	case KEY_F6: return AK_F6;
+	case KEY_F7: return AK_F7;
+	case KEY_F8: return AK_F8;
+	case KEY_F9: return AK_F9;
+	case KEY_F10: return AK_F10;
+	case KEY_F11: return AK_F11;
+	case KEY_F12: return AK_F12;
+	case KEY_KPASTERISK: return AK_KeypadAsterisk;
+	case KEY_KPPLUS: return AK_KeypadPlus;
+	case KEY_KPMINUS: return AK_KeypadMinus;
+	case KEY_HOME: return AK_Home;
+	case KEY_END: return AK_End;
+	case KEY_CAPSLOCK: return AK_Capslock;
 	}
 	return AK_Unknown;
 }
@@ -210,7 +216,8 @@ static void a__EvdevRead(int fd) {
 		ATimeUs ts = 0;
 		struct input_event event;
 		const ssize_t rd = read(fd, &event, sizeof event);
-		if (rd < (ssize_t)sizeof event) break;
+		if (rd < (ssize_t)sizeof event)
+			break;
 		/*
 		ATTO_PRINT("%ld.%ld %d %d %d", event.time.tv_sec, event.time.tv_usec,
 				event.type, event.code, event.value);
@@ -248,7 +255,7 @@ static void a__EvdevRead(int fd) {
 		} else if (event.type == EV_REL) {
 			if (event.code == REL_X)
 				a__evdev.proc->pointer(ts, event.value, 0, 0);
-			else if(event.code == REL_Y)
+			else if (event.code == REL_Y)
 				a__evdev.proc->pointer(ts, 0, event.value, 0);
 		}
 	} /* for all events */
@@ -265,7 +272,8 @@ void a__EvdevProcess() {
 		}
 
 	int events = poll(fds, nfds, 0);
-	if (events == 0) return;
+	if (events == 0)
+		return;
 	if (events < 0) {
 		if (errno != EINTR)
 			ATTO_PRINT("poll error: %d", errno);
@@ -273,7 +281,8 @@ void a__EvdevProcess() {
 	}
 
 	for (int i = 0; i < nfds; ++i) {
-		if (!fds[i].revents) continue;
+		if (!fds[i].revents)
+			continue;
 		if (fds[i].revents & POLLIN) {
 			a__EvdevRead(fds[i].fd);
 		} else { /* if fd was readable */
@@ -290,9 +299,9 @@ void a__EvdevProcess() {
 }
 
 void a__EvdevClose() {
-		for (int i = 0; i < ATTO_EVDEV_MAX_DEVICES; ++i)
-			if (a__evdev.devices[i].fd >= 0) {
-				close(a__evdev.devices[i].fd);
-				a__evdev.devices[i].fd = -1;
-			}
+	for (int i = 0; i < ATTO_EVDEV_MAX_DEVICES; ++i)
+		if (a__evdev.devices[i].fd >= 0) {
+			close(a__evdev.devices[i].fd);
+			a__evdev.devices[i].fd = -1;
+		}
 }
