@@ -93,11 +93,11 @@ void a__EvdevScan() {
 				if (!dev_empty) {
 					ATTO_PRINT("Exceeded max devices %d", ATTO_EVDEV_MAX_DEVICES);
 				} else {
-					char buffer[12 + ATTO_EVDEV_DEVICE_MAX_NAME] = "/dev/input/";
-					strcpy(buffer + 11, dent->d_name);
-					dev_empty->fd = open(buffer, O_RDONLY | O_NONBLOCK);
+					char device_name[12 + ATTO_EVDEV_DEVICE_MAX_NAME] = "/dev/input/";
+					strcpy(device_name + 11, dent->d_name);
+					dev_empty->fd = open(device_name, O_RDONLY | O_NONBLOCK);
 					if (dev_empty->fd < 0) {
-						ATTO_PRINT("Failed to open device \"%s\"", buffer);
+						ATTO_PRINT("Failed to open device \"%s\"", device_name);
 					} else {
     				ioctl(dev_empty->fd, EVIOCGRAB, 1);
 						strcpy(dev_empty->name, dent->d_name);
