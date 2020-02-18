@@ -2,9 +2,9 @@ language: c
 addons:
   apt:
     packages:
+      - libxfixes-dev
+      - mesa-common-dev
       - libgl1-mesa-dev
-      - libgl1-mesa-glx
-      - mesa-utils
 script:
   - mkdir build
   - cd build
@@ -13,12 +13,6 @@ script:
 compiler:
   - clang
   - gcc
-addons:
-  apt:
-    packages:
-      - libxfixes-dev
-      - mesa-common-dev
-      - libgl1-mesa-dev
 
 matrix:
   include:

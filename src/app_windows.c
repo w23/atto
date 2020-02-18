@@ -379,7 +379,7 @@ static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 void aAppGrabInput(int grab) {
 	RAWINPUTDEVICE devices[] = {
 		{1, 2, grab ? RIDEV_NOLEGACY /*| RIDEV_CAPTUREMOUSE*/: RIDEV_REMOVE, grab ? g.hwnd : NULL}, /* mouse */
-		/* {1, 6, RIDEV_NOLEGACY, NULL}, /* keyboard */
+		/*{1, 6, RIDEV_NOLEGACY, NULL},*/ /* keyboard */
 	};
 
 	if (grab == a__app_state.grabbed)
