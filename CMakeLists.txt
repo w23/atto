@@ -29,7 +29,7 @@ target_link_libraries(atto
 set_target_properties(atto PROPERTIES
 	C_STANDARD 99
 	C_STANDARD_REQUIRED TRUE
-	C_EXTENSIONS OFF)
+	C_EXTENSIONS ON)
 
 # check if current cmake is not included into other cmake
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
