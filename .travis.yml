@@ -3,6 +3,12 @@ script: make examples
 compiler:
   - clang
   - gcc
+addons:
+  apt:
+    packages:
+      - libxfixes-dev
+      - mesa-common-dev
+      - libgl1-mesa-dev
 
 matrix:
   include:
