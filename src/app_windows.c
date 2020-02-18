@@ -163,9 +163,10 @@ static void a__AppCleanup(void) {
 
 static void a__AppOpenConsole(void) {
 	AllocConsole();
-	freopen("CONIN$", "r", stdin);
-	freopen("CONOUT$", "w", stdout);
-	freopen("CONOUT$", "w", stderr);
+	FILE* dummy_file;
+	freopen_s(&dummy_file, "CONIN$", "r", stdin);
+	freopen_s(&dummy_file, "CONOUT$", "w", stdout);
+	freopen_s(&dummy_file, "CONOUT$", "w", stderr);
 }
 
 #if 0
