@@ -30,7 +30,7 @@
 #define ATTO_WINDOWS_H_INCLUDED
 #endif /* ifndef ATTO_WINDOWS_H_INCLUDED */
 #include <GL/gl.h>
-#include <glext.h>
+#include "khronos/glext.h"
 #define ATTO_GL_DESKTOP
 #endif /* ifdef ATTO_PLATFORM_WINDOWS */
 
