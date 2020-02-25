@@ -1,5 +1,5 @@
-#include <atto/app.h>
 #include <math.h>
+#include <atto/app.h>
 
 #define ATTO_GL_H_IMPLEMENT
 #include <atto/gl.h>
@@ -33,9 +33,19 @@ static const char shader_fragment_show[] =
 	"    texture2D(us2_texture, vv2_pos*.5 - vec2(.5) + r*vec2(sin(a),cos(a)));"
 	"}";
 
-static const float vertexes[] = {1.f, -1.f, 0.f, 1.f, -1.f, -1.f};
-
-static const float screenquad[] = {1.f, -1.f, 1.f, 1.f, -1.f, -1.f, -1.f, 1.f};
+// clang-format off
+static const float vertexes[] = {
+	1.f, -1.f,
+	0.f, 1.f,
+	-1.f, -1.f
+};
+static const float screenquad[] = {
+	1.f, -1.f,
+	1.f, 1.f,
+	-1.f, -1.f,
+	-1.f, 1.f,
+};
+// clang-format on
 
 static struct {
 	AGLAttribute attr[1];
@@ -174,9 +184,8 @@ static void paint(ATimeUs timestamp, float dt) {
 static void keyPress(ATimeUs timestamp, AKey key, int pressed) {
 	(void)(timestamp);
 	(void)(pressed);
-	if (key == AK_Esc) {
+	if (key == AK_Esc)
 		aAppTerminate(0);
-	}
 }
 
 void attoAppInit(struct AAppProctable *proctable) {

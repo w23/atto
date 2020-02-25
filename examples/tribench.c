@@ -9,9 +9,8 @@
 static void keyPress(ATimeUs timestamp, AKey key, int pressed) {
 	(void)(timestamp);
 	(void)(pressed);
-	if (key == AK_Esc) {
+	if (key == AK_Esc)
 		aAppTerminate(0);
-	}
 }
 
 static const char shader_vertex[] =
@@ -40,9 +39,7 @@ struct TriVertex {
 };
 
 typedef enum { VAttrPos, VAttrTriCenter, VAttrNormal, VAttrColor, VAttr_COUNT } VAttr;
-
 typedef enum { VUniVP, VUniModel, VUniLightDir, VUni_COUNT } VUni;
-
 static struct {
 	AGLAttribute attr[VAttr_COUNT];
 	AGLProgramUniform pun[VUni_COUNT];

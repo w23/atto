@@ -40,9 +40,9 @@ static void appPaint(ATimeUs timestamp, float dt) {
 
 static void appKeyPress(ATimeUs timestamp, AKey key, int down) {
 	aAppDebugPrintf("%s[%u]: key = %d, down = %d", __func__, timestamp, key, down);
-	if (key == AK_Esc) {
+
+	if (key == AK_Esc)
 		aAppTerminate(0);
-	}
 }
 
 static void appPointer(ATimeUs timestamp, int dx, int dy, unsigned int buttons_changed_bits) {
@@ -57,7 +57,7 @@ static void appClose() {
 void attoAppInit(struct AAppProctable *proctable) {
 	int i;
 	aAppDebugPrintf("%s[%u]: argc = %d, argv = %p", __func__, 0, a_app_state->argc, (void *)a_app_state->argv);
-	for (i = 0; i < a_app_state->argc; ++i) { aAppDebugPrintf("\targv[%d] = '%s'", i, a_app_state->argv[i]); }
+	for (i = 0; i < a_app_state->argc; ++i) aAppDebugPrintf("\targv[%d] = '%s'", i, a_app_state->argv[i]);
 	aAppDebugPrintf("\tOpenGL version %s", opengl_version(a_app_state->gl_version));
 
 	proctable->resize = appResize;

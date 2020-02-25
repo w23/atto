@@ -8,9 +8,8 @@
 static void keyPress(ATimeUs timestamp, AKey key, int pressed) {
 	(void)(timestamp);
 	(void)(pressed);
-	if (key == AK_Esc) {
+	if (key == AK_Esc)
 		aAppTerminate(0);
-	}
 }
 
 static const char shader_vertex[] =
@@ -32,7 +31,13 @@ static const char shader_fragment[] =
 	"  gl_FragColor = vec4(vv3_color, 1.);\n"
 	"}";
 
-static const float vertexes[] = {1.f, -1.f, 0.f, 1.f, -1.f, -1.f};
+// clang-format off
+static const float vertexes[] = {
+	1.f, -1.f,
+	0.f, 1.f,
+	-1.f, -1.f
+};
+// clang-format on
 
 static struct {
 	AGLAttribute attr[1];

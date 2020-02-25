@@ -8,9 +8,8 @@
 static void keyPress(ATimeUs timestamp, AKey key, int pressed) {
 	(void)(timestamp);
 	(void)(pressed);
-	if (key == AK_Esc) {
+	if (key == AK_Esc)
 		aAppTerminate(0);
-	}
 }
 
 static const char shader_vertex[] =
