@@ -7,57 +7,55 @@
 static const char shader_vertex[] =
 	"attribute vec2 av2_pos;"
 	"varying vec2 vv2_pos;"
-	"void main() { vv2_pos = av2_pos; gl_Position = vec4(av2_pos, 0., 1.); }"
-;
+	"void main() { vv2_pos = av2_pos; gl_Position = vec4(av2_pos, 0., 1.); }";
 
 static const char shader_fragment[] =
 	"uniform float uf_time;"
 	"varying vec2 vv2_pos;"
 	"void main() {"
-		"float a = 5. * atan(vv2_pos.x, vv2_pos.y);"
-		"float r = 10. * sin(uf_time + length(vv2_pos)*6.);"
-		"gl_FragColor = abs(vec4("
-			"sin(a+uf_time*4.+r),"
-			"sin(2.+a+uf_time*3.+r),"
-			"sin(4.+a+uf_time*5.+r),"
-			"1.));"
-	"}"
-;
+	"  float a = 5. * atan(vv2_pos.x, vv2_pos.y);"
+	"  float r = 10. * sin(uf_time + length(vv2_pos)*6.);"
+	"  gl_FragColor = abs(vec4("
+	"    sin(a+uf_time*4.+r),"
+	"    sin(2.+a+uf_time*3.+r),"
+	"    sin(4.+a+uf_time*5.+r),"
+	"    1.));"
+	"}";
 
 static const char shader_fragment_show[] =
 	"uniform sampler2D us2_texture;"
 	"uniform float uf_time;"
 	"varying vec2 vv2_pos;"
 	"void main() {"
-		"float a = 5. * atan(vv2_pos.x, vv2_pos.y);"
-		"float r = .1 * sin(.4 * uf_time + length(vv2_pos)*3.);"
-		"gl_FragColor = "
-			"texture2D(us2_texture, vv2_pos*.5 - vec2(.5) + r*vec2(sin(a),cos(a)));"
-	"}"
-;
+	"  float a = 5. * atan(vv2_pos.x, vv2_pos.y);"
+	"  float r = .1 * sin(.4 * uf_time + length(vv2_pos)*3.);"
+	"  gl_FragColor = "
+	"    texture2D(us2_texture, vv2_pos*.5 - vec2(.5) + r*vec2(sin(a),cos(a)));"
+	"}";
 
+// clang-format off
 static const float vertexes[] = {
 	1.f, -1.f,
 	0.f, 1.f,
 	-1.f, -1.f
 };
-
 static const float screenquad[] = {
 	1.f, -1.f,
 	1.f, 1.f,
 	-1.f, -1.f,
 	-1.f, 1.f,
 };
+// clang-format on
 
 static struct {
 	AGLAttribute attr[1];
 	AGLProgramUniform uni[2];
 	AGLAttribute shattr[1];
-	
+
 	AGLDrawSource draw, show;
 	AGLDrawMerge merge;
 	AGLDrawTarget screen, fb;
-	
+
 	AGLTexture fbtex;
 	AGLFramebufferParams fbp;
 	AGLClearParams clear;
@@ -77,7 +75,7 @@ static void init(void) {
 	}
 
 	g.fbtex = aGLTextureCreate();
-	
+
 	g.clear.r = g.clear.g = g.clear.b = g.clear.a = 0;
 	g.clear.depth = 1;
 	g.clear.bits = AGLCB_Everything;
@@ -100,7 +98,7 @@ static void init(void) {
 	g.draw.primitive.index.buffer = 0;
 	g.draw.primitive.index.data.ptr = 0;
 	g.draw.primitive.index.type = 0;
-	
+
 	g.draw.attribs.p = g.attr;
 	g.draw.attribs.n = sizeof g.attr / sizeof *g.attr;
 
@@ -130,7 +128,7 @@ static void init(void) {
 	g.show.primitive.index.buffer = 0;
 	g.show.primitive.index.data.ptr = 0;
 	g.show.primitive.index.type = 0;
-	
+
 	g.show.attribs.p = g.shattr;
 	g.show.attribs.n = sizeof g.shattr / sizeof *g.shattr;
 
@@ -146,7 +144,9 @@ static void init(void) {
 
 static void resize(ATimeUs timestamp, unsigned int old_w, unsigned int old_h) {
 	AGLTextureUploadData data;
-	(void)(timestamp); (void)(old_w); (void)(old_h);
+	(void)(timestamp);
+	(void)(old_w);
+	(void)(old_h);
 
 	data.format = AGLTF_U8_RGBA;
 	data.x = data.y = 0;
@@ -170,9 +170,9 @@ static void paint(ATimeUs timestamp, float dt) {
 	float t = timestamp * 1e-6f;
 	(void)(dt);
 
-	g.clear.r = sinf(t*.1f);
-	g.clear.g = sinf(t*.2f);
-	g.clear.b = sinf(t*.3f);
+	g.clear.r = sinf(t * .1f);
+	g.clear.g = sinf(t * .2f);
+	g.clear.b = sinf(t * .3f);
 
 	aGLClear(&g.clear, &g.fb);
 
@@ -182,7 +182,8 @@ static void paint(ATimeUs timestamp, float dt) {
 }
 
 static void keyPress(ATimeUs timestamp, AKey key, int pressed) {
-	(void)(timestamp); (void)(pressed);
+	(void)(timestamp);
+	(void)(pressed);
 	if (key == AK_Esc)
 		aAppTerminate(0);
 }

@@ -23,27 +23,27 @@ void aIoMonitorClose(struct Aio_monitor_t *monitor);
 #ifdef ATTO_IO_H_IMPLEMENT
 
 #ifdef ATTO_IO_H__IMPLEMENTED
-#error atto_io.h can be implemented only once
+	#error atto_io.h can be implemented only once
 #endif /* ifdef ATTO_IO_H__IMPLEMENTED */
 #define ATTO_IO_H__IMPLEMENTED
 
 #ifndef ATTO_PLATFORM
-#error ATTO_PLATFORM is not defined
+	#error ATTO_PLATFORM is not defined
 #endif
 
 #ifndef ATTO_IO_MONITORS_MAX
-#define ATTO_IO_MONITORS_MAX 16
+	#define ATTO_IO_MONITORS_MAX 16
 #endif
 
 #ifdef ATTO_PLATFORM_POSIX
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
+	#include <sys/types.h>
+	#include <sys/stat.h>
+	#include <fcntl.h>
+	#include <unistd.h>
 
-#ifdef __cplusplus
+	#ifdef __cplusplus
 extern "C" {
-#endif
+	#endif
 
 int aIoFileRead(const char *filename, void *buffer, int size) {
 	int fd;
@@ -74,10 +74,10 @@ int aIoFileWrite(const char *filename, void *buffer, int size) {
 #endif
 
 #ifdef ATTO_PLATFORM_LINUX
-#include <sys/inotify.h>
-#include <limits.h>
-#include <stdlib.h>
-#include <string.h>
+	#include <sys/inotify.h>
+	#include <limits.h>
+	#include <stdlib.h>
+	#include <string.h>
 static int a__io_inotifyfd = -1;
 
 struct Aio_monitor_t {
@@ -109,7 +109,7 @@ Aio_monitor_t *aIoMonitorOpen(const char *filename) {
 
 int aIoMonitorCheck(Aio_monitor_t *m) {
 	char buffer[sizeof(struct inotify_event) + NAME_MAX + 1];
-	const struct inotify_event *e = (const struct inotify_event*)buffer;
+	const struct inotify_event *e = (const struct inotify_event *)buffer;
 	int retval;
 	int i;
 
@@ -117,9 +117,7 @@ int aIoMonitorCheck(Aio_monitor_t *m) {
 		return 0;
 
 	if (m->watch == -1) {
-		m->watch = inotify_add_watch(
-			a__io_inotifyfd, m->filename,
-			IN_MODIFY | IN_DELETE_SELF | IN_MOVE_SELF);
+		m->watch = inotify_add_watch(a__io_inotifyfd, m->filename, IN_MODIFY | IN_DELETE_SELF | IN_MOVE_SELF);
 		m->event = 0;
 		return (m->watch == -1) ? 0 : 1;
 	}
@@ -156,40 +154,43 @@ void aIoMonitorClose(Aio_monitor_t *m) {
 	if (!m)
 		return;
 
-	if (m->watch != -1) inotify_rm_watch(a__io_inotifyfd, m->watch);
+	if (m->watch != -1)
+		inotify_rm_watch(a__io_inotifyfd, m->watch);
 	m->filename = 0;
 }
 
-#ifdef __cplusplus
+	#ifdef __cplusplus
 } // extern "C"
-#endif
+	#endif
 
 #elif defined(ATTO_PLATFORM_WINDOWS)
-#include <shellapi.h>
+	#include <shellapi.h>
 
 int aIoFileRead(const char *filename, void *buffer, int size) {
 	WCHAR *wfilename = utf8_to_wchar(filename, -1, NULL);
-	HANDLE h = CreateFile(wfilename, GENERIC_READ, FILE_SHARE_READ,
-		NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	if (h == INVALID_HANDLE_VALUE) return 0;
+	HANDLE h = CreateFile(wfilename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (h == INVALID_HANDLE_VALUE)
+		return 0;
 	DWORD read;
 	BOOL rr = ReadFile(h, buffer, size, &read, NULL);
 	CloseHandle(h);
 	free(wfilename);
-	if (rr == FALSE || read < 1) return 0;
+	if (rr == FALSE || read < 1)
+		return 0;
 	return read;
 }
 
 int aIoFileWrite(const char *filename, void *buffer, int size) {
 	WCHAR *wfilename = utf8_to_wchar(filename, -1, NULL);
-	HANDLE h = CreateFile(wfilename, GENERIC_WRITE, FILE_SHARE_READ,
-		NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-	if (h == INVALID_HANDLE_VALUE) return 0;
+	HANDLE h = CreateFile(wfilename, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (h == INVALID_HANDLE_VALUE)
+		return 0;
 	DWORD written;
 	BOOL rr = WriteFile(h, buffer, size, &written, NULL);
 	CloseHandle(h);
 	free(wfilename);
-	if (rr == FALSE || written < 1) return 0;
+	if (rr == FALSE || written < 1)
+		return 0;
 	return written;
 }
 
@@ -207,16 +208,17 @@ static DWORD WINAPI filemon_thread_main(struct Aio_monitor_t *mon) {
 	for (;;) {
 		DWORD returned = 0;
 		BOOL result = ReadDirectoryChangesW(mon->dir, &buffer, sizeof(buffer), FALSE,
-			FILE_NOTIFY_CHANGE_CREATION | FILE_NOTIFY_CHANGE_FILE_NAME |
-			FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE,
+			FILE_NOTIFY_CHANGE_CREATION | FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_SIZE |
+				FILE_NOTIFY_CHANGE_LAST_WRITE,
 			&returned, NULL, NULL);
-		if (!result) break;
-		const char *ptr = (const char*)buffer;
+		if (!result)
+			break;
+		const char *ptr = (const char *)buffer;
 		while (returned >= sizeof(FILE_NOTIFY_INFORMATION)) {
 			PFILE_NOTIFY_INFORMATION notify = (PFILE_NOTIFY_INFORMATION)ptr;
-			//fprintf(stdout, "notify: %d\n", notify->Action);
-			if ((notify->FileNameLength == mon->filename_size)
-				&& (0 == memcmp(notify->FileName, mon->filename, notify->FileNameLength)))
+			// fprintf(stdout, "notify: %d\n", notify->Action);
+			if ((notify->FileNameLength == mon->filename_size) &&
+				(0 == memcmp(notify->FileName, mon->filename, notify->FileNameLength)))
 				InterlockedIncrement(&mon->sentinel);
 			ptr += notify->NextEntryOffset;
 			returned -= notify->NextEntryOffset;
@@ -242,14 +244,13 @@ struct Aio_monitor_t *aIoMonitorOpen(const char *filename) {
 	int filename_length = filepart - buffer;
 	WCHAR filetmp = filepart[0];
 	filepart[0] = 0;
-	HANDLE dir = CreateFile(buffer,
-		GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
-		NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+	HANDLE dir = CreateFile(
+		buffer, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
 	if (dir == INVALID_HANDLE_VALUE)
 		return NULL;
 	filepart[0] = filetmp;
 
-	mon = (struct Aio_monitor_t*)malloc(sizeof(*mon) + sizeof(WCHAR) * length);
+	mon = (struct Aio_monitor_t *)malloc(sizeof(*mon) + sizeof(WCHAR) * length);
 	mon->sentinel = 1;
 	mon->dir = dir;
 	memcpy(mon->dirname, buffer, sizeof(WCHAR) * (length + 1));
@@ -273,16 +274,16 @@ void aIoMonitorClose(struct Aio_monitor_t *monitor) {
 
 #elif defined(ATTO_PLATFORM_MACH)
 
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/event.h>
-#include <sys/time.h>
-#include <errno.h>
-#include <string.h>
-#include <inttypes.h>
+	#include <unistd.h>
+	#include <stdio.h>
+	#include <stdlib.h>
+	#include <fcntl.h>
+	#include <sys/types.h>
+	#include <sys/event.h>
+	#include <sys/time.h>
+	#include <errno.h>
+	#include <string.h>
+	#include <inttypes.h>
 
 struct Aio_monitor_t {
 	const char *filename;
@@ -300,7 +301,7 @@ struct Aio_monitor_t *aIoMonitorOpen(const char *filename) {
 		if (a__io_kq < 0)
 			return 0;
 	}
-	
+
 	for (i = 0; i < ATTO_IO_MONITORS_MAX; ++i) {
 		struct Aio_monitor_t *m = Aio_monitors + i;
 		if (m->filename == 0) {
@@ -319,8 +320,9 @@ int aIoMonitorCheck(struct Aio_monitor_t *monitor) {
 	ts.tv_sec = 0;
 	ts.tv_nsec = 0;
 
-	if (a__io_kq < 0) return -1;
-	
+	if (a__io_kq < 0)
+		return -1;
+
 	if (monitor->fd < 0) {
 		monitor->fd = open(monitor->filename, O_EVTONLY);
 		if (monitor->fd > 0) {
@@ -340,7 +342,7 @@ int aIoMonitorCheck(struct Aio_monitor_t *monitor) {
 			}
 		}
 	}
-	
+
 	for (;;) {
 		struct Aio_monitor_t *m;
 		int result = kevent(a__io_kq, NULL, 0, &event, 1, &ts);
@@ -350,8 +352,8 @@ int aIoMonitorCheck(struct Aio_monitor_t *monitor) {
 		}
 		if (result == 0)
 			break;
-		
-		m = (struct Aio_monitor_t*)event.udata;
+
+		m = (struct Aio_monitor_t *)event.udata;
 		fprintf(stderr, "%s updated\n", m->filename);
 		++(m->updated);
 		if (event.fflags & NOTE_DELETE) {
@@ -360,12 +362,12 @@ int aIoMonitorCheck(struct Aio_monitor_t *monitor) {
 			m->fd = -1;
 		}
 	}
-	
+
 	if (monitor->updated) {
 		monitor->updated = 0;
 		return 1;
 	}
-	
+
 	return 0;
 }
 
