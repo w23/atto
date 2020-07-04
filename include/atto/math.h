@@ -4,6 +4,10 @@
 #include <math.h>
 #include <stdint.h>
 
+#ifdef _MSC_VER
+#pragma warning(disable:4204)
+#endif
+
 // clang-format off
 typedef struct AVec2f { float x, y; } AVec2f;
 typedef struct AVec3f { float x, y, z; } AVec3f;
