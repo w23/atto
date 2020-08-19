@@ -242,6 +242,8 @@ static AKey a__AppMapKey(WPARAM key) {
 	case VK_F10: return AK_F10;
 	case VK_F11: return AK_F11;
 	case VK_F12: return AK_F12;
+	case VK_OEM_MINUS: return AK_Minus;
+	case VK_OEM_PLUS: return AK_Plus;
 	}
 	return AK_Unknown;
 }
@@ -306,6 +308,8 @@ static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 		if (!a__app_state.grabbed) {
 			const int x = GET_X_LPARAM(lparam), y = GET_Y_LPARAM(lparam);
 			const int dx = x - a__app_state.pointer.x, dy = y - a__app_state.pointer.y;
+			a__app_state.pointer.x = x;
+			a__app_state.pointer.y = y;
 
 			if (a__app_proctable.pointer)
 				a__app_proctable.pointer(aAppTime(), dx, dy, 0);
