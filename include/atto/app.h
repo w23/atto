@@ -18,6 +18,9 @@ void aAppDebugPrintf(const char *fmt, ...) PRINTF_ARGS(1, 2);
 /* Immediately terminate current process */
 void aAppTerminate(int code);
 
+/* Gracefully close the app */
+void aAppClose();
+
 #define ATTO_ASSERT(cond) \
 	if (!(cond)) { \
 		aAppDebugPrintf("ERROR @ %s:%d: (%s) failed", __FILE__, __LINE__, #cond); \
@@ -122,12 +125,12 @@ typedef enum {
 	AB_WheelDown = 1 << 4
 } AButton;
 
-typedef enum { AOGLV_21, AOGLV_ES_20 } AOpenGLVersion;
+typedef enum { AOGLV_21, AOGLV_ES_20, AOVK10 } AGraphicsVersion;
 
 struct AAppState {
 	int argc;
 	const char *const *argv;
-	AOpenGLVersion gl_version;
+	AGraphicsVersion graphics_version;
 	unsigned int width, height;
 	int keys[AK_Max];
 	struct {
@@ -142,11 +145,51 @@ void aAppGrabInput(int grab);
 
 extern const struct AAppState *a_app_state;
 
+// struct AVkPaintArgs {
+// 	ATimeUs pts;
+// 	float dt;
+// 	uint32_t image_index;
+// 	VkSemaphore image_ready;
+// 	uint32_t out_num_semaphores;
+// 	VkSemaphore *out_semaphores;
+// }
+
 struct AAppProctable {
-	void (*resize)(ATimeUs ts, unsigned int old_width, unsigned int old_height);
+	// FIXME #ifndef ATTO_VK
+	//void (*resize)(ATimeUs ts, unsigned int old_width, unsigned int old_height);
 	void (*paint)(ATimeUs ts, float dt);
 	void (*key)(ATimeUs ts, AKey key, int down);
 	void (*pointer)(ATimeUs ts, int dx, int dy, unsigned int buttons_changed_bits);
+	void (*close)();
+
+// FIXME #idfef ATTO_VK
+	void (*swapchain_will_destroy)();
+	void (*swapchain_created)();
+	//void (*paint_vk)();
+};
+
+/*
+ * 1. Instance extensions (at compile time)
+ * 2. (atto) main(...)
+ * 3. (atto) VkInstance init
+ * 4. (atto) enum vk devices (? I: hide in atto, II: give to app)
+ * 5. attoAppInit: - procs, - handle args, - picks device? dev extensions?
+ * 6. (atto) creates window, surface, ...
+ * 7. app->resize(w,h, dev, surface)
+ * 		app creates swapchain using helper funcs
+ * 		app creates framebuffers, ...
+ * 8. (atto) paint(
+*/
+
+
+struct AVkAppProctable {
+
+
+
+	// void (*swapDestroy)();
+	// void (*swapCreate)(); // ~= resize
+	void (*paint)();
+	///
 	void (*close)();
 };
 
