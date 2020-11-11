@@ -32,6 +32,10 @@ void aAppTerminate(int code) {
 	exit(code);
 }
 
+void aAppGrabInput(int grab) {
+	(void)(grab);
+}
+
 static int running = 1;
 void aAppClose() {
 	running = 0;
@@ -104,10 +108,14 @@ int main(int argc, char *argv[]) {
 	wl_display_roundtrip(a__wl.disp);
 
 	a_vkInitWithWayland(a__wl.disp, surf);
-	ATTO_APP_INIT_FUNC(&a__app_proctable);
 
+	a__app_state.argc = argc;
+	a__app_state.argv = (const char *const *)argv;
+	a__app_state.graphics_version = AOVK10;
 	a__app_state.width = 1280;
 	a__app_state.height = 720;
+	ATTO_APP_INIT_FUNC(&a__app_proctable);
+
 	a_vkCreateSwapchain(a__app_state.width, a__app_state.height);
 	a__app_proctable.swapchain_created();
 

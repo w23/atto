@@ -4,7 +4,9 @@
 #define VK_USE_PLATFORM_WAYLAND_KHR
 #include <vulkan/vulkan.h>
 
+#ifndef COUNTOF
 #define COUNTOF(a) (sizeof(a)/sizeof(*(a)))
+#endif
 
 #define AVK_VERSION(v) \
 	VK_VERSION_MAJOR(v), \
