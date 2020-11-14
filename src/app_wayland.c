@@ -45,7 +45,64 @@ static struct {
 	struct wl_display *disp;
 	struct wl_compositor *comp;
 	struct xdg_wm_base *xdg_wm;
+	struct wl_seat *seat;
 } a__wl = {0};
+
+static void noop() {}
+
+static struct wl_pointer_listener pointer_listener = {
+	.enter = noop,
+	.leave = noop,
+	.motion = noop,
+	.button = noop,
+	.axis = noop,
+};
+
+static void key(void *data,
+			struct wl_keyboard *wl_keyboard,
+			uint32_t serial,
+			uint32_t time,
+			uint32_t key,
+			uint32_t state) {
+	aAppDebugPrintf("key: %u state: %u", key, state);
+
+	// KEK
+	int akey = 0;
+	switch (key) {
+		case 17: akey = AK_W; break;
+		case 30: akey = AK_A; break;
+		case 31: akey = AK_S; break;
+		case 32: akey = AK_D; break;
+		case 42: akey = AK_LeftShift; break;
+		default: return;
+	}
+	if (a__app_proctable.key)
+		a__app_proctable.key(aAppTime(), akey, state);
+}
+
+static struct wl_keyboard_listener keyboard_listener = {
+ 	.keymap = noop,
+	.enter = noop,
+	.leave = noop,
+	.modifiers = noop,
+	.repeat_info = noop,
+	.key = key,
+};
+
+static void seat_capabilities(void *data, struct wl_seat *seat, uint32_t capabilities) {
+	if (capabilities & WL_SEAT_CAPABILITY_KEYBOARD) {
+		struct wl_keyboard *const keyboard = wl_seat_get_keyboard(seat);
+		wl_keyboard_add_listener(keyboard, &keyboard_listener, NULL);
+	}
+	if (capabilities & WL_SEAT_CAPABILITY_POINTER) {
+		struct wl_pointer *const pointer = wl_seat_get_pointer(seat);
+		wl_pointer_add_listener(pointer, &pointer_listener, NULL);
+	}
+}
+
+static struct wl_seat_listener seat_listener = {
+	.capabilities = seat_capabilities,
+};
 
 static void reg_global(void *data, struct wl_registry *reg, uint32_t name, const char *interface, uint32_t version) {
 	//printf("%s: %s name=%u ver=%u\n", __FUNCTION__, interface, name, version);
@@ -54,6 +111,10 @@ static void reg_global(void *data, struct wl_registry *reg, uint32_t name, const
 	} else
 	if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
 		a__wl.xdg_wm = wl_registry_bind(reg, name, &xdg_wm_base_interface, 1);
+	} else
+	if (strcmp(interface, wl_seat_interface.name) == 0) {
+		a__wl.seat = wl_registry_bind(reg, name, &wl_seat_interface, 1);
+		wl_seat_add_listener(a__wl.seat, &seat_listener, NULL);
 	}
 }
 
@@ -77,7 +138,6 @@ static struct xdg_surface_listener xsurf_listener = {
 	.configure = xsurf_configure
 };
 
-static void noop() {}
 static void xtop_close(void *data,
 				struct xdg_toplevel *xdg_toplevel) {
 	//printf("%s\n", __FUNCTION__);
@@ -121,11 +181,10 @@ int main(int argc, char *argv[]) {
 
 	ATimeUs last_paint = 0;
 	while (running) {
-			ATimeUs now = aAppTime();
-			float dt;
-			if (!last_paint)
-				last_paint = now;
-			dt = (now - last_paint) * 1e-6f;
+		ATimeUs now = aAppTime();
+		float dt;
+		dt = (now - last_paint) * 1e-6f;
+		last_paint = now;
 
 		a_vkPaint(&a__app_proctable, now, dt);
 

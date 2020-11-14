@@ -13,13 +13,13 @@
 	VK_VERSION_MINOR(v), \
 	VK_VERSION_PATCH(v)
 
-#define AVK_CHECK_RESULT(res) { \
+#define AVK_CHECK_RESULT(res) do { \
 	const VkResult result = res; \
 	if (result != VK_SUCCESS) { \
 		aAppDebugPrintf("VK ERROR @ %s:%d: %s failed with result %d", __FILE__, __LINE__, #res, result); \
 		aAppTerminate(-1); \
 	} \
-}
+} while(0)
 
 #define MAX_SWAPCHAIN_IMAGES 8
 
