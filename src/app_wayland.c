@@ -16,6 +16,7 @@
 #include <wayland-client.h>
 #include <string.h>
 #include <stdlib.h> /* exit() */
+#include <unistd.h>
 
 // FIXME declare this somewhere properly
 void a_vkInitWithWayland(struct wl_display *disp, struct wl_surface *surf);
@@ -34,6 +35,10 @@ void aAppTerminate(int code) {
 
 void aAppGrabInput(int grab) {
 	(void)(grab);
+	// FIXME:
+	// https://gitlab.freedesktop.org/wayland/wayland-protocols/-/blob/master/unstable/pointer-constraints/pointer-constraints-unstable-v1.xml
+	// https://gitlab.freedesktop.org/wayland/wayland-protocols/-/blob/master/unstable/relative-pointer/relative-pointer-unstable-v1.xml
+	a__app_state.grabbed = grab;
 }
 
 static int running = 1;
@@ -50,11 +55,56 @@ static struct {
 
 static void noop() {}
 
+static void motion(void *data,
+			 struct wl_pointer *wl_pointer,
+			 uint32_t time,
+			 wl_fixed_t surface_x,
+			 wl_fixed_t surface_y) {
+	const int x = wl_fixed_to_int(surface_x);
+	const int y = wl_fixed_to_int(surface_y);
+
+	// TODO track enter/leave
+	const int dx = x - a__app_state.pointer.x;
+	const int dy = y - a__app_state.pointer.y;
+
+	a__app_state.pointer.x = x;
+	a__app_state.pointer.y = y;
+
+	if (!a__app_proctable.pointer)
+		return;
+
+	const ATimeUs now = aAppTime(); // FIXME convert wl time
+	a__app_proctable.pointer(now, dx, dy, 0);
+}
+
+static void button(void *data,
+			 struct wl_pointer *wl_pointer,
+			 uint32_t serial,
+			 uint32_t time,
+			 uint32_t button,
+			 uint32_t state) {
+	const uint32_t button_bit = 1 << (button-1);
+	switch (state) {
+		case WL_POINTER_BUTTON_STATE_PRESSED:
+			a__app_state.pointer.buttons |= button_bit;
+			break;
+		case WL_POINTER_BUTTON_STATE_RELEASED:
+			a__app_state.pointer.buttons &= ~button_bit;
+			break;
+	}
+
+	if (!a__app_proctable.pointer)
+		return;
+
+	const ATimeUs now = aAppTime(); // FIXME convert wl time
+	a__app_proctable.pointer(now, 0, 0, button_bit);
+}
+
 static struct wl_pointer_listener pointer_listener = {
 	.enter = noop,
 	.leave = noop,
-	.motion = noop,
-	.button = noop,
+	.motion = motion,
+	.button = button,
 	.axis = noop,
 };
 
@@ -66,9 +116,10 @@ static void key(void *data,
 			uint32_t state) {
 	aAppDebugPrintf("key: %u state: %u", key, state);
 
-	// KEK
+	// FIXME do this properly w/ xkb and all that jazz
 	int akey = 0;
 	switch (key) {
+		case 1: akey = AK_Esc; break;
 		case 17: akey = AK_W; break;
 		case 30: akey = AK_A; break;
 		case 31: akey = AK_S; break;
@@ -78,6 +129,16 @@ static void key(void *data,
 	}
 	if (a__app_proctable.key)
 		a__app_proctable.key(aAppTime(), akey, state);
+}
+
+static void keymap(void *data, struct wl_keyboard *keyboard, uint32_t format, int32_t fd, uint32_t size) {
+	/* char *keymap_string = mmap (NULL, size, PROT_READ, MAP_SHARED, fd, 0); */
+	/* xkb_keymap_unref (keymap); */
+	/* keymap = xkb_keymap_new_from_string (xkb_context, keymap_string, XKB_KEYMAP_FORMAT_TEXT_V1, XKB_KEYMAP_COMPILE_NO_FLAGS); */
+	/* munmap (keymap_string, size); */
+	close (fd);
+	/* xkb_state_unref (xkb_state); */
+	/* xkb_state = xkb_state_new (keymap); */
 }
 
 static struct wl_keyboard_listener keyboard_listener = {
