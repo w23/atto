@@ -129,6 +129,8 @@ void a_vkCreateSwapchain(int w, int h) {
 
 	sw->num_images = sw->num_images > MAX_SWAPCHAIN_IMAGES ? MAX_SWAPCHAIN_IMAGES : sw->num_images;
 	AVK_CHECK_RESULT(vkGetSwapchainImagesKHR(a_vk.dev, sw->handle, &sw->num_images, sw->images));
+
+	aAppDebugPrintf("swapchain created: %d %d", w, h);
 }
 
 void a_vkDestroySwapchain() {

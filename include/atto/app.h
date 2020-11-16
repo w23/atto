@@ -154,6 +154,8 @@ extern const struct AAppState *a_app_state;
 // 	VkSemaphore *out_semaphores;
 // }
 
+// TODO add explicit leave/enter focus handling
+
 struct AAppProctable {
 	// FIXME #ifndef ATTO_VK
 	//void (*resize)(ATimeUs ts, unsigned int old_width, unsigned int old_height);

@@ -83,7 +83,7 @@ static void button(void *data,
 			 uint32_t time,
 			 uint32_t button,
 			 uint32_t state) {
-	const uint32_t button_bit = 1 << (button-1);
+	const uint32_t button_bit = 1 << (button-0x110);
 	switch (state) {
 		case WL_POINTER_BUTTON_STATE_PRESSED:
 			a__app_state.pointer.buttons |= button_bit;
@@ -193,6 +193,7 @@ static void xsurf_configure(void *data,
 			  uint32_t serial) {
 	xdg_surface_ack_configure(xdg_surface, serial);
 	wl_surface_commit(data);
+	aAppDebugPrintf("%s", __FUNCTION__);
 }
 
 static struct xdg_surface_listener xsurf_listener = {
@@ -201,12 +202,32 @@ static struct xdg_surface_listener xsurf_listener = {
 
 static void xtop_close(void *data,
 				struct xdg_toplevel *xdg_toplevel) {
-	//printf("%s\n", __FUNCTION__);
 	*(int*)data = 0;
 }
 
+static void xtop_configure(void *data,
+			struct xdg_toplevel *xdg_toplevel,
+			int32_t width,
+			int32_t height,
+			struct wl_array *states) {
+	aAppDebugPrintf("%s %d %d", __FUNCTION__, width, height);
+	if (width == 0 || height == 0)
+		return;
+
+	if (a__app_proctable.swapchain_will_destroy)
+		a__app_proctable.swapchain_will_destroy();
+	a_vkDestroySwapchain();
+
+	a__app_state.width = width;
+	a__app_state.height = height;
+
+	a_vkCreateSwapchain(width, height);
+	if (a__app_proctable.swapchain_created)
+		a__app_proctable.swapchain_created();
+}
+
 static struct xdg_toplevel_listener xtop_listener = {
-	.configure = noop,
+	.configure = xtop_configure,
 	.close = xtop_close
 };
 
@@ -237,8 +258,12 @@ int main(int argc, char *argv[]) {
 	a__app_state.height = 720;
 	ATTO_APP_INIT_FUNC(&a__app_proctable);
 
+	aAppDebugPrintf("post-init");
+
 	a_vkCreateSwapchain(a__app_state.width, a__app_state.height);
 	a__app_proctable.swapchain_created();
+
+	aAppDebugPrintf("post-swapchain");
 
 	ATimeUs last_paint = 0;
 	while (running) {
@@ -247,6 +272,7 @@ int main(int argc, char *argv[]) {
 		dt = (now - last_paint) * 1e-6f;
 		last_paint = now;
 
+		//aAppDebugPrintf("DRAW");
 		a_vkPaint(&a__app_proctable, now, dt);
 
 		ATTO_ASSERT(wl_display_dispatch(a__wl.disp) != -1);
