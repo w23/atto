@@ -214,9 +214,11 @@ static void xtop_configure(void *data,
 	if (width == 0 || height == 0)
 		return;
 
+	if (width == a__app_state.width && height == a__app_state.height)
+		return;
+
 	if (a__app_proctable.swapchain_will_destroy)
 		a__app_proctable.swapchain_will_destroy();
-	a_vkDestroySwapchain();
 
 	a__app_state.width = width;
 	a__app_state.height = height;

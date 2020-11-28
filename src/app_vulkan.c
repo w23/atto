@@ -121,6 +121,7 @@ void a_vkCreateSwapchain(int w, int h) {
 	sw->info.presentMode = VK_PRESENT_MODE_FIFO_KHR; // TODO caps, MAILBOX is better
 	//sw->info.presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR; // TODO caps, MAILBOX is better
 	sw->info.clipped = VK_TRUE;
+	sw->info.oldSwapchain = sw->handle;
 
 	AVK_CHECK_RESULT(vkCreateSwapchainKHR(a_vk.dev, &sw->info, NULL, &sw->handle));
 
