@@ -18,13 +18,6 @@
 #include <stdlib.h> /* exit() */
 #include <unistd.h>
 
-// FIXME declare this somewhere properly
-void a_vkInitWithWayland(struct wl_display *disp, struct wl_surface *surf);
-void a_vkCreateSwapchain(int w, int h);
-void a_vkPaint(struct AAppProctable *ptbl, ATimeUs t, float dt);
-void a_vkDestroy();
-void a_vkDestroySwapchain();
-
 static struct AAppState a__app_state;
 const struct AAppState *a_app_state = &a__app_state;
 static struct AAppProctable a__app_proctable;

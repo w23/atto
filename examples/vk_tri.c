@@ -160,8 +160,8 @@ static void createPipeline() {
 	input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
 	VkViewport viewport = {
-		.x = 0, .y = 0,
-		.width = a_app_state->width, .height = a_app_state->height,
+		.x = 0.f, .y = 0.f,
+		.width = (float)a_app_state->width, .height = (float)a_app_state->height,
 		.minDepth = 0.f, .maxDepth = 1.f
 	};
 	VkRect2D scissor = {
@@ -224,8 +224,7 @@ static void swapchainCreated() {
 	g.image_views = malloc(num_images * sizeof(VkImageView));
 	g.framebuffers = malloc(num_images * sizeof(VkFramebuffer));
 	for (uint32_t i = 0; i < num_images; ++i) {
-		VkImageViewCreateInfo ivci = {};
-		ivci.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		VkImageViewCreateInfo ivci = {.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
 		ivci.viewType = VK_IMAGE_VIEW_TYPE_2D;
 		ivci.format = a_vk.swapchain.info.imageFormat;
 		ivci.image = a_vk.swapchain.images[i];
@@ -234,8 +233,7 @@ static void swapchainCreated() {
 		ivci.subresourceRange.layerCount = 1;
 		AVK_CHECK_RESULT(vkCreateImageView(a_vk.dev, &ivci, NULL, g.image_views + i));
 
-		VkFramebufferCreateInfo fbci = {};
-		fbci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		VkFramebufferCreateInfo fbci = {.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
 		fbci.renderPass = g.render_pass;
 		fbci.attachmentCount = 1;
 		fbci.pAttachments = g.image_views + i;
@@ -251,20 +249,18 @@ static void swapchainCreated() {
 static void paint(ATimeUs timestamp, float dt) {
 	const float t = timestamp / 1e6;
 
-	VkCommandBufferBeginInfo beginfo = {};
-	beginfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	VkCommandBufferBeginInfo beginfo = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
 	beginfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	AVK_CHECK_RESULT(vkBeginCommandBuffer(g.cmdbuf, &beginfo));
 
-	VkClearValue clear_value = {};
+	VkClearValue clear_value = {0};
 	clear_value.color.float32[0] = .5f + .5f * sinf(t);
 	clear_value.color.float32[1] = .5f + .5f * sinf(t*3);
 	clear_value.color.float32[2] = .5f + .5f * sinf(t*5);
 	clear_value.color.float32[3] = 1.f;
 	/* clear_value.color.uint32[0] = 0xffffffff; */
 	/* clear_value.color.uint32[3] = 0xffffffff; */
-	VkRenderPassBeginInfo rpbi = {};
-	rpbi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	VkRenderPassBeginInfo rpbi = {.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
 	rpbi.renderPass = g.render_pass;
 	rpbi.framebuffer = g.framebuffers[a_vk.swapchain.current_frame_image_index];
 	rpbi.renderArea.offset.x = rpbi.renderArea.offset.y = 0;

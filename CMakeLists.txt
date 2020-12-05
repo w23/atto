@@ -1,12 +1,18 @@
 cmake_minimum_required(VERSION 3.10)
 project(atto C)
 
-set(OpenGL_GL_PREFERENCE GLVND)
-find_package(OpenGL REQUIRED)
+# set(OpenGL_GL_PREFERENCE GLVND)
+# find_package(OpenGL REQUIRED)
+find_package(Vulkan REQUIRED)
+
 
 if(WIN32)
 	set(ATTO_SRC
-		${CMAKE_CURRENT_SOURCE_DIR}/src/app_windows.c)
+		${CMAKE_CURRENT_SOURCE_DIR}/src/app_windows.c
+		${CMAKE_CURRENT_SOURCE_DIR}/src/app_vulkan.c
+		${CMAKE_CURRENT_SOURCE_DIR}/include/atto/app.h
+		${CMAKE_CURRENT_SOURCE_DIR}/include/atto/worobushek.h
+	)
 elseif(CMAKE_SYSTEM_NAME MATCHES ".*Linux")
 	# find_package(X11 REQUIRED)
 	# set(ATTO_LIBS
@@ -34,7 +40,8 @@ target_include_directories(atto PUBLIC include)
 target_include_directories(atto PRIVATE 3p)
 target_link_libraries(atto
 	#PUBLIC OpenGL::GL
-	PUBLIC wayland-client vulkan
+	#PUBLIC wayland-client
+	PUBLIC Vulkan::Vulkan
 	PRIVATE ${ATTO_LIBS})
 set_target_properties(atto PROPERTIES
 	C_STANDARD 99

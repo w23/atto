@@ -10,6 +10,9 @@
 	#define ATTO_APP_NAME "atto app"
 #endif
 
+// FIXME
+#define ATTO_VK 1
+
 #include <string.h>
 #include <stdio.h>
 #include <fcntl.h>
@@ -19,7 +22,8 @@
 #include <GL/gl.h>
 /* #include "wglext.h"
 #include <atto/platform.h> */
-#include <atto/app.h>
+#include "atto/app.h"
+#include "atto/worobushek.h"
 
 /* static WCHAR *utf8_to_wchar(const char *string, int length, int *out_length); */
 static char *wchar_to_utf8(const WCHAR *string, int length, int *out_length);
@@ -97,6 +101,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	g.hwnd = CreateWindow(TEXT("atto"), TEXT(ATTO_APP_NAME), WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS, 0,
 		0, ATTO_APP_WIDTH, ATTO_APP_HEIGHT, NULL, NULL, hInstance, NULL);
 	ATTO_ASSERT(0 != g.hwnd);
+
+#if defined(ATTO_GL)
 	g.hdc = GetDC(g.hwnd);
 	ATTO_ASSERT(0 != g.hdc);
 
@@ -104,6 +110,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	g.hglrc = wglCreateContext(g.hdc);
 	ATTO_ASSERT(0 != g.hglrc);
 	wglMakeCurrent(g.hdc, g.hglrc);
+#endif
 
 	{
 		int i;
@@ -114,13 +121,27 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		a__app_state.argv = (const char **)argv;
 	}
 
+#if defined(ATTO_GL)
 	a__app_state.gl_version = AOGLV_21;
+//#elif defined(ATTO_VK)
+//	a__app_state.gl_version = AOGLV_21;
+#endif
+
+	a_vkInitWithWindows(hInstance, g.hwnd);
+
 	a__app_state.width = ATTO_APP_WIDTH;
 	a__app_state.height = ATTO_APP_HEIGHT;
 
 	ATTO_APP_INIT_FUNC(&a__app_proctable);
+
+	a_vkCreateSwapchain(a__app_state.width, a__app_state.height);
+if (a__app_proctable.swapchain_created)
+		a__app_proctable.swapchain_created();
+
+#if defined(ATTO_GL)
 	if (a__app_proctable.resize)
 		a__app_proctable.resize(aAppTime(), 0, 0);
+#endif
 
 	ShowWindow(g.hwnd, nCmdShow);
 
@@ -153,9 +174,11 @@ exit:
 }
 
 static void a__AppCleanup(void) {
+#ifdef ATTO_GL
 	wglMakeCurrent(g.hdc, NULL);
 	wglDeleteContext(g.hglrc);
 	ReleaseDC(g.hwnd, g.hdc);
+#endif
 	DestroyWindow(g.hwnd);
 }
 
@@ -264,10 +287,23 @@ static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 		const int width = (int)(lparam & 0xffff), height = (int)(lparam >> 16);
 		if (a__app_state.width == width && a__app_state.height == height)
 			break;
+
+#if defined(ATTO_VK)
+		if (a__app_proctable.swapchain_will_destroy)
+				a__app_proctable.swapchain_will_destroy();
+#endif
+
 		a__app_state.width = width;
 		a__app_state.height = height;
+
+#if defined(ATTO_GL)
 		if (a__app_proctable.resize)
 			a__app_proctable.resize(aAppTime(), oldw, oldh);
+#elif defined(ATTO_VK)
+		a_vkCreateSwapchain(width, height);
+		if (a__app_proctable.swapchain_created)
+				a__app_proctable.swapchain_created();
+#endif
 	} break;
 
 	case WM_KEYDOWN: down = 1;

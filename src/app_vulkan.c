@@ -6,7 +6,11 @@
 
 static const char *instance_exts[] = {
 	VK_KHR_SURFACE_EXTENSION_NAME,
+#ifdef ATTO_PLATFORM_WINDOWS
+	VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+#else
 	VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME
+#endif
 };
 
 struct AVkState a_vk;
@@ -139,6 +143,26 @@ void a_vkDestroySwapchain() {
 	a_vk.swapchain.handle = NULL;
 }
 
+#if defined(ATTO_PLATFORM_WINDOWS)
+void a_vkInitWithWindows(HINSTANCE hInst, HWND hWnd) {
+	a_vkInitInstance();
+
+	VkWin32SurfaceCreateInfoKHR wsci = {0};
+	wsci.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+	wsci.hinstance = hInst;
+	wsci.hwnd = hWnd;
+	AVK_CHECK_RESULT(vkCreateWin32SurfaceKHR(a_vk.inst, &wsci, NULL, &a_vk.surf));
+
+	a_vkInitDevice();
+
+#define MAX_PRESENT_MODES 8
+	uint32_t num_present_modes = MAX_PRESENT_MODES;
+	VkPresentModeKHR present_modes[MAX_PRESENT_MODES];
+	vkGetPhysicalDeviceSurfacePresentModesKHR(a_vk.phys_dev, a_vk.surf, &num_present_modes, present_modes);
+	// TODO use the best mode
+}
+#else
+
 void a_vkInitWithWayland(struct wl_display *disp, struct wl_surface *surf) {
 	a_vkInitInstance();
 
@@ -156,6 +180,8 @@ void a_vkInitWithWayland(struct wl_display *disp, struct wl_surface *surf) {
 	vkGetPhysicalDeviceSurfacePresentModesKHR(a_vk.phys_dev, a_vk.surf, &num_present_modes, present_modes);
 	// TODO use the best mode
 }
+
+#endif
 
 void a_vkDestroy() {
 	vkDestroySurfaceKHR(a_vk.inst, a_vk.surf, NULL);

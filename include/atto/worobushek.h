@@ -1,7 +1,17 @@
 #pragma once
 
+#include "atto/platform.h"
+
+#ifdef ATTO_PLATFORM_WINDOWS
+#define LEAN_AND_MEAN
+#define NOMINMAX
+#include <Windows.h>
+#define VK_USE_PLATFORM_WIN32_KHR
+#else
 // FIXME atto platform
 #define VK_USE_PLATFORM_WAYLAND_KHR
+#endif
+
 #include <vulkan/vulkan.h>
 
 #ifndef COUNTOF
@@ -53,3 +63,15 @@ void aVkDestroySemaphore(VkSemaphore sema);
 
 VkShaderModule loadShaderFromFile(const char *filename);
 uint32_t aVkFindMemoryWithType(uint32_t type_index_bits, VkMemoryPropertyFlags flags);
+
+// FIXME declare this somewhere properly
+#include "atto/app.h"
+#if defined(ATTO_PLATFORM_WINDOWS)
+void a_vkInitWithWindows(HINSTANCE hInst, HWND hWnd);
+#else
+void a_vkInitWithWayland(struct wl_display *disp, struct wl_surface *surf);
+#endif
+void a_vkCreateSwapchain(int w, int h);
+void a_vkPaint(struct AAppProctable *ptbl, ATimeUs t, float dt);
+void a_vkDestroy();
+void a_vkDestroySwapchain();
