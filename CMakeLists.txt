@@ -5,14 +5,13 @@ project(atto C)
 # find_package(OpenGL REQUIRED)
 find_package(Vulkan REQUIRED)
 
-
 if(WIN32)
 	set(ATTO_SRC
 		${CMAKE_CURRENT_SOURCE_DIR}/src/app_windows.c
-		${CMAKE_CURRENT_SOURCE_DIR}/src/app_vulkan.c
 		${CMAKE_CURRENT_SOURCE_DIR}/include/atto/app.h
 		${CMAKE_CURRENT_SOURCE_DIR}/include/atto/worobushek.h
 	)
+	set(ATTO_DEFINES ATTO_PLATFORM_WINDOWS ATTO_VK)
 elseif(CMAKE_SYSTEM_NAME MATCHES ".*Linux")
 	# find_package(X11 REQUIRED)
 	# set(ATTO_LIBS
@@ -28,9 +27,10 @@ elseif(CMAKE_SYSTEM_NAME MATCHES ".*Linux")
 	 	${CMAKE_CURRENT_SOURCE_DIR}/src/app_linux.c
 	# 	# ${CMAKE_CURRENT_SOURCE_DIR}/src/app_x11.c)
 	 	${CMAKE_CURRENT_SOURCE_DIR}/src/app_wayland.c
-	 	${CMAKE_CURRENT_SOURCE_DIR}/src/app_vulkan.c
 	 	${CMAKE_CURRENT_SOURCE_DIR}/3p/wl-xdg-proto.c
+		${CMAKE_CURRENT_SOURCE_DIR}/include/atto/worobushek.h
 	)
+	set(ATTO_DEFINES ATTO_PLATFORM_POSIX ATTO_PLATFORM_LINUX ATTO_VK)
 else()
 	message(FATAL_ERROR "Not ported")
 endif()
@@ -38,6 +38,7 @@ endif()
 add_library(atto STATIC ${ATTO_SRC})
 target_include_directories(atto PUBLIC include)
 target_include_directories(atto PRIVATE 3p)
+target_compile_definitions(atto PUBLIC ${ATTO_DEFINES})
 target_link_libraries(atto
 	#PUBLIC OpenGL::GL
 	#PUBLIC wayland-client

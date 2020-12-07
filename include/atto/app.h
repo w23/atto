@@ -125,12 +125,20 @@ typedef enum {
 	AB_WheelDown = 1 << 4
 } AButton;
 
-typedef enum { AOGLV_21, AOGLV_ES_20, AOVK10 } AGraphicsVersion;
+typedef enum { AOGLV_21, AOGLV_ES_20 } AGraphicsVersion;
 
 struct AAppState {
 	int argc;
 	const char *const *argv;
+#ifdef ATTO_GL
 	AGraphicsVersion graphics_version;
+#endif
+#ifdef ATTO_VK
+#if defined(ATTO_PLATFORM_WINDOWS)
+	void* hInstance;
+	void* hWnd;
+#endif
+#endif
 	unsigned int width, height;
 	int keys[AK_Max];
 	struct {
@@ -145,29 +153,14 @@ void aAppGrabInput(int grab);
 
 extern const struct AAppState *a_app_state;
 
-// struct AVkPaintArgs {
-// 	ATimeUs pts;
-// 	float dt;
-// 	uint32_t image_index;
-// 	VkSemaphore image_ready;
-// 	uint32_t out_num_semaphores;
-// 	VkSemaphore *out_semaphores;
-// }
-
 // TODO add explicit leave/enter focus handling
 
 struct AAppProctable {
-	// FIXME #ifndef ATTO_VK
-	//void (*resize)(ATimeUs ts, unsigned int old_width, unsigned int old_height);
+	void (*resize)(ATimeUs ts, unsigned int old_width, unsigned int old_height);
 	void (*paint)(ATimeUs ts, float dt);
 	void (*key)(ATimeUs ts, AKey key, int down);
 	void (*pointer)(ATimeUs ts, int dx, int dy, unsigned int buttons_changed_bits);
 	void (*close)();
-
-// FIXME #idfef ATTO_VK
-	void (*swapchain_will_destroy)();
-	void (*swapchain_created)();
-	//void (*paint_vk)();
 };
 
 /*
@@ -182,18 +175,6 @@ struct AAppProctable {
  * 		app creates framebuffers, ...
  * 8. (atto) paint(
 */
-
-
-struct AVkAppProctable {
-
-
-
-	// void (*swapDestroy)();
-	// void (*swapCreate)(); // ~= resize
-	void (*paint)();
-	///
-	void (*close)();
-};
 
 #ifndef ATTO_APP_INIT_FUNC
 	#define ATTO_APP_INIT_FUNC attoAppInit

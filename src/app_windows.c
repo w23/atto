@@ -10,20 +10,23 @@
 	#define ATTO_APP_NAME "atto app"
 #endif
 
-// FIXME
-#define ATTO_VK 1
-
 #include <string.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <io.h>
+
+#define LEAN_AND_MEAN
+#define NOMINMAX
+#define EXTRALEAN
 #include <windows.h>
 #include <windowsx.h> /* GET_X/Y_LPARAM */
+
+#ifdef ATTO_GL
 #include <GL/gl.h>
-/* #include "wglext.h"
-#include <atto/platform.h> */
+//#include "wglext.h"
+#endif
+
 #include "atto/app.h"
-#include "atto/worobushek.h"
 
 /* static WCHAR *utf8_to_wchar(const char *string, int length, int *out_length); */
 static char *wchar_to_utf8(const WCHAR *string, int length, int *out_length);
@@ -127,16 +130,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 //	a__app_state.gl_version = AOGLV_21;
 #endif
 
-	a_vkInitWithWindows(hInstance, g.hwnd);
-
 	a__app_state.width = ATTO_APP_WIDTH;
 	a__app_state.height = ATTO_APP_HEIGHT;
+	a__app_state.hInstance = hInstance;
+	a__app_state.hWnd = g.hwnd;
 
+#ifdef ATTO_VK
 	ATTO_APP_INIT_FUNC(&a__app_proctable);
-
-	a_vkCreateSwapchain(a__app_state.width, a__app_state.height);
-if (a__app_proctable.swapchain_created)
-		a__app_proctable.swapchain_created();
+#endif
 
 #if defined(ATTO_GL)
 	if (a__app_proctable.resize)
@@ -161,7 +162,9 @@ if (a__app_proctable.swapchain_created)
 			float dt = (now - last_paint) * 1e-6f;
 			if (a__app_proctable.paint)
 				a__app_proctable.paint(now, dt);
+#ifdef ATTO_GL
 			SwapBuffers(g.hdc);
+#endif
 			last_paint = now;
 		}
 	}
@@ -288,22 +291,12 @@ static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 		if (a__app_state.width == width && a__app_state.height == height)
 			break;
 
-#if defined(ATTO_VK)
-		if (a__app_proctable.swapchain_will_destroy)
-				a__app_proctable.swapchain_will_destroy();
-#endif
-
 		a__app_state.width = width;
 		a__app_state.height = height;
 
-#if defined(ATTO_GL)
 		if (a__app_proctable.resize)
 			a__app_proctable.resize(aAppTime(), oldw, oldh);
-#elif defined(ATTO_VK)
-		a_vkCreateSwapchain(width, height);
-		if (a__app_proctable.swapchain_created)
-				a__app_proctable.swapchain_created();
-#endif
+
 	} break;
 
 	case WM_KEYDOWN: down = 1;
