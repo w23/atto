@@ -82,6 +82,10 @@ void aAppTerminate(int code) {
 	ExitProcess(code);
 }
 
+void aAppClose() {
+	PostQuitMessage(0);
+}
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
 	WNDCLASSEX wndclass;
 	ATimeUs last_paint = 0;

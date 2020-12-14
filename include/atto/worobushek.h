@@ -9,6 +9,7 @@
 
 #include "atto/app.h"
 
+//TODO #define VK_NO_PROTOTYPES
 #include <vulkan/vulkan.h>
 
 #include <stdio.h>
@@ -22,6 +23,10 @@
 	VK_VERSION_MAJOR(v), \
 	VK_VERSION_MINOR(v), \
 	VK_VERSION_PATCH(v)
+	
+#ifndef AVK_VK_VERSION
+#define AVK_VK_VERSION VK_MAKE_VERSION(1, 0, 0);
+#endif
 
 #define AVK_CHECK_RESULT(res) do { \
 	const VkResult result = res; \
@@ -45,6 +50,7 @@ struct AVkSwapchain {
 struct AVkState {
 	VkInstance inst;
 	VkSurfaceKHR surf;
+	int surface_width, surface_height;
 
 	VkPhysicalDevice phys_dev;
 	VkPhysicalDeviceMemoryProperties mem_props;
@@ -71,8 +77,19 @@ void aVkAcquireNextImage();
 void aVkDestroy();
 void aVkDestroySwapchain();
 
+void* aVkLoadDeviceFunction(const char *name);
+void* aVkLoadInstanceFunction(const char *name);
+#define AVK_DEV_FUNC(name) ((PFN_##name)aVkLoadDeviceFunction(#name))
+#define AVK_INST_FUNC(name) ((PFN_##name)aVkLoadInstanceFunction(#name))
+
 #if defined(ATTO_VK_IMPLEMENT)
 static const char *instance_exts[] = {
+#ifdef _DEBUG
+		VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+#endif
+#ifdef ATTO_VK_INSTANCE_EXTENSIONS
+		ATTO_VK_INSTANCE_EXTENSIONS
+#endif
 	VK_KHR_SURFACE_EXTENSION_NAME,
 #ifdef ATTO_PLATFORM_WINDOWS
 	VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
@@ -83,6 +100,40 @@ static const char *instance_exts[] = {
 
 struct AVkState a_vk;
 
+void *aVkLoadDeviceFunction(const char *name) {
+	void *ret = vkGetDeviceProcAddr(a_vk.dev, name);
+	aAppDebugPrintf("%s = %p", name, ret);
+	if (!ret) {
+		aAppDebugPrintf("Cannot load device function %s", name);
+		aAppTerminate(-1);
+	}
+	return ret;
+}
+
+void *aVkLoadInstanceFunction(const char *name) {
+	void *ret = vkGetInstanceProcAddr(a_vk.inst, name);
+	aAppDebugPrintf("%s = %p", name, ret);
+	if (!ret) {
+		aAppDebugPrintf("Cannot load instance function %s", name);
+		aAppTerminate(-1);
+	}
+	return ret;
+}
+
+#ifdef _DEBUG
+VkBool32 debugCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT           messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT                  messageTypes,
+    const VkDebugUtilsMessengerCallbackDataEXT*      pCallbackData,
+	void *pUserData) {
+	if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+		aAppDebugPrintf("%s", pCallbackData->pMessage);
+		__debugbreak();
+	}
+	return VK_FALSE;
+}
+#endif
+
 void aVkInitInstance() {
 	uint32_t version = 0;
 	AVK_CHECK_RESULT(vkEnumerateInstanceVersion(&version));
@@ -91,7 +142,7 @@ void aVkInitInstance() {
 	VkApplicationInfo ai;
 	ai.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	ai.pNext = NULL;
-	ai.apiVersion = VK_MAKE_VERSION(1, 0, 0);
+	ai.apiVersion = AVK_VK_VERSION;
 	ai.applicationVersion = 0;
 	ai.engineVersion = 0;
 	ai.pApplicationName = "LOL";
@@ -103,20 +154,30 @@ void aVkInitInstance() {
 	#endif
 	};
 
-	VkInstanceCreateInfo vici;
-	vici.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	vici.pNext = NULL;
+	VkInstanceCreateInfo vici = {.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
 	vici.enabledLayerCount = COUNTOF(layers);
-	vici.flags = 0;
 	vici.ppEnabledLayerNames = layers;
 	vici.enabledExtensionCount = COUNTOF(instance_exts);
 	vici.ppEnabledExtensionNames = instance_exts;
 	vici.pApplicationInfo = &ai;
 
 	AVK_CHECK_RESULT(vkCreateInstance(&vici, NULL, &a_vk.inst));
+	//PFN_vkCreateRayTracingPipelinesKHR fn = AVK_INST_FUNC(vkCreateRayTracingPipelinesKHR);
+	//fn(NULL, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, NULL, NULL, NULL);
+
+#ifdef _DEBUG
+	VkDebugUtilsMessengerCreateInfoEXT dumcie = {
+		.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+		.messageSeverity = 0x1111, //:vovka: VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT,
+		.messageType = 0x07,
+		.pfnUserCallback = debugCallback,
+	};
+	VkDebugUtilsMessengerEXT msg;
+	AVK_CHECK_RESULT(AVK_INST_FUNC(vkCreateDebugUtilsMessengerEXT)(a_vk.inst, &dumcie, NULL, &msg));
+#endif
 }
 
-void aVkInitDevice() {
+void aVkInitDevice(const void* device_create_info_chain) {
 	// Get only the first device
 	uint32_t num_devices = 1;
 	vkEnumeratePhysicalDevices(a_vk.inst, &num_devices, &a_vk.phys_dev);
@@ -159,11 +220,14 @@ void aVkInitDevice() {
 	};
 
 	const char* devex[] = {
-		VK_KHR_SWAPCHAIN_EXTENSION_NAME
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+	#ifdef ATTO_VK_DEVICE_EXTENSIONS
+		ATTO_VK_DEVICE_EXTENSIONS
+	#endif
 	};
 	VkDeviceCreateInfo create_info = {
 		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-		.pNext = NULL,
+		.pNext = device_create_info_chain,
 		.flags = 0,
 		.queueCreateInfoCount = 1,
 		.pQueueCreateInfos = &queue_info,
@@ -182,6 +246,12 @@ void aVkInitDevice() {
 }
 
 void aVkCreateSwapchain(int w, int h) {
+	VkSurfaceCapabilitiesKHR scap;
+	AVK_CHECK_RESULT(AVK_INST_FUNC(vkGetPhysicalDeviceSurfaceCapabilitiesKHR)(a_vk.phys_dev, a_vk.surf, &scap));
+	//AVK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(a_vk.phys_dev, a_vk.surf, &scap));
+	a_vk.surface_width = scap.currentExtent.width;
+	a_vk.surface_height = scap.currentExtent.height;
+
 	struct AVkSwapchain* sw = &a_vk.swapchain;
 	sw->info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	sw->info.pNext = NULL;
@@ -189,10 +259,10 @@ void aVkCreateSwapchain(int w, int h) {
 	sw->info.minImageCount = 5; // TODO get from caps
 	sw->info.imageFormat = VK_FORMAT_B8G8R8A8_SRGB; // TODO get from caps
 	sw->info.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR; // TODO get from caps
-	sw->info.imageExtent.width = w;
-	sw->info.imageExtent.height = h;
+	sw->info.imageExtent.width = scap.currentExtent.width;
+	sw->info.imageExtent.height = scap.currentExtent.height;
 	sw->info.imageArrayLayers = 1;
-	sw->info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	sw->info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT /* FIXME FOR RT */ | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	sw->info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	sw->info.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR; // TODO get from caps
 	sw->info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
@@ -270,7 +340,7 @@ VkShaderModule loadShaderFromFile(const char *filename) {
 	FILE *f = fopen(filename, "rb");
 	if (!f) {
 		perror(filename);
-		exit(1);
+		aAppTerminate(1);
 	}
 	fseek(f, 0, SEEK_END);
 	const size_t size = ftell(f);
@@ -282,7 +352,7 @@ VkShaderModule loadShaderFromFile(const char *filename) {
 	uint32_t *buf = malloc(4 * ((size+3)/4));
 	if (size != fread(buf, 1, size, f)) {
 		fprintf(stderr, "Cannot read the entire file %s\n", filename);
-		exit(1);
+		aAppTerminate(1);
 	}
 
 	VkShaderModuleCreateInfo smci = {0};
@@ -293,7 +363,7 @@ VkShaderModule loadShaderFromFile(const char *filename) {
 	const VkResult res = vkCreateShaderModule(a_vk.dev, &smci, NULL, &shader);
 	if (VK_SUCCESS != res) { \
 		aAppDebugPrintf("%s:%d: failed w/ %d\n", __FILE__, __LINE__, res); \
-		exit(1);
+		aAppTerminate(1);
 	}
 	fclose(f);
 	free(buf);

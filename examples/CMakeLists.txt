@@ -10,7 +10,7 @@ function(add_example EXAMPLE_NAME)
 	project(${EXAMPLE_NAME})
 	add_executable(${EXAMPLE_NAME} ${ATTO_EXE_SUBSYSTEM}
 		${CMAKE_CURRENT_SOURCE_DIR}/${EXAMPLE_NAME}.c)
-	target_link_libraries(${EXAMPLE_NAME} atto m)
+	target_link_libraries(${EXAMPLE_NAME} atto) # m)
 	set_target_properties(${EXAMPLE_NAME} PROPERTIES
 		C_STANDARD 99
 		C_STANDARD_REQUIRED TRUE
@@ -30,8 +30,9 @@ function(add_shaders)
 	foreach(SHADER ${SHADERS_FILES})
 		add_custom_command(
 			OUTPUT ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}${SHADER}.spv
-			COMMAND glslc
-			${CMAKE_SOURCE_DIR}/examples/${SHADER} -o ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}${SHADER}.spv
+			#COMMAND glslc
+			COMMAND glslangValidator
+			${CMAKE_SOURCE_DIR}/examples/${SHADER} --target-env vulkan1.2 -o ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}${SHADER}.spv
 			MAIN_DEPENDENCY ${CMAKE_SOURCE_DIR}/examples/${SHADER}
 			COMMENT "Building ${SHADER}"
 		)
@@ -40,4 +41,4 @@ function(add_shaders)
 	add_custom_target(${SHADERS_TARGET} ALL DEPENDS ${SHADERS_DEPS})
 endfunction()
 
-add_shaders(TARGET vk_shaders FILES shader.frag shader.vert)
+add_shaders(TARGET vk_shaders FILES shader.frag shader.vert ray.rgen)
