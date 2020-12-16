@@ -60,6 +60,10 @@ struct AVkState {
 	VkQueue main_queue;
 
 	struct AVkSwapchain swapchain;
+
+#ifdef _DEBUG
+	VkDebugUtilsMessengerEXT debug_messenger;
+#endif
 };
 
 extern struct AVkState a_vk;
@@ -172,8 +176,7 @@ void aVkInitInstance() {
 		.messageType = 0x07,
 		.pfnUserCallback = debugCallback,
 	};
-	VkDebugUtilsMessengerEXT msg;
-	AVK_CHECK_RESULT(AVK_INST_FUNC(vkCreateDebugUtilsMessengerEXT)(a_vk.inst, &dumcie, NULL, &msg));
+	AVK_CHECK_RESULT(AVK_INST_FUNC(vkCreateDebugUtilsMessengerEXT)(a_vk.inst, &dumcie, NULL, &a_vk.debug_messenger));
 #endif
 }
 
@@ -315,6 +318,9 @@ void aVkDestroy() {
 	vkDestroySurfaceKHR(a_vk.inst, a_vk.surf, NULL);
 	aVkDestroySemaphore(a_vk.swapchain.image_available);
 	vkDestroyDevice(a_vk.dev, NULL);
+#ifdef _DEBUG
+	AVK_INST_FUNC(vkDestroyDebugUtilsMessengerEXT)(a_vk.inst, a_vk.debug_messenger, NULL);
+#endif
 	vkDestroyInstance(a_vk.inst, NULL);
 }
 

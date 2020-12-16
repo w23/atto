@@ -67,6 +67,13 @@ static struct Image createImage(uint32_t width, uint32_t height, VkFormat format
 	return image;
 }
 
+void destroyImage(struct Image *img) {
+	vkDestroyImageView(a_vk.dev, img->view, NULL);
+	vkDestroyImage(a_vk.dev, img->image, NULL);
+	vkFreeMemory(a_vk.dev, img->devmem, NULL);
+	*img = (struct Image){0};
+}
+
 static struct {
 	struct {
 		VkPhysicalDeviceProperties2 prop2;
@@ -536,11 +543,18 @@ static void paint(ATimeUs timestamp, float dt) {
 }
 
 static void close() {
+	vkDeviceWaitIdle(a_vk.dev);
+
+	swapchainWillDestroy();
+	destroyImage(&g.rt_image);
+
 	vkFreeCommandBuffers(a_vk.dev, g.cmdpool, 1, &g.cmdbuf);
 	vkDestroyCommandPool(a_vk.dev, g.cmdpool, NULL);
 
+	vkDestroyPipeline(a_vk.dev, g.pipeline, NULL);
+	vkDestroyDescriptorSetLayout(a_vk.dev, g.desc_layout, NULL);
+	vkDestroyDescriptorPool(a_vk.dev, g.desc_pool, NULL);
 	vkDestroyPipelineLayout(a_vk.dev, g.pipeline_layout, NULL);
-
 	vkDestroyShaderModule(a_vk.dev, g.modules.raygen, NULL);
 
 	vkDestroyBuffer(a_vk.dev, g.sbt_buf, NULL);
@@ -549,6 +563,8 @@ static void close() {
 	vkDestroyRenderPass(a_vk.dev, g.render_pass, NULL);
 	aVkDestroySemaphore(g.done);
 	vkDestroyFence(a_vk.dev, g.fence, NULL);
+
+	aVkDestroySwapchain();
 
 	aVkDestroy();
 }

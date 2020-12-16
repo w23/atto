@@ -42,3 +42,4 @@ function(add_shaders)
 endfunction()
 
 add_shaders(TARGET vk_shaders FILES shader.frag shader.vert ray.rgen)
+add_dependencies(vk_ray vk_shaders)
