@@ -1,14 +1,98 @@
 #version 460
 #extension GL_EXT_ray_tracing : require
 
-//layout(binding = 0, set = 0, rgba32f) uniform image2D image;
 layout(binding = 0, set = 0, rgba8) uniform image2D image;
+layout(binding = 1, set = 0) uniform accelerationStructureEXT tlas;
+
+struct RayResult {
+		vec4 pl;
+		vec3 n;
+};
+
+layout(location = 0) rayPayloadEXT RayResult ray_result;
+
+float h(float f){return fract(sin(f)*38572.5432);}
+float h(vec2 f){return h(dot(f,vec2(37.,17.)));}
+float n(vec2 f){vec2 F=floor(f);f=f-F;f*=f*(3.-2.*f);
+return mix(
+		mix(h(F),h(F+vec2(1.,0.)),f.x),
+		mix(h(F+vec2(0.,1.)),h(F+vec2(1.,1.)),f.x),
+f.y);
+}
+
+float kappa(vec3 p) {
+		float d = p.y - .3 * n(p.xz*2.);
+		p.y -= 1.;
+		d = min(d, length(p) - 1.);
+		return d;
+}
+
+vec3 wn(vec3 p) {
+		return normalize(vec3(
+				kappa(p+vec3(.01,0.,0.)),
+				kappa(p+vec3(0.,.01,0.)),
+				kappa(p+vec3(0.,0.,.01))
+		)-kappa(p));
+}
+
+float tr(vec3 O, vec3 D, float l, float L) {
+		for(int i=0;i<200;++i){
+		float d=kappa(O+D*l);
+		l+=d;
+		if(d<.001*l||l>L)break;
+		}
+		return l;
+}
 
 void main() {
 //const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
   //const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
+
+	vec2 uv = gl_LaunchIDEXT.xy / vec2(1280., 720.) * 2. - 1.;
+	uv.x *= 1280. / 720.;
+	uv.y=-uv.y;
+
+	vec3 C = vec3(0.);
+
+	vec3 ld=normalize(vec3(1.));
+	vec3 O=vec3(0., 1., 3.), D=normalize(vec3(uv, -1.));
+
+	vec3 kc = vec3(1.);
+	for(float r=0.;r<4.;++r) {
+			float L=20.,l=tr(O,D,0.,L);
+
+			/*
+			traceRayEXT(tlas, gl_RayFlagsOpaqueEXT, 0., 0xff, 0, 0, 0,
+				O, 0., D, L, 0
+			);
+
+			float rl = ray_result.pl.w;
+
+			if (rl < L && rl < l) {
+				C += kc * fract(abs(ray_result.pl.xyz));
+				break;
+			}
+			*/
+
+			if (l<L){
+				vec3 p = O+D*l;
+				vec3 n = wn(p);
+
+				vec3 c = .5 * vec3(.9,.7,.3) * max(0., dot(n,ld));
+				c += .5 * vec3(.9,.7,.3) * pow(max(0., dot(n,normalize(ld-D))), 100.);
+				float sh=tr(p,ld,.1,10.);
+				c *= step(10., sh);
+				c += vec3(.3,.5,.8) * .3 * max(0., n.y);
+				C += kc*c;
+				O = p + .02*n;
+				D = normalize(reflect(D,n));
+				kc *= .7;
+			} else {
+				C += kc * vec3(.3,.5,.8); 
+				break;
+			}
+	}
 	
-	vec3 c = vec3(fract(gl_LaunchIDEXT.xy / 10.), 1.);
-  imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(c, 1.0));
+  imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(C, 1.0));
 }
 

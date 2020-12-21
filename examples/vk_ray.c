@@ -17,11 +17,6 @@
 #define ATTO_VK_IMPLEMENT
 #include "atto/worobushek.h"
 
-//struct Vertex {
-//	float x, y;
-//	uint8_t r, g, b;
-//};
-
 struct Image {
 	VkDeviceMemory devmem;
 	VkImage image;
@@ -74,6 +69,55 @@ void destroyImage(struct Image *img) {
 	*img = (struct Image){0};
 }
 
+struct Buffer {
+	VkBuffer buffer;
+	VkDeviceMemory devmem;
+	void *data;
+	size_t size;
+};
+
+static struct Buffer createBuffer(size_t size, VkBufferUsageFlags usage) {
+	struct Buffer ret = {.size = size};
+	VkBufferCreateInfo bci = {0};
+	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bci.size = size;
+	bci.usage = usage;
+	bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	AVK_CHECK_RESULT(vkCreateBuffer(a_vk.dev, &bci, NULL, &ret.buffer));
+
+	VkMemoryRequirements memreq;
+	vkGetBufferMemoryRequirements(a_vk.dev, ret.buffer, &memreq);
+	aAppDebugPrintf("memreq: memoryTypeBits=0x%x alignment=%zu size=%zu", memreq.memoryTypeBits, memreq.alignment, memreq.size);
+
+	VkMemoryAllocateInfo mai={0};
+	mai.allocationSize = memreq.size;
+	mai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	mai.memoryTypeIndex = aVkFindMemoryWithType(memreq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	AVK_CHECK_RESULT(vkAllocateMemory(a_vk.dev, &mai, NULL, &ret.devmem));
+	AVK_CHECK_RESULT(vkBindBufferMemory(a_vk.dev, ret.buffer, ret.devmem, 0));
+
+	AVK_CHECK_RESULT(vkMapMemory(a_vk.dev, ret.devmem, 0, bci.size, 0, &ret.data));
+	//vkUnmapMemory(a_vk.dev, g.devmem);
+	return ret;
+}
+
+static void destroyBuffer(struct Buffer *buf) {
+	vkUnmapMemory(a_vk.dev, buf->devmem);
+	vkDestroyBuffer(a_vk.dev, buf->buffer, NULL);
+	vkFreeMemory(a_vk.dev, buf->devmem, NULL);
+	*buf = (struct Buffer){0};
+}
+
+VkDeviceAddress getBufferDeviceAddress(VkBuffer buffer) {
+	const VkBufferDeviceAddressInfo bdai = {.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, .buffer = buffer};
+	return vkGetBufferDeviceAddress(a_vk.dev, &bdai);
+}
+
+struct Accel {
+	struct Buffer buffer;
+	VkAccelerationStructureKHR handle;
+};
+
 static struct {
 	struct {
 		VkPhysicalDeviceProperties2 prop2;
@@ -94,48 +138,69 @@ static struct {
 	VkDescriptorSet desc_set;
 
 	VkImageView *image_views;
-	VkFramebuffer *framebuffers;
 	VkPipeline pipeline;
 	struct Image rt_image;
 
-	VkDeviceMemory devmem;
-	VkBuffer sbt_buf;
-	//VkBuffer vertex_buf;
+	struct Buffer sbt_buf;
+	struct Accel blas, tlas;
 
 	VkCommandPool cmdpool;
 	VkCommandBuffer cmdbuf;
 } g;
 
-static void createRenderPass() {
-	VkAttachmentDescription attachment = {0};
-	attachment.format = VK_FORMAT_B8G8R8A8_SRGB;// FIXME too early a_vk.swapchain.info.imageFormat;
-	attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-	//attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	//attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+struct Accel createAccelerationStructure(const VkAccelerationStructureGeometryKHR *geoms, const uint32_t *max_prim_counts, const VkAccelerationStructureBuildRangeInfoKHR **build_ranges, uint32_t n_geoms, VkAccelerationStructureTypeKHR type) {
+	struct Accel accel;
+	VkAccelerationStructureBuildGeometryInfoKHR build_info = {
+		.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+		.type = type,
+		.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
+		.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
+		.geometryCount = n_geoms,
+		.pGeometries = geoms,
+	};
 
-	VkAttachmentReference color_attachment = {0};
-	color_attachment.attachment = 0;
-	color_attachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	VkAccelerationStructureBuildSizesInfoKHR build_size = {
+		.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR};
+  AVK_DEV_FUNC(vkGetAccelerationStructureBuildSizesKHR)(
+		a_vk.dev, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &build_info, max_prim_counts, &build_size);
 
-	VkSubpassDescription subdesc = {0};
-	subdesc.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subdesc.colorAttachmentCount = 1;
-	subdesc.pColorAttachments = &color_attachment;
+	aAppDebugPrintf(
+		"AS build size: %d, scratch size: %d", build_size.accelerationStructureSize, build_size.buildScratchSize);
 
-	VkRenderPassCreateInfo rpci = {0};
-	rpci.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	rpci.attachmentCount = 1;
-	rpci.pAttachments = &attachment;
-	rpci.subpassCount = 1;
-	rpci.pSubpasses = &subdesc;
-	AVK_CHECK_RESULT(vkCreateRenderPass(a_vk.dev, &rpci, NULL, &g.render_pass));
+	accel.buffer = createBuffer(build_size.accelerationStructureSize,
+		VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+	struct Buffer scratch_buffer = createBuffer(build_size.buildScratchSize,
+			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+
+	const VkAccelerationStructureCreateInfoKHR asci = {
+		.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
+		.buffer = accel.buffer.buffer,
+		.size = accel.buffer.size,
+		.type = type,
+	};
+	AVK_CHECK_RESULT(AVK_DEV_FUNC(vkCreateAccelerationStructureKHR)(a_vk.dev, &asci, NULL, &accel.handle));
+
+	build_info.dstAccelerationStructure = accel.handle;
+	build_info.scratchData.deviceAddress = getBufferDeviceAddress(scratch_buffer.buffer);
+
+	VkCommandBufferBeginInfo beginfo = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+	beginfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	AVK_CHECK_RESULT(vkBeginCommandBuffer(g.cmdbuf, &beginfo));
+	AVK_DEV_FUNC(vkCmdBuildAccelerationStructuresKHR)(g.cmdbuf, 1, &build_info, build_ranges);
+	AVK_CHECK_RESULT(vkEndCommandBuffer(g.cmdbuf));
+
+	VkSubmitInfo subinfo = {
+		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		.commandBufferCount = 1,
+		.pCommandBuffers = &g.cmdbuf,
+	};
+	AVK_CHECK_RESULT(vkQueueSubmit(a_vk.main_queue, 1, &subinfo, NULL));
+	AVK_CHECK_RESULT(vkQueueWaitIdle(a_vk.main_queue));
+
+	return accel;
 }
+
+//void destroyAccelerationStructure() {}
 
 static void createLayouts() {
 
@@ -146,11 +211,12 @@ static void createLayouts() {
 			.descriptorCount = 1,
 			.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
 		},
-		/*{.binding = 1,
+		{
+			.binding = 1,
 			.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
 			.descriptorCount = 1,
 			.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
-		},*/
+		},
 	};
 
 	VkDescriptorSetLayoutCreateInfo dslci = {.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, .bindingCount = COUNTOF(bindings), .pBindings = bindings, };
@@ -172,7 +238,10 @@ static void createLayouts() {
 	// plci.pPushConstantRanges = &push_const;
 	AVK_CHECK_RESULT(vkCreatePipelineLayout(a_vk.dev, &plci, NULL, &g.pipeline_layout));
 
-	VkDescriptorPoolSize pools[] = { {.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .descriptorCount = 1},};
+	VkDescriptorPoolSize pools[] = {
+			{.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .descriptorCount = 1},
+			{.type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, .descriptorCount = 1},
+	};
 
 	VkDescriptorPoolCreateInfo dpci = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
@@ -190,37 +259,6 @@ static void createLayouts() {
 
 	g.modules.raygen = loadShaderFromFile("ray.rgen.spv");
 }
-
-//static const struct Vertex vertices[] = {
-//	{1.f, 0.f, 255, 0, 0},
-//	{-.5f, .866f, 255, 255, 0},
-//	{-.5f, -.866f, 255, 0, 255},
-//};
-//
-//static void createBuffer() {
-//	VkBufferCreateInfo bci = {0};
-//	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-//	bci.size = sizeof(vertices);
-//	bci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-//	bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-//	AVK_CHECK_RESULT(vkCreateBuffer(a_vk.dev, &bci, NULL, &g.vertex_buf));
-//
-//	VkMemoryRequirements memreq;
-//	vkGetBufferMemoryRequirements(a_vk.dev, g.vertex_buf, &memreq);
-//	aAppDebugPrintf("memreq: memoryTypeBits=0x%x alignment=%zu size=%zu", memreq.memoryTypeBits, memreq.alignment, memreq.size);
-//
-//	VkMemoryAllocateInfo mai={0};
-//	mai.allocationSize = memreq.size;
-//	mai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-//	mai.memoryTypeIndex = aVkFindMemoryWithType(memreq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-//	AVK_CHECK_RESULT(vkAllocateMemory(a_vk.dev, &mai, NULL, &g.devmem));
-//	AVK_CHECK_RESULT(vkBindBufferMemory(a_vk.dev, g.vertex_buf, g.devmem, 0));
-//
-//	void *ptr = NULL;
-//	AVK_CHECK_RESULT(vkMapMemory(a_vk.dev, g.devmem, 0, bci.size, 0, &ptr));
-//		memcpy(ptr, vertices, sizeof(vertices));
-//	vkUnmapMemory(a_vk.dev, g.devmem);
-//}
 
 static void createCommandPool() {
 	VkCommandPoolCreateInfo cpci = {0};
@@ -278,35 +316,94 @@ static void createPipeline() {
 	//FIXME static_assert(COUNTOF(groups) == 1, "");
 	//FIXME max(shaderGroupHandleSize, alignment)
 	const uint32_t sbt_size = g.shader_group_size * rtci.groupCount;
-	VkBufferCreateInfo bci = {0};
-	bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bci.size = sbt_size;
-	bci.usage = VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-	bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	AVK_CHECK_RESULT(vkCreateBuffer(a_vk.dev, &bci, NULL, &g.sbt_buf));
-
-	VkMemoryRequirements memreq;
-	vkGetBufferMemoryRequirements(a_vk.dev, g.sbt_buf, &memreq);
-	aAppDebugPrintf("memreq: memoryTypeBits=0x%x alignment=%zu size=%zu", memreq.memoryTypeBits, memreq.alignment, memreq.size);
-
-	VkMemoryAllocateInfo mai={0};
-	mai.allocationSize = memreq.size;
-	mai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	mai.memoryTypeIndex = aVkFindMemoryWithType(memreq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-	AVK_CHECK_RESULT(vkAllocateMemory(a_vk.dev, &mai, NULL, &g.devmem));
-	AVK_CHECK_RESULT(vkBindBufferMemory(a_vk.dev, g.sbt_buf, g.devmem, 0));
-
-	void *ptr = NULL;
-	AVK_CHECK_RESULT(vkMapMemory(a_vk.dev, g.devmem, 0, bci.size, 0, &ptr));
+	g.sbt_buf =
+		createBuffer(sbt_size, VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 	AVK_CHECK_RESULT(
-		AVK_DEV_FUNC(vkGetRayTracingShaderGroupHandlesKHR)(a_vk.dev, g.pipeline, 0, rtci.groupCount, sbt_size, ptr));
-	vkUnmapMemory(a_vk.dev, g.devmem);
+		AVK_DEV_FUNC(vkGetRayTracingShaderGroupHandlesKHR)(a_vk.dev, g.pipeline, 0, rtci.groupCount, sbt_size, g.sbt_buf.data));
+}
+
+VkDeviceAddress getASAddress(VkAccelerationStructureKHR as) {
+	VkAccelerationStructureDeviceAddressInfoKHR asdai = {
+		.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR,
+		.accelerationStructure = as,
+	};
+	return AVK_DEV_FUNC(vkGetAccelerationStructureDeviceAddressKHR)(a_vk.dev, &asdai);
+}
+
+void createAccelerationStructures() {
+		const VkAabbPositionsKHR aabbox= {
+				-1, -1, -1,
+				1, 1, 1,
+		};
+
+	struct Buffer geom_buffer = createBuffer(sizeof(aabbox),
+		VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
+	memcpy(geom_buffer.data, &aabbox, sizeof(aabbox));
+
+	const VkAccelerationStructureGeometryKHR geom[] = {
+		{
+			.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+			//.flags = VK_GEOMETRY_OPAQUE_BIT,
+			.geometryType = VK_GEOMETRY_TYPE_AABBS_KHR,
+			.geometry.aabbs =
+				(VkAccelerationStructureGeometryAabbsDataKHR){
+					.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_AABBS_DATA_KHR,
+					.data.deviceAddress = getBufferDeviceAddress(geom_buffer.buffer),
+					.stride = sizeof(VkAabbPositionsKHR),
+				},
+		},
+	};
+
+	const uint32_t max_prim_counts[COUNTOF(geom)] = {1};
+	const VkAccelerationStructureBuildRangeInfoKHR build_range = {
+			.primitiveCount = 1,
+	};
+	const VkAccelerationStructureBuildRangeInfoKHR *build_ranges[] = {&build_range};
+  g.blas = createAccelerationStructure(
+		geom, max_prim_counts, build_ranges, COUNTOF(geom), VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR);
+
+	const VkAccelerationStructureInstanceKHR inst = {
+		.transform = (VkTransformMatrixKHR){1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0},
+		.instanceCustomIndex = 0,
+		.mask = 0xff,
+		.instanceShaderBindingTableRecordOffset = 0,
+		.flags = 0,
+		.accelerationStructureReference = getASAddress(g.blas.handle),
+	};
+
+	struct Buffer tl_geom_buffer = createBuffer(sizeof(inst),
+		VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
+	memcpy(tl_geom_buffer.data, &inst, sizeof(inst));
+
+	const VkAccelerationStructureGeometryKHR tl_geom[] = {
+		{
+			.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+			//.flags = VK_GEOMETRY_OPAQUE_BIT,
+			.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR,
+			.geometry.instances =
+				(VkAccelerationStructureGeometryInstancesDataKHR){
+					.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR,
+					.data.deviceAddress = getBufferDeviceAddress(tl_geom_buffer.buffer),
+					.arrayOfPointers = VK_FALSE,
+				},
+		},
+	};
+
+	const uint32_t tl_max_prim_counts[COUNTOF(tl_geom)] = {1};
+	const VkAccelerationStructureBuildRangeInfoKHR tl_build_range = {
+			.primitiveCount = 1,
+	};
+	const VkAccelerationStructureBuildRangeInfoKHR *tl_build_ranges[] = {&tl_build_range};
+	g.tlas = createAccelerationStructure(
+		tl_geom, tl_max_prim_counts, tl_build_ranges, COUNTOF(tl_geom), VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR);
 }
 
 static void swapchainWillDestroy() {
 	//vkDestroyPipeline(a_vk.dev, g.pipeline, NULL);
 	for (uint32_t i = 0; i < a_vk.swapchain.num_images; ++i) {
-		vkDestroyFramebuffer(a_vk.dev, g.framebuffers[i], NULL);
+		//vkDestroyFramebuffer(a_vk.dev, g.framebuffers[i], NULL);
 		vkDestroyImageView(a_vk.dev, g.image_views[i], NULL);
 	}
 }
@@ -314,7 +411,7 @@ static void swapchainWillDestroy() {
 static void swapchainCreated() {
 	const uint32_t num_images = a_vk.swapchain.num_images;
 	g.image_views = malloc(num_images * sizeof(VkImageView));
-	g.framebuffers = malloc(num_images * sizeof(VkFramebuffer));
+	//g.framebuffers = malloc(num_images * sizeof(VkFramebuffer));
 	for (uint32_t i = 0; i < num_images; ++i) {
 		VkImageViewCreateInfo ivci = {.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
 		ivci.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -325,14 +422,14 @@ static void swapchainCreated() {
 		ivci.subresourceRange.layerCount = 1;
 		AVK_CHECK_RESULT(vkCreateImageView(a_vk.dev, &ivci, NULL, g.image_views + i));
 
-		VkFramebufferCreateInfo fbci = {.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
-		fbci.renderPass = g.render_pass;
-		fbci.attachmentCount = 1;
-		fbci.pAttachments = g.image_views + i;
-		fbci.width = a_vk.surface_width;
-		fbci.height = a_vk.surface_height;
-		fbci.layers = 1;
-		AVK_CHECK_RESULT(vkCreateFramebuffer(a_vk.dev, &fbci, NULL, g.framebuffers + i));
+		//VkFramebufferCreateInfo fbci = {.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
+		//fbci.renderPass = g.render_pass;
+		//fbci.attachmentCount = 1;
+		//fbci.pAttachments = g.image_views + i;
+		//fbci.width = a_vk.surface_width;
+		//fbci.height = a_vk.surface_height;
+		//fbci.layers = 1;
+		//AVK_CHECK_RESULT(vkCreateFramebuffer(a_vk.dev, &fbci, NULL, g.framebuffers + i));
 	}
 }
 
@@ -354,6 +451,7 @@ static void paint(ATimeUs timestamp, float dt) {
 	beginfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	AVK_CHECK_RESULT(vkBeginCommandBuffer(g.cmdbuf, &beginfo));
 
+	#if 0
 	VkClearValue clear_value = {0};
 	clear_value.color.float32[0] = .5f + .5f * sinf(t);
 	clear_value.color.float32[1] = .5f + .5f * sinf(t*3);
@@ -371,7 +469,6 @@ static void paint(ATimeUs timestamp, float dt) {
 	rpbi.pClearValues = &clear_value;
 	//vkCmdBeginRenderPass(g.cmdbuf, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
 
-	#if 0
 	vkCmdBindPipeline(g.cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, g.pipeline);
 
 	VkDeviceSize offset = {0};
@@ -415,10 +512,15 @@ static void paint(ATimeUs timestamp, float dt) {
 	 //vkCmdClearColorImage(g.cmdbuf, g.rt_image.image, VK_IMAGE_LAYOUT_GENERAL, &clear_value.color, 1, &subrange);
 	vkCmdBindPipeline(g.cmdbuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, g.pipeline);
 
-	VkDescriptorImageInfo dii = {
+	const VkDescriptorImageInfo dii = {
 		.sampler = VK_NULL_HANDLE,
 		.imageView = g.rt_image.view,
 		.imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+	};
+	const VkWriteDescriptorSetAccelerationStructureKHR wdsas = {
+		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+		.accelerationStructureCount = 1,
+		.pAccelerationStructures = &g.tlas.handle,
 	};
 	VkWriteDescriptorSet wds[] = {
 		{
@@ -430,13 +532,22 @@ static void paint(ATimeUs timestamp, float dt) {
 			.dstArrayElement = 0,
 			.pImageInfo = &dii,
 		},
+		{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+			.dstSet = g.desc_set,
+			.dstBinding = 1,
+			.dstArrayElement = 0,
+			.pNext = &wdsas,
+		},
 	};
+
 	vkUpdateDescriptorSets(a_vk.dev, COUNTOF(wds), wds, 0, NULL);
 	vkCmdBindDescriptorSets(g.cmdbuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, g.pipeline_layout, 0, 1, &g.desc_set, 0, NULL);
 
 	const VkStridedDeviceAddressRegionKHR sbt_null = {0};
-	const VkBufferDeviceAddressInfo bdai = {.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, .buffer = g.sbt_buf};
-	const VkDeviceAddress sbt_addr = vkGetBufferDeviceAddress(a_vk.dev, &bdai);
+	const VkDeviceAddress sbt_addr = getBufferDeviceAddress(g.sbt_buf.buffer);
 	const VkStridedDeviceAddressRegionKHR sbt_raygen = {.deviceAddress = sbt_addr, .size = g.shader_group_size, .stride = g.shader_group_size};
 	vkCmdTraceRaysKHR_(g.cmdbuf, &sbt_raygen, &sbt_null, &sbt_null, &sbt_null, 1280, 720, 1);
 
@@ -557,8 +668,8 @@ static void close() {
 	vkDestroyPipelineLayout(a_vk.dev, g.pipeline_layout, NULL);
 	vkDestroyShaderModule(a_vk.dev, g.modules.raygen, NULL);
 
-	vkDestroyBuffer(a_vk.dev, g.sbt_buf, NULL);
-	vkFreeMemory(a_vk.dev, g.devmem, NULL);
+	destroyBuffer(&g.sbt_buf);
+	//destroyBuffer(&g.blas);
 
 	vkDestroyRenderPass(a_vk.dev, g.render_pass, NULL);
 	aVkDestroySemaphore(g.done);
@@ -598,6 +709,7 @@ void attoAppInit(struct AAppProctable *proctable) {
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR pdasf = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
 		.accelerationStructure = VK_TRUE,
+		// not supported by nv .accelerationStructureHostCommands = VK_TRUE,
 		.pNext = &pdbdaf,
 	};
 	VkPhysicalDeviceRayTracingPipelineFeaturesKHR pdrtf = {
@@ -616,7 +728,7 @@ void attoAppInit(struct AAppProctable *proctable) {
 		: g.prop.rt.shaderGroupHandleSize;
 
 	g.done = aVkCreateSemaphore();
-	createRenderPass();
+	//createRenderPass();
 	createLayouts();
 	//createBuffer();
 	createCommandPool();
@@ -630,6 +742,7 @@ void attoAppInit(struct AAppProctable *proctable) {
 		VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
 
 	createPipeline();
+	createAccelerationStructures();
 
 	VkFenceCreateInfo fci = {0};
 	fci.flags = 0;

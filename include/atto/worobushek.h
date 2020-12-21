@@ -28,10 +28,12 @@
 #define AVK_VK_VERSION VK_MAKE_VERSION(1, 0, 0);
 #endif
 
+const char *aVkResultName(VkResult result);
+
 #define AVK_CHECK_RESULT(res) do { \
 	const VkResult result = res; \
 	if (result != VK_SUCCESS) { \
-		aAppDebugPrintf("VK ERROR @ %s:%d: %s failed with result %d", __FILE__, __LINE__, #res, result); \
+		aAppDebugPrintf("VK ERROR @ %s:%d: %s failed with result %s (%d)", __FILE__, __LINE__, #res, aVkResultName(result), result); \
 		aAppTerminate(-1); \
 	} \
 } while(0)
@@ -87,6 +89,51 @@ void* aVkLoadInstanceFunction(const char *name);
 #define AVK_INST_FUNC(name) ((PFN_##name)aVkLoadInstanceFunction(#name))
 
 #if defined(ATTO_VK_IMPLEMENT)
+const char *aVkResultName(VkResult result) {
+	switch (result) {
+	case VK_SUCCESS: return "VK_SUCCESS";
+	case VK_NOT_READY: return "VK_NOT_READY";
+	case VK_TIMEOUT: return "VK_TIMEOUT";
+	case VK_EVENT_SET: return "VK_EVENT_SET";
+	case VK_EVENT_RESET: return "VK_EVENT_RESET";
+	case VK_INCOMPLETE: return "VK_INCOMPLETE";
+	case VK_ERROR_OUT_OF_HOST_MEMORY: return "VK_ERROR_OUT_OF_HOST_MEMORY";
+	case VK_ERROR_OUT_OF_DEVICE_MEMORY: return "VK_ERROR_OUT_OF_DEVICE_MEMORY";
+	case VK_ERROR_INITIALIZATION_FAILED: return "VK_ERROR_INITIALIZATION_FAILED";
+	case VK_ERROR_DEVICE_LOST: return "VK_ERROR_DEVICE_LOST";
+	case VK_ERROR_MEMORY_MAP_FAILED: return "VK_ERROR_MEMORY_MAP_FAILED";
+	case VK_ERROR_LAYER_NOT_PRESENT: return "VK_ERROR_LAYER_NOT_PRESENT";
+	case VK_ERROR_EXTENSION_NOT_PRESENT: return "VK_ERROR_EXTENSION_NOT_PRESENT";
+	case VK_ERROR_FEATURE_NOT_PRESENT: return "VK_ERROR_FEATURE_NOT_PRESENT";
+	case VK_ERROR_INCOMPATIBLE_DRIVER: return "VK_ERROR_INCOMPATIBLE_DRIVER";
+	case VK_ERROR_TOO_MANY_OBJECTS: return "VK_ERROR_TOO_MANY_OBJECTS";
+	case VK_ERROR_FORMAT_NOT_SUPPORTED: return "VK_ERROR_FORMAT_NOT_SUPPORTED";
+	case VK_ERROR_FRAGMENTED_POOL: return "VK_ERROR_FRAGMENTED_POOL";
+	case VK_ERROR_UNKNOWN: return "VK_ERROR_UNKNOWN";
+	case VK_ERROR_OUT_OF_POOL_MEMORY: return "VK_ERROR_OUT_OF_POOL_MEMORY";
+	case VK_ERROR_INVALID_EXTERNAL_HANDLE: return "VK_ERROR_INVALID_EXTERNAL_HANDLE";
+	case VK_ERROR_FRAGMENTATION: return "VK_ERROR_FRAGMENTATION";
+	case VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS: return "VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS";
+	case VK_ERROR_SURFACE_LOST_KHR: return "VK_ERROR_SURFACE_LOST_KHR";
+	case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: return "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR";
+	case VK_SUBOPTIMAL_KHR: return "VK_SUBOPTIMAL_KHR";
+	case VK_ERROR_OUT_OF_DATE_KHR: return "VK_ERROR_OUT_OF_DATE_KHR";
+	case VK_ERROR_INCOMPATIBLE_DISPLAY_KHR: return "VK_ERROR_INCOMPATIBLE_DISPLAY_KHR";
+	case VK_ERROR_VALIDATION_FAILED_EXT: return "VK_ERROR_VALIDATION_FAILED_EXT";
+	case VK_ERROR_INVALID_SHADER_NV: return "VK_ERROR_INVALID_SHADER_NV";
+	case VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT:
+		return "VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT";
+	case VK_ERROR_NOT_PERMITTED_EXT: return "VK_ERROR_NOT_PERMITTED_EXT";
+	case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT: return "VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT";
+	case VK_THREAD_IDLE_KHR: return "VK_THREAD_IDLE_KHR";
+	case VK_THREAD_DONE_KHR: return "VK_THREAD_DONE_KHR";
+	case VK_OPERATION_DEFERRED_KHR: return "VK_OPERATION_DEFERRED_KHR";
+	case VK_OPERATION_NOT_DEFERRED_KHR: return "VK_OPERATION_NOT_DEFERRED_KHR";
+	case VK_PIPELINE_COMPILE_REQUIRED_EXT: return "VK_PIPELINE_COMPILE_REQUIRED_EXT";
+	default: return "UNKNOWN";
+	}
+}
+
 static const char *instance_exts[] = {
 #ifdef _DEBUG
 		VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
@@ -186,8 +233,23 @@ void aVkInitDevice(const void* device_create_info_chain) {
 	vkEnumeratePhysicalDevices(a_vk.inst, &num_devices, &a_vk.phys_dev);
 
 	uint32_t queue_index = UINT32_MAX;
-	VkPhysicalDeviceProperties pd;
-	vkGetPhysicalDeviceProperties(a_vk.phys_dev, &pd);
+
+	VkPhysicalDeviceProperties2 prop2 = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,};
+	vkGetPhysicalDeviceProperties2(a_vk.phys_dev, &prop2);
+
+	VkPhysicalDeviceBufferDeviceAddressFeaturesEXT pdbdaf = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES_EXT,
+	};
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR pdasf = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
+		.pNext = &pdbdaf,
+	};
+	VkPhysicalDeviceRayTracingPipelineFeaturesKHR pdrtf = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
+		.pNext = &pdasf,
+	};
+	VkPhysicalDeviceFeatures2 features2 = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, .pNext = &pdrtf};
+	vkGetPhysicalDeviceFeatures2(a_vk.phys_dev, &features2);
 
 #define MAX_QUEUE_FAMILIES 8
 	uint32_t num_queue_families = MAX_QUEUE_FAMILIES;
