@@ -132,6 +132,9 @@ static struct {
 	VkPipelineLayout pipeline_layout;
 	struct {
 		VkShaderModule raygen;
+		VkShaderModule rayintersect;
+		VkShaderModule raymiss;
+		VkShaderModule rayclosesthit;
 	} modules;
 	VkDescriptorSetLayout desc_layout;
 	VkDescriptorPool desc_pool;
@@ -141,7 +144,7 @@ static struct {
 	VkPipeline pipeline;
 	struct Image rt_image;
 
-	struct Buffer sbt_buf;
+	struct Buffer sbt_buf, geom_buf, tl_geom_buffer;
 	struct Accel blas, tlas;
 
 	VkCommandPool cmdpool;
@@ -197,10 +200,15 @@ struct Accel createAccelerationStructure(const VkAccelerationStructureGeometryKH
 	AVK_CHECK_RESULT(vkQueueSubmit(a_vk.main_queue, 1, &subinfo, NULL));
 	AVK_CHECK_RESULT(vkQueueWaitIdle(a_vk.main_queue));
 
+	destroyBuffer(&scratch_buffer);
+
 	return accel;
 }
 
-//void destroyAccelerationStructure() {}
+void destroyAccelerationStructure(struct Accel *a) {
+	AVK_DEV_FUNC(vkDestroyAccelerationStructureKHR)(a_vk.dev, a->handle, NULL);
+	destroyBuffer(&a->buffer);
+}
 
 static void createLayouts() {
 
@@ -258,6 +266,9 @@ static void createLayouts() {
 	AVK_CHECK_RESULT(vkAllocateDescriptorSets(a_vk.dev, &dsai, &g.desc_set));
 
 	g.modules.raygen = loadShaderFromFile("ray.rgen.spv");
+	g.modules.raymiss = loadShaderFromFile("ray.rmiss.spv");
+	g.modules.rayintersect = loadShaderFromFile("ray.rint.spv");
+	g.modules.rayclosesthit = loadShaderFromFile("ray.rchit.spv");
 }
 
 static void createCommandPool() {
@@ -287,20 +298,50 @@ static void createPipeline() {
 		.stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
 		.module = g.modules.raygen,
 		.pName = "main",
-	}, };
+	}, {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+		.stage = VK_SHADER_STAGE_MISS_BIT_KHR,
+		.module = g.modules.raymiss,
+		.pName = "main",
+	}, {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+		.stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+		.module = g.modules.rayclosesthit,
+		.pName = "main",
+	}, {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+		.stage = VK_SHADER_STAGE_INTERSECTION_BIT_KHR,
+		.module = g.modules.rayintersect,
+		.pName = "main",
+	},
+	};
 
 	VkRayTracingShaderGroupCreateInfoKHR groups[] = {{
 		.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
 		.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
-		.generalShader = 0,
+		.generalShader = 0, // Raygen
 		.closestHitShader = VK_SHADER_UNUSED_KHR,
 		.anyHitShader = VK_SHADER_UNUSED_KHR,
 		.intersectionShader = VK_SHADER_UNUSED_KHR,
+	}, {
+		.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+		.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR,
+		.generalShader = 1, // Miss
+		.closestHitShader = VK_SHADER_UNUSED_KHR,
+		.anyHitShader = VK_SHADER_UNUSED_KHR,
+		.intersectionShader = VK_SHADER_UNUSED_KHR,
+	}, { // procedural
+		.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+		.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR,
+		.generalShader = VK_SHADER_UNUSED_KHR,
+		.closestHitShader = 2,
+		.anyHitShader = VK_SHADER_UNUSED_KHR,
+		.intersectionShader = 3,
 	},
 	};
 
 	VkRayTracingPipelineCreateInfoKHR rtci = {.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR};
-	rtci.flags = 0; //VK_PIPELINE_CREATE_RAY_TRACING_SKIP_TRIANGLES_BIT_KHR
+	//rtci.flags = VK_PIPELINE_CREATE_RAY_TRACING_SKIP_TRIANGLES_BIT_KHR;
 	rtci.stageCount = COUNTOF(shader_stages);
 	rtci.pStages = shader_stages;
 	rtci.groupCount = COUNTOF(groups);
@@ -318,8 +359,16 @@ static void createPipeline() {
 	const uint32_t sbt_size = g.shader_group_size * rtci.groupCount;
 	g.sbt_buf =
 		createBuffer(sbt_size, VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
-	AVK_CHECK_RESULT(
-		AVK_DEV_FUNC(vkGetRayTracingShaderGroupHandlesKHR)(a_vk.dev, g.pipeline, 0, rtci.groupCount, sbt_size, g.sbt_buf.data));
+
+	const uint32_t handles_size = rtci.groupCount * g.prop.rt.shaderGroupHandleSize;
+	uint8_t *sbt_tmp_buf = malloc(handles_size);
+	AVK_CHECK_RESULT(AVK_DEV_FUNC(vkGetRayTracingShaderGroupHandlesKHR)(
+		a_vk.dev, g.pipeline, 0, rtci.groupCount, handles_size, sbt_tmp_buf));
+	for (int i = 0; i < (int)rtci.groupCount; ++i) {
+		memcpy(((uint8_t *)g.sbt_buf.data) + i * g.shader_group_size, sbt_tmp_buf + i * g.prop.rt.shaderGroupHandleSize,
+			g.prop.rt.shaderGroupHandleSize);
+	}
+	free(sbt_tmp_buf);
 }
 
 VkDeviceAddress getASAddress(VkAccelerationStructureKHR as) {
@@ -336,10 +385,10 @@ void createAccelerationStructures() {
 				1, 1, 1,
 		};
 
-	struct Buffer geom_buffer = createBuffer(sizeof(aabbox),
+	g.geom_buf = createBuffer(sizeof(aabbox),
 		VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
 			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
-	memcpy(geom_buffer.data, &aabbox, sizeof(aabbox));
+	memcpy(g.geom_buf.data, &aabbox, sizeof(aabbox));
 
 	const VkAccelerationStructureGeometryKHR geom[] = {
 		{
@@ -349,7 +398,7 @@ void createAccelerationStructures() {
 			.geometry.aabbs =
 				(VkAccelerationStructureGeometryAabbsDataKHR){
 					.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_AABBS_DATA_KHR,
-					.data.deviceAddress = getBufferDeviceAddress(geom_buffer.buffer),
+					.data.deviceAddress = getBufferDeviceAddress(g.geom_buf.buffer),
 					.stride = sizeof(VkAabbPositionsKHR),
 				},
 		},
@@ -372,10 +421,10 @@ void createAccelerationStructures() {
 		.accelerationStructureReference = getASAddress(g.blas.handle),
 	};
 
-	struct Buffer tl_geom_buffer = createBuffer(sizeof(inst),
+	g.tl_geom_buffer = createBuffer(sizeof(inst),
 		VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
 			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
-	memcpy(tl_geom_buffer.data, &inst, sizeof(inst));
+	memcpy(g.tl_geom_buffer.data, &inst, sizeof(inst));
 
 	const VkAccelerationStructureGeometryKHR tl_geom[] = {
 		{
@@ -385,7 +434,7 @@ void createAccelerationStructures() {
 			.geometry.instances =
 				(VkAccelerationStructureGeometryInstancesDataKHR){
 					.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR,
-					.data.deviceAddress = getBufferDeviceAddress(tl_geom_buffer.buffer),
+					.data.deviceAddress = getBufferDeviceAddress(g.tl_geom_buffer.buffer),
 					.arrayOfPointers = VK_FALSE,
 				},
 		},
@@ -451,40 +500,6 @@ static void paint(ATimeUs timestamp, float dt) {
 	beginfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	AVK_CHECK_RESULT(vkBeginCommandBuffer(g.cmdbuf, &beginfo));
 
-	#if 0
-	VkClearValue clear_value = {0};
-	clear_value.color.float32[0] = .5f + .5f * sinf(t);
-	clear_value.color.float32[1] = .5f + .5f * sinf(t*3);
-	clear_value.color.float32[2] = .5f + .5f * sinf(t*5);
-	clear_value.color.float32[3] = 1.f;
-	/* clear_value.color.uint32[0] = 0xffffffff; */
-	/* clear_value.color.uint32[3] = 0xffffffff; */
-	VkRenderPassBeginInfo rpbi = {.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
-	rpbi.renderPass = g.render_pass;
-	rpbi.framebuffer = g.framebuffers[a_vk.swapchain.current_frame_image_index];
-	rpbi.renderArea.offset.x = rpbi.renderArea.offset.y = 0;
-	rpbi.renderArea.extent.width = a_app_state->width;
-	rpbi.renderArea.extent.height = a_app_state->height;
-	rpbi.clearValueCount = 1;
-	rpbi.pClearValues = &clear_value;
-	//vkCmdBeginRenderPass(g.cmdbuf, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
-
-	vkCmdBindPipeline(g.cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, g.pipeline);
-
-	VkDeviceSize offset = {0};
-	vkCmdBindVertexBuffers(g.cmdbuf, 0, 1, &g.vertex_buf, &offset);
-		vkCmdPushConstants(g.cmdbuf, g.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float), &t);
-		vkCmdDraw(g.cmdbuf, 3, 1, 0, 0);
-	/* const int N = 32; */
-	/* for (int i = 0; i < N; ++i) { */
-	/* 	const float it = i / (float)N; */
-	/* 	const float tt = t*(.8+it*.2) + it * ((1. + sin(t*.3))*.15 + .7) * 20.; */
-	/* 	vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float), &tt); */
-	/* 	vkCmdDraw(cmdbuf, 3, 1, 0, 0); */
-	/* } */
-		#endif
-	//vkCmdEndRenderPass(g.cmdbuf);
-
    {
 		VkImageMemoryBarrier image_barriers[] = {
 			{
@@ -549,7 +564,9 @@ static void paint(ATimeUs timestamp, float dt) {
 	const VkStridedDeviceAddressRegionKHR sbt_null = {0};
 	const VkDeviceAddress sbt_addr = getBufferDeviceAddress(g.sbt_buf.buffer);
 	const VkStridedDeviceAddressRegionKHR sbt_raygen = {.deviceAddress = sbt_addr, .size = g.shader_group_size, .stride = g.shader_group_size};
-	vkCmdTraceRaysKHR_(g.cmdbuf, &sbt_raygen, &sbt_null, &sbt_null, &sbt_null, 1280, 720, 1);
+	const VkStridedDeviceAddressRegionKHR sbt_raymiss = {.deviceAddress = sbt_addr + g.shader_group_size, .size = g.shader_group_size, .stride = g.shader_group_size};
+	const VkStridedDeviceAddressRegionKHR sbt_rayhit = {.deviceAddress = sbt_addr + g.shader_group_size * 2, .size = g.shader_group_size, .stride = g.shader_group_size};
+	vkCmdTraceRaysKHR_(g.cmdbuf, &sbt_raygen, &sbt_raymiss, &sbt_rayhit, &sbt_null, 1280, 720, 1);
 
 		VkImageMemoryBarrier image_barriers[] = {
 		{
@@ -667,9 +684,15 @@ static void close() {
 	vkDestroyDescriptorPool(a_vk.dev, g.desc_pool, NULL);
 	vkDestroyPipelineLayout(a_vk.dev, g.pipeline_layout, NULL);
 	vkDestroyShaderModule(a_vk.dev, g.modules.raygen, NULL);
+	vkDestroyShaderModule(a_vk.dev, g.modules.raymiss, NULL);
+	vkDestroyShaderModule(a_vk.dev, g.modules.rayclosesthit, NULL);
+	vkDestroyShaderModule(a_vk.dev, g.modules.rayintersect, NULL);
 
+	destroyAccelerationStructure(&g.tlas);
+	destroyAccelerationStructure(&g.blas);
 	destroyBuffer(&g.sbt_buf);
-	//destroyBuffer(&g.blas);
+	destroyBuffer(&g.geom_buf);
+	destroyBuffer(&g.tl_geom_buffer);
 
 	vkDestroyRenderPass(a_vk.dev, g.render_pass, NULL);
 	aVkDestroySemaphore(g.done);
@@ -723,8 +746,8 @@ void attoAppInit(struct AAppProctable *proctable) {
 	g.prop.rt = (VkPhysicalDeviceRayTracingPipelinePropertiesKHR){.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
 	g.prop.prop2 = (VkPhysicalDeviceProperties2){.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, .pNext = &g.prop.rt};
 	vkGetPhysicalDeviceProperties2(a_vk.phys_dev, &g.prop.prop2);
-	g.shader_group_size = g.prop.rt.shaderGroupHandleSize < g.prop.rt.shaderGroupHandleAlignment
-		? g.prop.rt.shaderGroupHandleAlignment
+	g.shader_group_size = g.prop.rt.shaderGroupHandleSize < g.prop.rt.shaderGroupBaseAlignment
+		? g.prop.rt.shaderGroupBaseAlignment
 		: g.prop.rt.shaderGroupHandleSize;
 
 	g.done = aVkCreateSemaphore();

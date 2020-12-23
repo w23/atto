@@ -41,5 +41,5 @@ function(add_shaders)
 	add_custom_target(${SHADERS_TARGET} ALL DEPENDS ${SHADERS_DEPS})
 endfunction()
 
-add_shaders(TARGET vk_shaders FILES shader.frag shader.vert ray.rgen)
+add_shaders(TARGET vk_shaders FILES shader.frag shader.vert ray.rgen ray.rmiss ray.rchit ray.rint)
 add_dependencies(vk_ray vk_shaders)

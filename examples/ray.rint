@@ -1,0 +1,24 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+#include "ray.glsl"
+
+//hitAttributeEXT RayResult hres;
+
+float hitSphere(vec3 O, vec3 D, vec4 s) {
+  vec3  oc           = O - s.xyz;
+  float a            = dot(D, D);
+  float b            = 2.0 * dot(oc, D);
+  float c            = dot(oc, oc) - s.w * s.w;
+  float discriminant = b * b - 4 * a * c;
+  if(discriminant < 0)
+    return -1.0;
+  else
+    return (-b - sqrt(discriminant)) / (2.0 * a);
+}
+
+void main() {
+	float l = hitSphere(gl_WorldRayOriginEXT, gl_WorldRayDirectionEXT, vec4(vec3(0.), 1.));
+
+	if (l > 0.)
+		reportIntersectionEXT(l, 0);
+}
