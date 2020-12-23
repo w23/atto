@@ -234,19 +234,17 @@ static void createLayouts() {
 
 	AVK_CHECK_RESULT(vkCreateDescriptorSetLayout(a_vk.dev, &dslci, NULL, &g.desc_layout));
 
-	/*
 	VkPushConstantRange push_const = {0};
 	push_const.offset = 0;
 	push_const.size = sizeof(float);
-	push_const.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	*/
+	push_const.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
 
 	VkPipelineLayoutCreateInfo plci = {0};
 	plci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	plci.setLayoutCount = 1;
 	plci.pSetLayouts = &g.desc_layout;
-	// plci.pushConstantRangeCount = 1;
-	// plci.pPushConstantRanges = &push_const;
+	plci.pushConstantRangeCount = 1;
+	plci.pPushConstantRanges = &push_const;
 	AVK_CHECK_RESULT(vkCreatePipelineLayout(a_vk.dev, &plci, NULL, &g.pipeline_layout));
 
 	VkDescriptorPoolSize pools[] = {
@@ -407,28 +405,40 @@ void createAccelerationStructures() {
 			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
 	memcpy(g.aabb_buf.data, &aabbox, sizeof(aabbox));
 
-	#define TRIS 32
-	float triangles[TRIS * 9];
-	for (int i = 0; i < TRIS; ++i) {
+	#define TRIS 256
+	float triangles[TRIS * 12] = {
+			3.f, 0.f, 3.f, 0.f,
+			3.f, 0.f, -3.f, 0.f,
+			3.f, 3.f, 0.f, 0.f,
+
+			0.f, 3.f, 3.f, 0.f,
+			0.f, -3.f, 3.f, 0.f,
+			3.f, 0.f, 3.f, 0.f,
+
+			0.f, 3.f, 3.f, 0.f,
+			0.f, 3.f, -3.f, 0.f,
+			3.f, 3.f, 0.f, 0.f,
+	};
+	for (int i = 3; i < TRIS; ++i) {
 			float x = (float)rand() / RAND_MAX;
 			float y = (float)rand() / RAND_MAX;
 			float z = (float)rand() / RAND_MAX;
 
-			y *= 5.f;
-			x = (x - .5f) * 10.f;
-			z = (z - .5f) * 10.f;
+			y *= 10.f;
+			x = (x - .5f) * 20.f;
+			z = (z - .5f) * 20.f;
 
-			triangles[i * 9 + 0] = x; 
-			triangles[i * 9 + 1] = y; 
-			triangles[i * 9 + 2] = z; 
+			triangles[i * 12 + 0] = x;
+			triangles[i * 12 + 1] = y;
+			triangles[i * 12 + 2] = z;
 
-			triangles[i * 9 + 3] = x + 2.f * (float)rand() / RAND_MAX; 
-			triangles[i * 9 + 4] = y + 2.f * (float)rand() / RAND_MAX; 
-			triangles[i * 9 + 5] = z + 2.f * (float)rand() / RAND_MAX; 
+			triangles[i * 12 + 4] = x + 2.f * (float)rand() / RAND_MAX;
+			triangles[i * 12 + 5] = y + 2.f * (float)rand() / RAND_MAX;
+			triangles[i * 12 + 6] = z + 2.f * (float)rand() / RAND_MAX;
 
-			triangles[i * 9 + 6] = x + 2.f * (float)rand() / RAND_MAX; 
-			triangles[i * 9 + 7] = y + 2.f * (float)rand() / RAND_MAX; 
-			triangles[i * 9 + 8] = z + 2.f * (float)rand() / RAND_MAX; 
+			triangles[i * 12 + 8] = x + 2.f * (float)rand() / RAND_MAX;
+			triangles[i * 12 + 9] = y + 2.f * (float)rand() / RAND_MAX;
+			triangles[i * 12 + 10] = z + 2.f * (float)rand() / RAND_MAX;
 	}
 
 	
@@ -475,7 +485,7 @@ void createAccelerationStructures() {
 						.indexType = VK_INDEX_TYPE_NONE_KHR,
 						.maxVertex = TRIS * 3,
 						.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT,
-						.vertexStride = sizeof(float) * 3,
+						.vertexStride = sizeof(float) * 4,
 						.vertexData.deviceAddress = getBufferDeviceAddress(g.tri_buf.buffer),
 					},
 			}};
@@ -620,7 +630,7 @@ static void paint(ATimeUs timestamp, float dt) {
 	const VkDescriptorBufferInfo dbi = {
 		.buffer = g.tri_buf.buffer,
 		.offset = 0,
-		.range = VK_WHOLE_SIZE, 
+		.range = VK_WHOLE_SIZE,
 	};
 	const VkWriteDescriptorSetAccelerationStructureKHR wdsas = {
 		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
@@ -658,6 +668,7 @@ static void paint(ATimeUs timestamp, float dt) {
 	};
 
 	vkUpdateDescriptorSets(a_vk.dev, COUNTOF(wds), wds, 0, NULL);
+	vkCmdPushConstants(g.cmdbuf, g.pipeline_layout, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(float), &t);
 	vkCmdBindDescriptorSets(g.cmdbuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, g.pipeline_layout, 0, 1, &g.desc_set, 0, NULL);
 
 	const VkStridedDeviceAddressRegionKHR sbt_null = {0};

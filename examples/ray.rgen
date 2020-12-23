@@ -2,6 +2,10 @@
 #extension GL_GOOGLE_include_directive : enable
 #include "ray.glsl"
 
+layout(push_constant) uniform G {
+	float t;
+};
+
 layout(binding = 0, set = 0, rgba8) uniform image2D image;
 layout(binding = 1, set = 0) uniform accelerationStructureEXT tlas;
 
@@ -17,7 +21,7 @@ f.y);
 }
 
 float kappa(vec3 p) {
-	return p.y + 1. - .3 * n(p.xz*2.);
+	return p.y + 1. - .1 * n(p.xz*2.);
 }
 
 vec3 wn(vec3 p) {
@@ -37,6 +41,8 @@ float tr(vec3 O, vec3 D, float l, float L) {
 	return l;
 }
 
+#define rm(a) mat2(cos(a),sin(a),-sin(a),cos(a))
+
 void main() {
 //const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
   //const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
@@ -48,10 +54,14 @@ void main() {
 	vec3 C = vec3(0.);
 
 	vec3 ld=normalize(vec3(1.));
-	vec3 O=vec3(0., 0., 3.), D=normalize(vec3(uv, -1.));
+	vec3 O=vec3(0., 1. + cos(t), 6.), D=normalize(vec3(uv, -2.));
+
+	mat2 my = rm(t * .9);
+	D.xz *= my;
+	O.xz *= my;
 
 	vec3 kc = vec3(1.);
-	for(float r=0.;r<3.;++r) {
+	for(float r=0.;r<8.;++r) {
 			vec3 p, n, m_albedo = vec3(1., 0., 1.);
 			float L=20., l=tr(O,D,0.,L);
 
@@ -65,6 +75,12 @@ void main() {
 				l = rres.l;
 				p = O+D*l;
 				m_albedo = vec3(1., 0., 0.);
+				//C = fract(n);
+				//vec3(rres.num/3.);
+				//break;
+				//C = n *.5 + .5;
+				//n = abs(n);
+				//break;
 			} else if (l < L) {
 				p = O+D*l;
 				n = wn(p);
@@ -73,6 +89,9 @@ void main() {
 				C += kc * vec3(.3,.5,.8);
 				break;
 			}
+
+			//C = n;
+			//break;
 
 			vec3 c = .5 * vec3(.9,.7,.3) * max(0., dot(n,ld));
 			c += .5 * vec3(.9,.7,.3) * pow(max(0., dot(n,normalize(ld-D))), 100.);

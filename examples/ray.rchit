@@ -9,4 +9,5 @@ void main() {
 	rres.l = gl_HitTEXT;
 	rres.p = gl_HitTEXT * gl_WorldRayDirectionEXT + gl_WorldRayOriginEXT;
 	rres.n = normalize(rres.p);
+	rres.num = 0.;
 }
