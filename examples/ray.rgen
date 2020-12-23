@@ -17,10 +17,7 @@ f.y);
 }
 
 float kappa(vec3 p) {
-	float d = p.y - .3 * n(p.xz*2.);
-	p.y -= 1.;
-	//d = min(d, length(p) - 1.);
-	return d;
+	return p.y + 1. - .3 * n(p.xz*2.);
 }
 
 vec3 wn(vec3 p) {
@@ -51,7 +48,7 @@ void main() {
 	vec3 C = vec3(0.);
 
 	vec3 ld=normalize(vec3(1.));
-	vec3 O=vec3(0., 1., 3.), D=normalize(vec3(uv, -1.));
+	vec3 O=vec3(0., 0., 3.), D=normalize(vec3(uv, -1.));
 
 	vec3 kc = vec3(1.);
 	for(float r=0.;r<3.;++r) {
@@ -59,7 +56,7 @@ void main() {
 			float L=20., l=tr(O,D,0.,L);
 
 			traceRayEXT(tlas, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0,
-				O, 0.001, D, L, 0
+				O, 0., D, L, 0
 			);
 
 			if (rres.l < L && rres.l < l) {
@@ -84,7 +81,7 @@ void main() {
 			c += vec3(.3,.5,.8) * .3 * max(0., n.y);
 			c *= m_albedo;
 			C += kc*c;
-			O = p + .02*n;
+			O = p + .01*n;
 			D = normalize(reflect(D,n));
 			kc *= .7;
 	}

@@ -135,6 +135,7 @@ static struct {
 		VkShaderModule rayintersect;
 		VkShaderModule raymiss;
 		VkShaderModule rayclosesthit;
+		VkShaderModule rayclosesthit_tri;
 	} modules;
 	VkDescriptorSetLayout desc_layout;
 	VkDescriptorPool desc_pool;
@@ -144,8 +145,8 @@ static struct {
 	VkPipeline pipeline;
 	struct Image rt_image;
 
-	struct Buffer sbt_buf, geom_buf, tl_geom_buffer;
-	struct Accel blas, tlas;
+	struct Buffer sbt_buf, aabb_buf, tri_buf, tl_geom_buffer;
+	struct Accel blas, blas_tri, tlas;
 
 	VkCommandPool cmdpool;
 	VkCommandBuffer cmdbuf;
@@ -211,19 +212,21 @@ void destroyAccelerationStructure(struct Accel *a) {
 }
 
 static void createLayouts() {
-
-  VkDescriptorSetLayoutBinding bindings[] = {
-		{
+  VkDescriptorSetLayoutBinding bindings[] = {{
 			.binding = 0,
 			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
 			.descriptorCount = 1,
 			.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
-		},
-		{
+		}, {
 			.binding = 1,
 			.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
 			.descriptorCount = 1,
 			.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR,
+		}, {
+			.binding = 2,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
 		},
 	};
 
@@ -248,6 +251,7 @@ static void createLayouts() {
 
 	VkDescriptorPoolSize pools[] = {
 			{.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .descriptorCount = 1},
+			{.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 1},
 			{.type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, .descriptorCount = 1},
 	};
 
@@ -269,6 +273,7 @@ static void createLayouts() {
 	g.modules.raymiss = loadShaderFromFile("ray.rmiss.spv");
 	g.modules.rayintersect = loadShaderFromFile("ray.rint.spv");
 	g.modules.rayclosesthit = loadShaderFromFile("ray.rchit.spv");
+	g.modules.rayclosesthit_tri = loadShaderFromFile("ray_tri.rchit.spv");
 }
 
 static void createCommandPool() {
@@ -313,6 +318,11 @@ static void createPipeline() {
 		.stage = VK_SHADER_STAGE_INTERSECTION_BIT_KHR,
 		.module = g.modules.rayintersect,
 		.pName = "main",
+	}, {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+		.stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR,
+		.module = g.modules.rayclosesthit_tri,
+		.pName = "main",
 	},
 	};
 
@@ -337,6 +347,13 @@ static void createPipeline() {
 		.closestHitShader = 2,
 		.anyHitShader = VK_SHADER_UNUSED_KHR,
 		.intersectionShader = 3,
+	}, { // tri
+		.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
+		.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR,
+		.generalShader = VK_SHADER_UNUSED_KHR,
+		.closestHitShader = 4, // index into stages
+		.anyHitShader = VK_SHADER_UNUSED_KHR,
+		.intersectionShader = VK_SHADER_UNUSED_KHR,
 	},
 	};
 
@@ -380,45 +397,113 @@ VkDeviceAddress getASAddress(VkAccelerationStructureKHR as) {
 }
 
 void createAccelerationStructures() {
-		const VkAabbPositionsKHR aabbox= {
-				-1, -1, -1,
-				1, 1, 1,
-		};
+	const VkAabbPositionsKHR aabbox = {
+		-1, -1, -1,
+		1, 1, 1,
+	};
 
-	g.geom_buf = createBuffer(sizeof(aabbox),
+	g.aabb_buf = createBuffer(sizeof(aabbox),
 		VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
 			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
-	memcpy(g.geom_buf.data, &aabbox, sizeof(aabbox));
+	memcpy(g.aabb_buf.data, &aabbox, sizeof(aabbox));
 
-	const VkAccelerationStructureGeometryKHR geom[] = {
-		{
-			.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
-			//.flags = VK_GEOMETRY_OPAQUE_BIT,
-			.geometryType = VK_GEOMETRY_TYPE_AABBS_KHR,
-			.geometry.aabbs =
-				(VkAccelerationStructureGeometryAabbsDataKHR){
-					.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_AABBS_DATA_KHR,
-					.data.deviceAddress = getBufferDeviceAddress(g.geom_buf.buffer),
-					.stride = sizeof(VkAabbPositionsKHR),
-				},
-		},
-	};
+	#define TRIS 32
+	float triangles[TRIS * 9];
+	for (int i = 0; i < TRIS; ++i) {
+			float x = (float)rand() / RAND_MAX;
+			float y = (float)rand() / RAND_MAX;
+			float z = (float)rand() / RAND_MAX;
 
-	const uint32_t max_prim_counts[COUNTOF(geom)] = {1};
-	const VkAccelerationStructureBuildRangeInfoKHR build_range = {
+			y *= 5.f;
+			x = (x - .5f) * 10.f;
+			z = (z - .5f) * 10.f;
+
+			triangles[i * 9 + 0] = x; 
+			triangles[i * 9 + 1] = y; 
+			triangles[i * 9 + 2] = z; 
+
+			triangles[i * 9 + 3] = x + 2.f * (float)rand() / RAND_MAX; 
+			triangles[i * 9 + 4] = y + 2.f * (float)rand() / RAND_MAX; 
+			triangles[i * 9 + 5] = z + 2.f * (float)rand() / RAND_MAX; 
+
+			triangles[i * 9 + 6] = x + 2.f * (float)rand() / RAND_MAX; 
+			triangles[i * 9 + 7] = y + 2.f * (float)rand() / RAND_MAX; 
+			triangles[i * 9 + 8] = z + 2.f * (float)rand() / RAND_MAX; 
+	}
+
+	
+	g.tri_buf = createBuffer(sizeof(triangles),
+		VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+			VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR);
+	memcpy(g.tri_buf.data, triangles, sizeof(triangles));
+
+	{
+		const VkAccelerationStructureGeometryKHR geom[] = {
+			{
+				.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+				.flags = VK_GEOMETRY_OPAQUE_BIT_KHR,
+				.geometryType = VK_GEOMETRY_TYPE_AABBS_KHR,
+				.geometry.aabbs =
+					(VkAccelerationStructureGeometryAabbsDataKHR){
+						.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_AABBS_DATA_KHR,
+						.data.deviceAddress = getBufferDeviceAddress(g.aabb_buf.buffer),
+						.stride = sizeof(VkAabbPositionsKHR),
+					},
+			},
+			};
+
+		const uint32_t max_prim_counts[COUNTOF(geom)] = {1};
+		const VkAccelerationStructureBuildRangeInfoKHR build_range_aabb = {
 			.primitiveCount = 1,
-	};
-	const VkAccelerationStructureBuildRangeInfoKHR *build_ranges[] = {&build_range};
-  g.blas = createAccelerationStructure(
-		geom, max_prim_counts, build_ranges, COUNTOF(geom), VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR);
+		};
+		const VkAccelerationStructureBuildRangeInfoKHR *build_ranges[] = {
+			&build_range_aabb,
+		};
+		g.blas = createAccelerationStructure(
+			geom, max_prim_counts, build_ranges, COUNTOF(geom), VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR);
+	}
 
-	const VkAccelerationStructureInstanceKHR inst = {
+	{
+		const VkAccelerationStructureGeometryKHR geom[] = {
+			{
+				.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+				.flags = VK_GEOMETRY_OPAQUE_BIT_KHR,
+				.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR,
+				.geometry.triangles =
+					(VkAccelerationStructureGeometryTrianglesDataKHR){
+						.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR,
+						.indexType = VK_INDEX_TYPE_NONE_KHR,
+						.maxVertex = TRIS * 3,
+						.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT,
+						.vertexStride = sizeof(float) * 3,
+						.vertexData.deviceAddress = getBufferDeviceAddress(g.tri_buf.buffer),
+					},
+			}};
+
+		const uint32_t max_prim_counts[COUNTOF(geom)] = {TRIS};
+		const VkAccelerationStructureBuildRangeInfoKHR build_range_tri = {
+			.primitiveCount = TRIS,
+		};
+		const VkAccelerationStructureBuildRangeInfoKHR *build_ranges[COUNTOF(geom)] = {&build_range_tri};
+		g.blas_tri = createAccelerationStructure(
+			geom, max_prim_counts, build_ranges, COUNTOF(geom), VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR);
+	}
+
+	const VkAccelerationStructureInstanceKHR inst[] = {{
 		.transform = (VkTransformMatrixKHR){1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0},
 		.instanceCustomIndex = 0,
 		.mask = 0xff,
 		.instanceShaderBindingTableRecordOffset = 0,
 		.flags = 0,
 		.accelerationStructureReference = getASAddress(g.blas.handle),
+	}, {
+		.transform = (VkTransformMatrixKHR){1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0},
+		.instanceCustomIndex = 0,
+		.mask = 0xff,
+		.instanceShaderBindingTableRecordOffset = 1, // index into sbt_hit group
+		.flags = 0,
+		.accelerationStructureReference = getASAddress(g.blas_tri.handle),
+	},
 	};
 
 	g.tl_geom_buffer = createBuffer(sizeof(inst),
@@ -440,9 +525,9 @@ void createAccelerationStructures() {
 		},
 	};
 
-	const uint32_t tl_max_prim_counts[COUNTOF(tl_geom)] = {1};
+	const uint32_t tl_max_prim_counts[COUNTOF(tl_geom)] = {COUNTOF(inst)};
 	const VkAccelerationStructureBuildRangeInfoKHR tl_build_range = {
-			.primitiveCount = 1,
+			.primitiveCount = COUNTOF(inst),
 	};
 	const VkAccelerationStructureBuildRangeInfoKHR *tl_build_ranges[] = {&tl_build_range};
 	g.tlas = createAccelerationStructure(
@@ -532,12 +617,17 @@ static void paint(ATimeUs timestamp, float dt) {
 		.imageView = g.rt_image.view,
 		.imageLayout = VK_IMAGE_LAYOUT_GENERAL,
 	};
+	const VkDescriptorBufferInfo dbi = {
+		.buffer = g.tri_buf.buffer,
+		.offset = 0,
+		.range = VK_WHOLE_SIZE, 
+	};
 	const VkWriteDescriptorSetAccelerationStructureKHR wdsas = {
 		.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
 		.accelerationStructureCount = 1,
 		.pAccelerationStructures = &g.tlas.handle,
 	};
-	VkWriteDescriptorSet wds[] = {
+	const VkWriteDescriptorSet wds[] = {
 		{
 			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 			.descriptorCount = 1,
@@ -546,6 +636,15 @@ static void paint(ATimeUs timestamp, float dt) {
 			.dstBinding = 0,
 			.dstArrayElement = 0,
 			.pImageInfo = &dii,
+		},
+		{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.dstSet = g.desc_set,
+			.dstBinding = 2,
+			.dstArrayElement = 0,
+			.pBufferInfo = &dbi,
 		},
 		{
 			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -565,7 +664,7 @@ static void paint(ATimeUs timestamp, float dt) {
 	const VkDeviceAddress sbt_addr = getBufferDeviceAddress(g.sbt_buf.buffer);
 	const VkStridedDeviceAddressRegionKHR sbt_raygen = {.deviceAddress = sbt_addr, .size = g.shader_group_size, .stride = g.shader_group_size};
 	const VkStridedDeviceAddressRegionKHR sbt_raymiss = {.deviceAddress = sbt_addr + g.shader_group_size, .size = g.shader_group_size, .stride = g.shader_group_size};
-	const VkStridedDeviceAddressRegionKHR sbt_rayhit = {.deviceAddress = sbt_addr + g.shader_group_size * 2, .size = g.shader_group_size, .stride = g.shader_group_size};
+	const VkStridedDeviceAddressRegionKHR sbt_rayhit = {.deviceAddress = sbt_addr + g.shader_group_size * 2, .size = g.shader_group_size * 2, .stride = g.shader_group_size};
 	vkCmdTraceRaysKHR_(g.cmdbuf, &sbt_raygen, &sbt_raymiss, &sbt_rayhit, &sbt_null, 1280, 720, 1);
 
 		VkImageMemoryBarrier image_barriers[] = {
@@ -686,12 +785,15 @@ static void close() {
 	vkDestroyShaderModule(a_vk.dev, g.modules.raygen, NULL);
 	vkDestroyShaderModule(a_vk.dev, g.modules.raymiss, NULL);
 	vkDestroyShaderModule(a_vk.dev, g.modules.rayclosesthit, NULL);
+	vkDestroyShaderModule(a_vk.dev, g.modules.rayclosesthit_tri, NULL);
 	vkDestroyShaderModule(a_vk.dev, g.modules.rayintersect, NULL);
 
 	destroyAccelerationStructure(&g.tlas);
 	destroyAccelerationStructure(&g.blas);
+	destroyAccelerationStructure(&g.blas_tri);
 	destroyBuffer(&g.sbt_buf);
-	destroyBuffer(&g.geom_buf);
+	destroyBuffer(&g.tri_buf);
+	destroyBuffer(&g.aabb_buf);
 	destroyBuffer(&g.tl_geom_buffer);
 
 	vkDestroyRenderPass(a_vk.dev, g.render_pass, NULL);
