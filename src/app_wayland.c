@@ -10,7 +10,6 @@
 	#define ATTO_APP_NAME "atto app"
 #endif
 
-#include "atto/platform.h"
 #include "atto/app.h"
 #include "wl-xdg-proto.h"
 #include <wayland-client.h>
@@ -207,18 +206,16 @@ static void xtop_configure(void *data,
 	if (width == 0 || height == 0)
 		return;
 
-	if (width == a__app_state.width && height == a__app_state.height)
-		return;
+	const unsigned int oldw = a__app_state.width, oldh = a__app_state.height;
 
-	if (a__app_proctable.swapchain_will_destroy)
-		a__app_proctable.swapchain_will_destroy();
+	if (width == oldw && height == oldh)
+		return;
 
 	a__app_state.width = width;
 	a__app_state.height = height;
 
-	a_vkCreateSwapchain(width, height);
-	if (a__app_proctable.swapchain_created)
-		a__app_proctable.swapchain_created();
+	if (a__app_proctable.resize)
+		a__app_proctable.resize(aAppTime(), oldw, oldh);
 }
 
 static struct xdg_toplevel_listener xtop_listener = {
@@ -244,21 +241,16 @@ int main(int argc, char *argv[]) {
 	wl_surface_commit(surf);
 	wl_display_roundtrip(a__wl.disp);
 
-	a_vkInitWithWayland(a__wl.disp, surf);
+	a__app_state.display = a__wl.disp;
+	a__app_state.surface = surf;
 
 	a__app_state.argc = argc;
 	a__app_state.argv = (const char *const *)argv;
-	a__app_state.graphics_version = AOVK10;
+	//a__app_state.graphics_version = AOVK10;
 	a__app_state.width = 1280;
 	a__app_state.height = 720;
+
 	ATTO_APP_INIT_FUNC(&a__app_proctable);
-
-	aAppDebugPrintf("post-init");
-
-	a_vkCreateSwapchain(a__app_state.width, a__app_state.height);
-	a__app_proctable.swapchain_created();
-
-	aAppDebugPrintf("post-swapchain");
 
 	ATimeUs last_paint = 0;
 	while (running) {
@@ -267,17 +259,14 @@ int main(int argc, char *argv[]) {
 		dt = (now - last_paint) * 1e-6f;
 		last_paint = now;
 
-		//aAppDebugPrintf("DRAW");
-		a_vkPaint(&a__app_proctable, now, dt);
+		if (a__app_proctable.paint)
+			a__app_proctable.paint(now, dt);
 
 		ATTO_ASSERT(wl_display_dispatch(a__wl.disp) != -1);
 	}
 
-	a__app_proctable.swapchain_will_destroy();
 	if (a__app_proctable.close)
 		a__app_proctable.close();
-	a_vkDestroySwapchain();
-	a_vkDestroy();
 	xdg_toplevel_destroy(xtop);
 	xdg_surface_destroy(xsurf);
 	wl_surface_destroy(surf);

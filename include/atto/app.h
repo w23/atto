@@ -135,8 +135,11 @@ struct AAppState {
 #endif
 #ifdef ATTO_VK
 #if defined(ATTO_PLATFORM_WINDOWS)
-	void* hInstance;
-	void* hWnd;
+	void *hInstance;
+	void *hWnd;
+#elif defined(ATTO_PLATFORM_WAYLAND)
+	void *surface;
+	void *display;
 #endif
 #endif
 	unsigned int width, height;
@@ -157,6 +160,8 @@ extern const struct AAppState *a_app_state;
 
 struct AAppProctable {
 	void (*resize)(ATimeUs ts, unsigned int old_width, unsigned int old_height);
+
+	// resize must be called at least once before paint can be called
 	void (*paint)(ATimeUs ts, float dt);
 	void (*key)(ATimeUs ts, AKey key, int down);
 	void (*pointer)(ATimeUs ts, int dx, int dy, unsigned int buttons_changed_bits);

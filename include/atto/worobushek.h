@@ -55,6 +55,8 @@ struct AVkState {
 	int surface_width, surface_height;
 
 	VkPhysicalDevice phys_dev;
+	VkPhysicalDeviceProperties2 props2;
+	VkPhysicalDeviceFeatures2 features2;
 	VkPhysicalDeviceMemoryProperties mem_props;
 	//VkSurfaceCapabilitiesKHR surf_caps;
 	VkDevice dev;
@@ -76,15 +78,16 @@ void aVkDestroySemaphore(VkSemaphore sema);
 VkShaderModule loadShaderFromFile(const char *filename);
 uint32_t aVkFindMemoryWithType(uint32_t type_index_bits, VkMemoryPropertyFlags flags);
 
+void aVkInitDevice(const void *device_create_info_chain, void *props_chain, void *features_chain);
 void aVkCreateSurface();
 void aVkPokePresentModes();
-void aVkCreateSwapchain(int w, int h);
+void aVkCreateSwapchain(uint32_t w, uint32_t h);
 void aVkAcquireNextImage();
 void aVkDestroy();
 void aVkDestroySwapchain();
 
-void* aVkLoadDeviceFunction(const char *name);
-void* aVkLoadInstanceFunction(const char *name);
+PFN_vkVoidFunction aVkLoadDeviceFunction(const char *name);
+PFN_vkVoidFunction aVkLoadInstanceFunction(const char *name);
 #define AVK_DEV_FUNC(name) ((PFN_##name)aVkLoadDeviceFunction(#name))
 #define AVK_INST_FUNC(name) ((PFN_##name)aVkLoadInstanceFunction(#name))
 
@@ -151,9 +154,9 @@ static const char *instance_exts[] = {
 
 struct AVkState a_vk;
 
-void *aVkLoadDeviceFunction(const char *name) {
-	void *ret = vkGetDeviceProcAddr(a_vk.dev, name);
-	aAppDebugPrintf("%s = %p", name, ret);
+PFN_vkVoidFunction aVkLoadDeviceFunction(const char *name) {
+	PFN_vkVoidFunction ret = vkGetDeviceProcAddr(a_vk.dev, name);
+	aAppDebugPrintf("%s = %p", name, (void*)ret);
 	if (!ret) {
 		aAppDebugPrintf("Cannot load device function %s", name);
 		aAppTerminate(-1);
@@ -161,9 +164,9 @@ void *aVkLoadDeviceFunction(const char *name) {
 	return ret;
 }
 
-void *aVkLoadInstanceFunction(const char *name) {
-	void *ret = vkGetInstanceProcAddr(a_vk.inst, name);
-	aAppDebugPrintf("%s = %p", name, ret);
+PFN_vkVoidFunction aVkLoadInstanceFunction(const char *name) {
+	PFN_vkVoidFunction ret = vkGetInstanceProcAddr(a_vk.inst, name);
+	aAppDebugPrintf("%s = %p", name, (void*)ret);
 	if (!ret) {
 		aAppDebugPrintf("Cannot load instance function %s", name);
 		aAppTerminate(-1);
@@ -227,29 +230,18 @@ void aVkInitInstance() {
 #endif
 }
 
-void aVkInitDevice(const void* device_create_info_chain) {
+void aVkInitDevice(const void *device_create_info_chain, void *props_chain, void *features_chain) {
 	// Get only the first device
 	uint32_t num_devices = 1;
 	vkEnumeratePhysicalDevices(a_vk.inst, &num_devices, &a_vk.phys_dev);
 
 	uint32_t queue_index = UINT32_MAX;
 
-	VkPhysicalDeviceProperties2 prop2 = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,};
-	vkGetPhysicalDeviceProperties2(a_vk.phys_dev, &prop2);
+	a_vk.props2 = (VkPhysicalDeviceProperties2){.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, .pNext = props_chain};
+	vkGetPhysicalDeviceProperties2(a_vk.phys_dev, &a_vk.props2);
 
-	VkPhysicalDeviceBufferDeviceAddressFeaturesEXT pdbdaf = {
-		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES_EXT,
-	};
-	VkPhysicalDeviceAccelerationStructureFeaturesKHR pdasf = {
-		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
-		.pNext = &pdbdaf,
-	};
-	VkPhysicalDeviceRayTracingPipelineFeaturesKHR pdrtf = {
-		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
-		.pNext = &pdasf,
-	};
-	VkPhysicalDeviceFeatures2 features2 = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, .pNext = &pdrtf};
-	vkGetPhysicalDeviceFeatures2(a_vk.phys_dev, &features2);
+	a_vk.features2 = (VkPhysicalDeviceFeatures2){.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, .pNext = features_chain};
+	vkGetPhysicalDeviceFeatures2(a_vk.phys_dev, &a_vk.features2);
 
 #define MAX_QUEUE_FAMILIES 8
 	uint32_t num_queue_families = MAX_QUEUE_FAMILIES;
@@ -310,12 +302,12 @@ void aVkInitDevice(const void* device_create_info_chain) {
 	a_vk.swapchain.image_available = aVkCreateSemaphore();
 }
 
-void aVkCreateSwapchain(int w, int h) {
+void aVkCreateSwapchain(uint32_t w, uint32_t h) {
 	VkSurfaceCapabilitiesKHR scap;
 	AVK_CHECK_RESULT(AVK_INST_FUNC(vkGetPhysicalDeviceSurfaceCapabilitiesKHR)(a_vk.phys_dev, a_vk.surf, &scap));
-	//AVK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(a_vk.phys_dev, a_vk.surf, &scap));
-	a_vk.surface_width = scap.currentExtent.width;
-	a_vk.surface_height = scap.currentExtent.height;
+
+	a_vk.surface_width = (int)scap.currentExtent.width > 0 ? scap.currentExtent.width : w;
+	a_vk.surface_height = (int)scap.currentExtent.height > 0 ? scap.currentExtent.height : h;
 
 	struct AVkSwapchain* sw = &a_vk.swapchain;
 	sw->info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -324,8 +316,8 @@ void aVkCreateSwapchain(int w, int h) {
 	sw->info.minImageCount = 5; // TODO get from caps
 	sw->info.imageFormat = VK_FORMAT_B8G8R8A8_SRGB; // TODO get from caps
 	sw->info.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR; // TODO get from caps
-	sw->info.imageExtent.width = scap.currentExtent.width;
-	sw->info.imageExtent.height = scap.currentExtent.height;
+	sw->info.imageExtent.width = a_vk.surface_width;
+	sw->info.imageExtent.height = a_vk.surface_height;
 	sw->info.imageArrayLayers = 1;
 	sw->info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT /* FIXME FOR RT */ | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	sw->info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -362,8 +354,8 @@ void aVkCreateSurface() {
 #else
 	VkWaylandSurfaceCreateInfoKHR wsci = {0};
 	wsci.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
-	wsci.surface = surf;
-	wsci.display = disp;
+	wsci.surface = a_app_state->surface;
+	wsci.display = a_app_state->display;
 	AVK_CHECK_RESULT(vkCreateWaylandSurfaceKHR(a_vk.inst, &wsci, NULL, &a_vk.surf));
 #endif
 }

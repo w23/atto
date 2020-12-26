@@ -139,9 +139,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	a__app_state.hInstance = hInstance;
 	a__app_state.hWnd = g.hwnd;
 
-#ifdef ATTO_VK
 	ATTO_APP_INIT_FUNC(&a__app_proctable);
-#endif
 
 #if defined(ATTO_GL)
 	if (a__app_proctable.resize)

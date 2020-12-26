@@ -835,6 +835,7 @@ void attoAppInit(struct AAppProctable *proctable) {
 	proctable->key = key;
 
 	// TODO FIXME VK INIT
+	// TODO FIGURE OUT WHAT I MEANT BY THAT ^^^
 	aVkInitInstance();
 	aVkCreateSurface();
 
@@ -854,7 +855,7 @@ void attoAppInit(struct AAppProctable *proctable) {
 		.pNext = &pdasf,
 	};
 
-	aVkInitDevice(&pdrtf);
+	aVkInitDevice(&pdrtf, NULL, NULL);
 
 	g.prop.rt = (VkPhysicalDeviceRayTracingPipelinePropertiesKHR){.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
 	g.prop.prop2 = (VkPhysicalDeviceProperties2){.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, .pNext = &g.prop.rt};
