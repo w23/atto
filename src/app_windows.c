@@ -39,9 +39,11 @@ static struct AAppState a__app_state;
 const struct AAppState *a_app_state = &a__app_state;
 static struct AAppProctable a__app_proctable;
 
+#if defined(ATTO_GL)
 static const PIXELFORMATDESCRIPTOR a__pfd = {sizeof(a__pfd), 0,
 	PFD_DOUBLEBUFFER | PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL, PFD_TYPE_RGBA, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0};
+#endif
 
 static LARGE_INTEGER a__time_freq;
 static LARGE_INTEGER a__time_start;

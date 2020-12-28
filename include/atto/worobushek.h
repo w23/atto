@@ -180,6 +180,9 @@ VkBool32 debugCallback(
     VkDebugUtilsMessageTypeFlagsEXT                  messageTypes,
     const VkDebugUtilsMessengerCallbackDataEXT*      pCallbackData,
 	void *pUserData) {
+	(void)(pUserData);
+	(void)(messageTypes);
+	(void)(messageSeverity);
 	if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
 		aAppDebugPrintf("%s", pCallbackData->pMessage);
 		__debugbreak();
