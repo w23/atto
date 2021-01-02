@@ -65,7 +65,7 @@ struct AVkState {
 
 	struct AVkSwapchain swapchain;
 
-#ifdef _DEBUG
+#ifndef NDEBUG
 	VkDebugUtilsMessengerEXT debug_messenger;
 #endif
 };
@@ -138,7 +138,7 @@ const char *aVkResultName(VkResult result) {
 }
 
 static const char *instance_exts[] = {
-#ifdef _DEBUG
+#ifndef NDEBUG
 		VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
 #endif
 #ifdef ATTO_VK_INSTANCE_EXTENSIONS
@@ -174,7 +174,7 @@ PFN_vkVoidFunction aVkLoadInstanceFunction(const char *name) {
 	return ret;
 }
 
-#ifdef _DEBUG
+#ifndef NDEBUG
 VkBool32 debugCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT           messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT                  messageTypes,
@@ -185,7 +185,11 @@ VkBool32 debugCallback(
 	(void)(messageSeverity);
 	if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
 		aAppDebugPrintf("%s", pCallbackData->pMessage);
+#ifdef _MSC_VER
 		__debugbreak();
+#else
+		__builtin_trap();
+#endif
 	}
 	return VK_FALSE;
 }
@@ -206,7 +210,7 @@ void aVkInitInstance() {
 	ai.pEngineName = "KEK";
 
 	const char *layers[] = {
-	#ifdef _DEBUG
+	#ifndef NDEBUG
 		"VK_LAYER_KHRONOS_validation",
 	#endif
 	};
@@ -222,7 +226,7 @@ void aVkInitInstance() {
 	//PFN_vkCreateRayTracingPipelinesKHR fn = AVK_INST_FUNC(vkCreateRayTracingPipelinesKHR);
 	//fn(NULL, VK_NULL_HANDLE, VK_NULL_HANDLE, 0, NULL, NULL, NULL);
 
-#ifdef _DEBUG
+#ifndef NDEBUG
 	VkDebugUtilsMessengerCreateInfoEXT dumcie = {
 		.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
 		.messageSeverity = 0x1111, //:vovka: VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT,
@@ -375,7 +379,7 @@ void aVkDestroy() {
 	vkDestroySurfaceKHR(a_vk.inst, a_vk.surf, NULL);
 	aVkDestroySemaphore(a_vk.swapchain.image_available);
 	vkDestroyDevice(a_vk.dev, NULL);
-#ifdef _DEBUG
+#ifndef NDEBUG
 	AVK_INST_FUNC(vkDestroyDebugUtilsMessengerEXT)(a_vk.inst, a_vk.debug_messenger, NULL);
 #endif
 	vkDestroyInstance(a_vk.inst, NULL);
