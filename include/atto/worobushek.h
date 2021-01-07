@@ -209,15 +209,14 @@ void aVkInitInstance() {
 	ai.pApplicationName = "LOL";
 	ai.pEngineName = "KEK";
 
-	const char *layers[] = {
-	#ifndef NDEBUG
-		"VK_LAYER_KHRONOS_validation",
-	#endif
-	};
-
 	VkInstanceCreateInfo vici = {.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
+	#ifndef NDEBUG
+	const char *layers[] = {
+		"VK_LAYER_KHRONOS_validation",
+	};
 	vici.enabledLayerCount = COUNTOF(layers);
 	vici.ppEnabledLayerNames = layers;
+	#endif
 	vici.enabledExtensionCount = COUNTOF(instance_exts);
 	vici.ppEnabledExtensionNames = instance_exts;
 	vici.pApplicationInfo = &ai;

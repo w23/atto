@@ -89,10 +89,16 @@ static struct Buffer createBuffer(size_t size, VkBufferUsageFlags usage) {
 	vkGetBufferMemoryRequirements(a_vk.dev, ret.buffer, &memreq);
 	aAppDebugPrintf("memreq: memoryTypeBits=0x%x alignment=%zu size=%zu", memreq.memoryTypeBits, memreq.alignment, memreq.size);
 
-	VkMemoryAllocateInfo mai={0};
-	mai.allocationSize = memreq.size;
-	mai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	mai.memoryTypeIndex = aVkFindMemoryWithType(memreq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	VkMemoryAllocateFlagsInfo mafi = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
+		.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT,
+	};
+	VkMemoryAllocateInfo mai = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.pNext = &mafi,
+		.allocationSize = memreq.size,
+		.memoryTypeIndex = aVkFindMemoryWithType(memreq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
+	};
 	AVK_CHECK_RESULT(vkAllocateMemory(a_vk.dev, &mai, NULL, &ret.devmem));
 	AVK_CHECK_RESULT(vkBindBufferMemory(a_vk.dev, ret.buffer, ret.devmem, 0));
 
@@ -839,8 +845,8 @@ void attoAppInit(struct AAppProctable *proctable) {
 	aVkInitInstance();
 	aVkCreateSurface();
 
-	VkPhysicalDeviceBufferDeviceAddressFeaturesEXT pdbdaf = {
-		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES_EXT,
+	VkPhysicalDeviceBufferDeviceAddressFeatures pdbdaf = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
 		.bufferDeviceAddress = VK_TRUE,
 	};
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR pdasf = {
