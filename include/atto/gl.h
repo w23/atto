@@ -417,7 +417,7 @@ extern char a_gl_error[];
 		ATTO__FUNCLIST_DO(PFNGLGENERATEMIPMAPPROC, GenerateMipmap) \
 		ATTO__FUNCLIST_DO(PFNGLCLEARDEPTHFPROC, ClearDepthf) \
 		ATTO__FUNCLIST_DO(PFNGLDRAWBUFFERSPROC, DrawBuffers)
-	#define ATTO__FUNCLIST_DO(T, N) T gl##N = 0;
+	#define ATTO__FUNCLIST_DO(T, N) extern T gl##N;
 ATTO__FUNCLIST
 	#undef ATTO__FUNCLIST_DO
 #endif /* ifdef ATTO_PLATFORM_WINDOWS */
@@ -557,6 +557,10 @@ static void a__GLFramebufferBind(const AGLFramebufferParams *fb);
 static void a__GLTargetBind(const AGLDrawTarget *target);
 
 #ifdef ATTO_PLATFORM_WINDOWS
+#define ATTO__FUNCLIST_DO(T, N) T gl##N = 0;
+ATTO__FUNCLIST
+#undef ATTO__FUNCLIST_DO
+
 static PROC a__check_get_proc_address(const char *name) {
 	PROC ret = wglGetProcAddress(name);
 	ATTO_ASSERT(ret);
