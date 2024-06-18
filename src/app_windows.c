@@ -14,12 +14,19 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <io.h>
+
+#define LEAN_AND_MEAN
+#define NOMINMAX
+#define EXTRALEAN
 #include <windows.h>
 #include <windowsx.h> /* GET_X/Y_LPARAM */
+
+#ifdef ATTO_GL
 #include <GL/gl.h>
-/* #include "wglext.h"
-#include <atto/platform.h> */
-#include <atto/app.h>
+//#include "wglext.h"
+#endif
+
+#include "atto/app.h"
 
 /* static WCHAR *utf8_to_wchar(const char *string, int length, int *out_length); */
 static char *wchar_to_utf8(const WCHAR *string, int length, int *out_length);
@@ -32,9 +39,11 @@ static struct AAppState a__app_state;
 const struct AAppState *a_app_state = &a__app_state;
 static struct AAppProctable a__app_proctable;
 
+#if defined(ATTO_GL)
 static const PIXELFORMATDESCRIPTOR a__pfd = {sizeof(a__pfd), 0,
 	PFD_DOUBLEBUFFER | PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL, PFD_TYPE_RGBA, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0};
+#endif
 
 static LARGE_INTEGER a__time_freq;
 static LARGE_INTEGER a__time_start;
@@ -75,6 +84,10 @@ void aAppTerminate(int code) {
 	ExitProcess(code);
 }
 
+void aAppClose() {
+	PostQuitMessage(0);
+}
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
 	WNDCLASSEX wndclass;
 	ATimeUs last_paint = 0;
@@ -97,6 +110,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	g.hwnd = CreateWindow(TEXT("atto"), TEXT(ATTO_APP_NAME), WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS, 0,
 		0, ATTO_APP_WIDTH, ATTO_APP_HEIGHT, NULL, NULL, hInstance, NULL);
 	ATTO_ASSERT(0 != g.hwnd);
+
+#if defined(ATTO_GL)
 	g.hdc = GetDC(g.hwnd);
 	ATTO_ASSERT(0 != g.hdc);
 
@@ -104,6 +119,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	g.hglrc = wglCreateContext(g.hdc);
 	ATTO_ASSERT(0 != g.hglrc);
 	wglMakeCurrent(g.hdc, g.hglrc);
+#endif
 
 	{
 		int i;
@@ -114,13 +130,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		a__app_state.argv = (const char **)argv;
 	}
 
+#if defined(ATTO_GL)
 	a__app_state.gl_version = AOGLV_21;
+//#elif defined(ATTO_VK)
+//	a__app_state.gl_version = AOGLV_21;
+#endif
+
 	a__app_state.width = ATTO_APP_WIDTH;
 	a__app_state.height = ATTO_APP_HEIGHT;
+	a__app_state.hInstance = hInstance;
+	a__app_state.hWnd = g.hwnd;
 
 	ATTO_APP_INIT_FUNC(&a__app_proctable);
+
+#if defined(ATTO_GL)
 	if (a__app_proctable.resize)
 		a__app_proctable.resize(aAppTime(), 0, 0);
+#endif
 
 	ShowWindow(g.hwnd, nCmdShow);
 
@@ -140,7 +166,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			float dt = (now - last_paint) * 1e-6f;
 			if (a__app_proctable.paint)
 				a__app_proctable.paint(now, dt);
+#ifdef ATTO_GL
 			SwapBuffers(g.hdc);
+#endif
 			last_paint = now;
 		}
 	}
@@ -153,9 +181,11 @@ exit:
 }
 
 static void a__AppCleanup(void) {
+#ifdef ATTO_GL
 	wglMakeCurrent(g.hdc, NULL);
 	wglDeleteContext(g.hglrc);
 	ReleaseDC(g.hwnd, g.hdc);
+#endif
 	DestroyWindow(g.hwnd);
 }
 
@@ -264,10 +294,13 @@ static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 		const int width = (int)(lparam & 0xffff), height = (int)(lparam >> 16);
 		if (a__app_state.width == width && a__app_state.height == height)
 			break;
+
 		a__app_state.width = width;
 		a__app_state.height = height;
+
 		if (a__app_proctable.resize)
 			a__app_proctable.resize(aAppTime(), oldw, oldh);
+
 	} break;
 
 	case WM_KEYDOWN: down = 1;

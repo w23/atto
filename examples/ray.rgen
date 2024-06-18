@@ -1,0 +1,110 @@
+#version 460
+#extension GL_GOOGLE_include_directive : enable
+#include "ray.glsl"
+
+layout(push_constant) uniform G {
+	float t;
+};
+
+layout(binding = 0, set = 0, rgba8) uniform image2D image;
+layout(binding = 1, set = 0) uniform accelerationStructureEXT tlas;
+
+layout(location = 0) rayPayloadEXT RayResult rres;
+
+float h(float f){return fract(sin(f)*38572.5432);}
+float h(vec2 f){return h(dot(f,vec2(37.,17.)));}
+float n(vec2 f){vec2 F=floor(f);f=f-F;f*=f*(3.-2.*f);
+return mix(
+	mix(h(F),h(F+vec2(1.,0.)),f.x),
+	mix(h(F+vec2(0.,1.)),h(F+vec2(1.,1.)),f.x),
+f.y);
+}
+
+float kappa(vec3 p) {
+	return p.y + 1. - .1 * n(p.xz*2.);
+}
+
+vec3 wn(vec3 p) {
+	return normalize(vec3(
+		kappa(p+vec3(.01,0.,0.)),
+		kappa(p+vec3(0.,.01,0.)),
+		kappa(p+vec3(0.,0.,.01))
+	)-kappa(p));
+}
+
+float tr(vec3 O, vec3 D, float l, float L) {
+	for(int i=0;i<200;++i){
+		float d=kappa(O+D*l);
+		l+=d;
+		if(d<.001*l||l>L)break;
+	}
+	return l;
+}
+
+#define rm(a) mat2(cos(a),sin(a),-sin(a),cos(a))
+
+void main() {
+//const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
+  //const vec2 inUV        = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
+
+	vec2 uv = gl_LaunchIDEXT.xy / vec2(1280., 720.) * 2. - 1.;
+	uv.x *= 1280. / 720.;
+	uv.y=-uv.y;
+
+	vec3 C = vec3(0.);
+
+	vec3 ld=normalize(vec3(1.));
+	vec3 O=vec3(0., 1. + cos(t), 6.), D=normalize(vec3(uv, -2.));
+
+	mat2 my = rm(t * .9);
+	D.xz *= my;
+	O.xz *= my;
+
+	vec3 kc = vec3(1.);
+	for(float r=0.;r<8.;++r) {
+			vec3 p, n, m_albedo = vec3(1., 0., 1.);
+			float L=20., l=tr(O,D,0.,L);
+
+			traceRayEXT(tlas, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0,
+				O, 0., D, L, 0
+			);
+
+			if (rres.l < L && rres.l < l) {
+				//C += kc * fract(abs(rres.p));
+				n = rres.n;
+				l = rres.l;
+				p = O+D*l;
+				m_albedo = vec3(1., 0., 0.);
+				//C = fract(n);
+				//vec3(rres.num/3.);
+				//break;
+				//C = n *.5 + .5;
+				//n = abs(n);
+				//break;
+			} else if (l < L) {
+				p = O+D*l;
+				n = wn(p);
+				m_albedo = vec3(1.);
+			} else {
+				C += kc * vec3(.3,.5,.8);
+				break;
+			}
+
+			//C = n;
+			//break;
+
+			vec3 c = .5 * vec3(.9,.7,.3) * max(0., dot(n,ld));
+			c += .5 * vec3(.9,.7,.3) * pow(max(0., dot(n,normalize(ld-D))), 100.);
+			float sh=tr(p,ld,.1,10.);
+			c *= step(10., sh);
+			c += vec3(.3,.5,.8) * .3 * max(0., n.y);
+			c *= m_albedo;
+			C += kc*c;
+			O = p + .01*n;
+			D = normalize(reflect(D,n));
+			kc *= .7;
+	}
+
+  imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(C, 1.0));
+}
+

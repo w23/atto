@@ -1,30 +1,48 @@
 cmake_minimum_required(VERSION 3.10)
 project(atto C)
 
-set(OpenGL_GL_PREFERENCE GLVND)
-find_package(OpenGL REQUIRED)
+# set(OpenGL_GL_PREFERENCE GLVND)
+# find_package(OpenGL REQUIRED)
+find_package(Vulkan REQUIRED)
 
 if(WIN32)
 	set(ATTO_SRC
-		${CMAKE_CURRENT_SOURCE_DIR}/src/app_windows.c)
+		${CMAKE_CURRENT_SOURCE_DIR}/src/app_windows.c
+		${CMAKE_CURRENT_SOURCE_DIR}/include/atto/app.h
+		${CMAKE_CURRENT_SOURCE_DIR}/include/atto/worobushek.h
+	)
+	set(ATTO_DEFINES ATTO_PLATFORM_WINDOWS ATTO_VK)
 elseif(CMAKE_SYSTEM_NAME MATCHES ".*Linux")
-	find_package(X11 REQUIRED)
-	set(ATTO_LIBS
-		${X11_LIBRARIES}
-		${X11_Xext_LIB}
-		${X11_Xfixes_LIB}
-		m)
+	# find_package(X11 REQUIRED)
+	 set(ATTO_LIBS
+	# 	${X11_LIBRARIES}
+	# 	${X11_Xext_LIB}
+	# 	${X11_Xfixes_LIB}
+		wayland-client
+	 	m)
+	# set(ATTO_SRC
+	# 	${CMAKE_CURRENT_SOURCE_DIR}/src/app_linux.c
+	# 	# ${CMAKE_CURRENT_SOURCE_DIR}/src/app_x11.c)
+	# 	${CMAKE_CURRENT_SOURCE_DIR}/src/app_wayland.c)
 	set(ATTO_SRC
-		${CMAKE_CURRENT_SOURCE_DIR}/src/app_linux.c 
-		${CMAKE_CURRENT_SOURCE_DIR}/src/app_x11.c)
+	 	${CMAKE_CURRENT_SOURCE_DIR}/src/app_linux.c
+	# 	# ${CMAKE_CURRENT_SOURCE_DIR}/src/app_x11.c)
+	 	${CMAKE_CURRENT_SOURCE_DIR}/src/app_wayland.c
+	 	${CMAKE_CURRENT_SOURCE_DIR}/3p/wl-xdg-proto.c
+		${CMAKE_CURRENT_SOURCE_DIR}/include/atto/worobushek.h
+	)
+set(ATTO_DEFINES ATTO_PLATFORM_POSIX ATTO_PLATFORM_LINUX ATTO_PLATFORM_WAYLAND ATTO_VK)
 else()
 	message(FATAL_ERROR "Not ported")
 endif()
 
 add_library(atto STATIC ${ATTO_SRC})
 target_include_directories(atto PUBLIC include)
+target_include_directories(atto PRIVATE 3p)
+target_compile_definitions(atto PUBLIC ${ATTO_DEFINES})
 target_link_libraries(atto
-	PUBLIC OpenGL::GL
+	#PUBLIC OpenGL::GL
+	PUBLIC Vulkan::Vulkan
 	PRIVATE ${ATTO_LIBS})
 set_target_properties(atto PROPERTIES
 	C_STANDARD 99
