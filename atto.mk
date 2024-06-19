@@ -8,7 +8,7 @@ CFLAGS += -Wall -Wextra -Werror -I$(ATTO_BASEDIR)/include -I$(ATTO_BASEDIR)/src
 
 ifeq ($(DEBUG), 1)
 	CONFIG = dbg
-	CFLAGS += -O0 -g
+	CFLAGS += -O0 -ggdb3
 else
 	CONFIG = rel
 	CFLAGS += -O3
@@ -33,12 +33,11 @@ ifeq ($(RASPBERRY), 1)
 
 	CFLAGS += -I$(RPI_VCDIR)/include -I$(RPI_VCDIR)/include/interface/vcos/pthreads
 	CFLAGS += -I$(RPI_VCDIR)/include/interface/vmcs_host/linux -DATTO_PLATFORM_RPI
-	LIBS += -lbrcmGLESv2 -lbrcmEGL -lbcm_host -lvchiq_arm -lvcos -L$(RPI_VCDIR)/lib -lrt -lm
+	LIBS += -lbrcmGLESv2 -lbrcmEGL -lbcm_host -lvchiq_arm -lvcos -L$(RPI_VCDIR)/lib -lrt -lm -pthread
 
 	ATTO_SOURCES += \
-		src/app_linux.c \
-		src/app_rpi.c
-
+		$(ATTO_BASEDIR)/src/app_linux.c \
+		$(ATTO_BASEDIR)/src/app_rpi.c
 else
 	PLATFORM = linux-x11
 	COMPILER ?= $(CC)
@@ -50,8 +49,8 @@ else
 		LIBS += -lEGL
 	endif
 	ATTO_SOURCES += \
-		src/app_linux.c \
-		src/app_x11.c
+		$(ATTO_BASEDIR)/src/app_linux.c \
+		$(ATTO_BASEDIR)/src/app_x11.c
 endif
 
 DEPFLAGS = -MMD -MP

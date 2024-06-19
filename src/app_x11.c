@@ -1,13 +1,13 @@
 #ifndef ATTO_APP_WIDTH
-#define ATTO_APP_WIDTH 1280
+	#define ATTO_APP_WIDTH 1280
 #endif
 
 #ifndef ATTO_APP_HEIGHT
-#define ATTO_APP_HEIGHT 720
+	#define ATTO_APP_HEIGHT 720
 #endif
 
 #ifndef ATTO_APP_NAME
-#define ATTO_APP_NAME "atto app"
+	#define ATTO_APP_NAME "atto app"
 #endif
 
 #include "atto/platform.h"
@@ -15,6 +15,7 @@
 
 #define GL_GLEXT_PROTOTYPES 1
 #include <X11/Xlib.h>
+#include <X11/Xutil.h>
 #include <X11/XKBlib.h>
 #include <X11/extensions/Xfixes.h>
 #ifndef ATTO_EGL
@@ -48,36 +49,93 @@ static void a__appProcessXKeyEvent(XEvent *e) {
 	ATimeUs timestamp = aAppTime();
 	AKey key = AK_Unknown;
 	int down = KeyPress == e->type;
-	switch(XLookupKeysym(&e->xkey, 0)) {
-#define ATTOMAPK__(x,a) case XK_##x: key = AK_##a; break;
-		ATTOMAPK__(BackSpace,Backspace) ATTOMAPK__(Tab,Tab)
-		ATTOMAPK__(Return,Enter) ATTOMAPK__(space,Space) ATTOMAPK__(Escape,Esc)
-		ATTOMAPK__(Page_Up,PageUp) ATTOMAPK__(Page_Down,PageDown)
-		ATTOMAPK__(Left,Left) ATTOMAPK__(Up,Up) ATTOMAPK__(Right,Right)
-		ATTOMAPK__(Down,Down) ATTOMAPK__(comma,Comma) ATTOMAPK__(minus,Minus)
-		ATTOMAPK__(period,Dot) ATTOMAPK__(slash,Slash) ATTOMAPK__(equal,Equal)
-		ATTOMAPK__(Delete,Del) ATTOMAPK__(Insert,Ins) ATTOMAPK__(Home,Home)
-		ATTOMAPK__(End,End) ATTOMAPK__(asterisk,KeypadAsterisk) ATTOMAPK__(0,0)
-		ATTOMAPK__(1,1) ATTOMAPK__(2,2) ATTOMAPK__(3,3) ATTOMAPK__(4,4)
-		ATTOMAPK__(5,5) ATTOMAPK__(6,6) ATTOMAPK__(7,7) ATTOMAPK__(8,8)
-		ATTOMAPK__(9,9) ATTOMAPK__(a,A) ATTOMAPK__(b,B) ATTOMAPK__(c,C)
-		ATTOMAPK__(d,D) ATTOMAPK__(e,E) ATTOMAPK__(f,F) ATTOMAPK__(g,G)
-		ATTOMAPK__(h,H) ATTOMAPK__(i,I) ATTOMAPK__(j,J) ATTOMAPK__(k,K)
-		ATTOMAPK__(l,L) ATTOMAPK__(m,M) ATTOMAPK__(n,N) ATTOMAPK__(o,O)
-		ATTOMAPK__(p,P) ATTOMAPK__(q,Q) ATTOMAPK__(r,R) ATTOMAPK__(s,S)
-		ATTOMAPK__(t,T) ATTOMAPK__(u,U) ATTOMAPK__(v,V) ATTOMAPK__(w,W)
-		ATTOMAPK__(x,X) ATTOMAPK__(y,Y) ATTOMAPK__(z,Z) ATTOMAPK__(KP_Add,KeypadPlus)
-		ATTOMAPK__(KP_Subtract,KeypadMinus) ATTOMAPK__(F1,F1) ATTOMAPK__(F2,F2)
-		ATTOMAPK__(F3,F3) ATTOMAPK__(F4,F4) ATTOMAPK__(F5,F5) ATTOMAPK__(F6,F6)
-		ATTOMAPK__(F7,F7) ATTOMAPK__(F8,F8) ATTOMAPK__(F9,F9) ATTOMAPK__(F10,F10)
-		ATTOMAPK__(F11,F11) ATTOMAPK__(F12,F12) ATTOMAPK__(Alt_L,LeftAlt)
-		ATTOMAPK__(Control_L,LeftCtrl) ATTOMAPK__(Meta_L,LeftMeta)
-		ATTOMAPK__(Super_L,LeftSuper) ATTOMAPK__(Shift_L,LeftShift)
-		ATTOMAPK__(Alt_R,RightAlt) ATTOMAPK__(Control_R,RightCtrl)
-		ATTOMAPK__(Meta_R,RightMeta) ATTOMAPK__(Super_R,RightSuper)
-		ATTOMAPK__(Shift_R,RightShift) ATTOMAPK__(Caps_Lock,Capslock);
+	switch (XLookupKeysym(&e->xkey, 0)) {
+#define ATTOMAPK__(x, a) \
+	case XK_##x: key = AK_##a; break;
+		ATTOMAPK__(BackSpace, Backspace)
+		ATTOMAPK__(Tab, Tab)
+		ATTOMAPK__(Return, Enter)
+		ATTOMAPK__(space, Space)
+		ATTOMAPK__(Escape, Esc)
+		ATTOMAPK__(Page_Up, PageUp)
+		ATTOMAPK__(Page_Down, PageDown)
+		ATTOMAPK__(Left, Left)
+		ATTOMAPK__(Up, Up)
+		ATTOMAPK__(Right, Right)
+		ATTOMAPK__(Down, Down)
+		ATTOMAPK__(comma, Comma)
+		ATTOMAPK__(minus, Minus)
+		ATTOMAPK__(period, Dot)
+		ATTOMAPK__(slash, Slash)
+		ATTOMAPK__(equal, Equal)
+		ATTOMAPK__(Delete, Del)
+		ATTOMAPK__(Insert, Ins)
+		ATTOMAPK__(Home, Home)
+		ATTOMAPK__(End, End)
+		ATTOMAPK__(asterisk, KeypadAsterisk)
+		ATTOMAPK__(0, 0)
+		ATTOMAPK__(1, 1)
+		ATTOMAPK__(2, 2)
+		ATTOMAPK__(3, 3)
+		ATTOMAPK__(4, 4)
+		ATTOMAPK__(5, 5)
+		ATTOMAPK__(6, 6)
+		ATTOMAPK__(7, 7)
+		ATTOMAPK__(8, 8)
+		ATTOMAPK__(9, 9)
+		ATTOMAPK__(a, A)
+		ATTOMAPK__(b, B)
+		ATTOMAPK__(c, C)
+		ATTOMAPK__(d, D)
+		ATTOMAPK__(e, E)
+		ATTOMAPK__(f, F)
+		ATTOMAPK__(g, G)
+		ATTOMAPK__(h, H)
+		ATTOMAPK__(i, I)
+		ATTOMAPK__(j, J)
+		ATTOMAPK__(k, K)
+		ATTOMAPK__(l, L)
+		ATTOMAPK__(m, M)
+		ATTOMAPK__(n, N)
+		ATTOMAPK__(o, O)
+		ATTOMAPK__(p, P)
+		ATTOMAPK__(q, Q)
+		ATTOMAPK__(r, R)
+		ATTOMAPK__(s, S)
+		ATTOMAPK__(t, T)
+		ATTOMAPK__(u, U)
+		ATTOMAPK__(v, V)
+		ATTOMAPK__(w, W)
+		ATTOMAPK__(x, X)
+		ATTOMAPK__(y, Y)
+		ATTOMAPK__(z, Z)
+		ATTOMAPK__(KP_Add, KeypadPlus)
+		ATTOMAPK__(KP_Subtract, KeypadMinus)
+		ATTOMAPK__(F1, F1)
+		ATTOMAPK__(F2, F2)
+		ATTOMAPK__(F3, F3)
+		ATTOMAPK__(F4, F4)
+		ATTOMAPK__(F5, F5)
+		ATTOMAPK__(F6, F6)
+		ATTOMAPK__(F7, F7)
+		ATTOMAPK__(F8, F8)
+		ATTOMAPK__(F9, F9)
+		ATTOMAPK__(F10, F10)
+		ATTOMAPK__(F11, F11)
+		ATTOMAPK__(F12, F12)
+		ATTOMAPK__(Alt_L, LeftAlt)
+		ATTOMAPK__(Control_L, LeftCtrl)
+		ATTOMAPK__(Meta_L, LeftMeta)
+		ATTOMAPK__(Super_L, LeftSuper)
+		ATTOMAPK__(Shift_L, LeftShift)
+		ATTOMAPK__(Alt_R, RightAlt)
+		ATTOMAPK__(Control_R, RightCtrl)
+		ATTOMAPK__(Meta_R, RightMeta)
+		ATTOMAPK__(Super_R, RightSuper)
+		ATTOMAPK__(Shift_R, RightShift)
+		ATTOMAPK__(Caps_Lock, Capslock);
 #undef ATTOMAPK_
-		default: return;
+	default: return;
 	}
 
 	if (a__app_state.keys[key] == down)
@@ -97,11 +155,11 @@ static void a__appProcessXButton(const XEvent *e) {
 	const unsigned int pressed = e->xbutton.type == ButtonPress;
 
 	switch (e->xbutton.button) {
-		case Button1: button = AB_Left; break;
-		case Button2: button = AB_Middle; break;
-		case Button3: button = AB_Right; break;
-		case Button4: button = AB_WheelUp; break;
-		case Button5: button = AB_WheelDown; break;
+	case Button1: button = AB_Left; break;
+	case Button2: button = AB_Middle; break;
+	case Button3: button = AB_Right; break;
+	case Button4: button = AB_WheelUp; break;
+	case Button5: button = AB_WheelDown; break;
 	}
 
 	if (pressed)
@@ -122,8 +180,7 @@ static void a__appProcessXButton(const XEvent *e) {
 
 static void a__appProcessXMotion(const XEvent *e) {
 	ATimeUs timestamp = aAppTime();
-	int dx = e->xmotion.x - a__app_state.pointer.x,
-			dy = e->xmotion.y - a__app_state.pointer.y;
+	int dx = e->xmotion.x - a__app_state.pointer.x, dy = e->xmotion.y - a__app_state.pointer.y;
 
 	a__app_state.pointer.x = e->xmotion.x;
 	a__app_state.pointer.y = e->xmotion.y;
@@ -132,8 +189,7 @@ static void a__appProcessXMotion(const XEvent *e) {
 		if (e->xmotion.x == (int)a__app_state.width / 2 && e->xmotion.y == (int)a__app_state.height / 2)
 			return;
 
-		XWarpPointer(a__x11.display, None, a__x11.window, 0, 0, 0, 0,
-				a__app_state.width / 2, a__app_state.height / 2);
+		XWarpPointer(a__x11.display, None, a__x11.window, 0, 0, 0, 0, a__app_state.width / 2, a__app_state.height / 2);
 	}
 
 	if (a__app_proctable.pointer)
@@ -240,22 +296,17 @@ int main(int argc, char *argv[]) {
 #endif // ATTO_EGL
 
 	memset(&winattrs, 0, sizeof(winattrs));
-	winattrs.event_mask = KeyPressMask | KeyReleaseMask |
-		ButtonPressMask | ButtonReleaseMask | PointerMotionMask |
+	winattrs.event_mask = KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask |
 		ExposureMask | VisibilityChangeMask | StructureNotifyMask;
 	winattrs.border_pixel = 0;
 	winattrs.bit_gravity = StaticGravity;
-	winattrs.colormap = XCreateColormap(a__x11.display,
-		RootWindow(a__x11.display, vinfo->screen),
-		vinfo->visual, AllocNone);
-	ATTO_ASSERT(winattrs.colormap != None);
+	winattrs.colormap =
+		XCreateColormap(a__x11.display, RootWindow(a__x11.display, vinfo->screen), vinfo->visual, AllocNone);
 	winattrs.override_redirect = False;
 
-	a__x11.window = XCreateWindow(a__x11.display, RootWindow(a__x11.display, vinfo->screen),
-		0, 0, ATTO_APP_WIDTH, ATTO_APP_HEIGHT,
-		0, vinfo->depth, InputOutput, vinfo->visual,
-		CWBorderPixel | CWBitGravity | CWEventMask | CWColormap,
-		&winattrs);
+	a__x11.window =
+		XCreateWindow(a__x11.display, RootWindow(a__x11.display, vinfo->screen), 0, 0, ATTO_APP_WIDTH, ATTO_APP_HEIGHT, 0,
+			vinfo->depth, InputOutput, vinfo->visual, CWBorderPixel | CWBitGravity | CWEventMask | CWColormap, &winattrs);
 	ATTO_ASSERT(a__x11.window);
 
 	XStoreName(a__x11.display, a__x11.window, ATTO_APP_NAME);
@@ -268,9 +319,7 @@ int main(int argc, char *argv[]) {
 	XkbSetDetectableAutoRepeat(a__x11.display, True, NULL);
 
 #ifndef ATTO_EGL
-	ATTO_ASSERT(a__x11.context =
-		glXCreateNewContext(a__x11.display, glxconfigs[0], GLX_RGBA_TYPE, 0, True));
-
+	ATTO_ASSERT(a__x11.context = glXCreateNewContext(a__x11.display, glxconfigs[0], GLX_RGBA_TYPE, 0, True));
 	ATTO_ASSERT(a__x11.drawable = glXCreateWindow(a__x11.display, glxconfigs[0], a__x11.window, 0));
 
 	glXMakeContextCurrent(a__x11.display, a__x11.drawable, a__x11.drawable, a__x11.context);
@@ -288,11 +337,9 @@ int main(int argc, char *argv[]) {
 #endif // !ATTO_EGL
 
 	XSelectInput(a__x11.display, a__x11.window,
-		StructureNotifyMask | KeyPressMask | KeyReleaseMask |
-		ButtonPressMask | ButtonReleaseMask | PointerMotionMask
-	);
+		StructureNotifyMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask);
 	a__app_state.argc = argc;
-	a__app_state.argv = (const char * const *)argv;
+	a__app_state.argv = (const char *const *)argv;
 	a__app_state.gl_version = AOGLV_21;
 	a__app_state.width = ATTO_APP_WIDTH;
 	a__app_state.height = ATTO_APP_HEIGHT;
@@ -307,46 +354,38 @@ int main(int argc, char *argv[]) {
 			XEvent e;
 			XNextEvent(a__x11.display, &e);
 			switch (e.type) {
-				case ConfigureNotify:
-					{
-						unsigned int oldw = a__app_state.width, oldh = a__app_state.height;
+			case ConfigureNotify: {
+				unsigned int oldw = a__app_state.width, oldh = a__app_state.height;
 
-						if (a__app_state.width == (unsigned int)e.xconfigure.width
-								&& a__app_state.height == (unsigned int)e.xconfigure.height) break;
-
-						a__app_state.width = e.xconfigure.width;
-						a__app_state.height = e.xconfigure.height;
-						timestamp = aAppTime();
-
-						if (a__app_proctable.resize)
-							a__app_proctable.resize(timestamp, oldw, oldh);
-					}
+				if (a__app_state.width == (unsigned int)e.xconfigure.width &&
+					a__app_state.height == (unsigned int)e.xconfigure.height)
 					break;
 
-				case ButtonPress:
-				case ButtonRelease:
-					a__appProcessXButton(&e);
-					break;
-				case MotionNotify:
-					a__appProcessXMotion(&e);
-					break;
-				case KeyPress:
-				case KeyRelease:
-					a__appProcessXKeyEvent(&e);
-					break;
+				a__app_state.width = e.xconfigure.width;
+				a__app_state.height = e.xconfigure.height;
+				timestamp = aAppTime();
 
-				case ClientMessage:
-				case DestroyNotify:
-				case UnmapNotify:
-					goto exit;
-					break;
+				if (a__app_proctable.resize)
+					a__app_proctable.resize(timestamp, oldw, oldh);
+			} break;
+
+			case ButtonPress:
+			case ButtonRelease: a__appProcessXButton(&e); break;
+			case MotionNotify: a__appProcessXMotion(&e); break;
+			case KeyPress:
+			case KeyRelease: a__appProcessXKeyEvent(&e); break;
+
+			case ClientMessage:
+			case DestroyNotify:
+			case UnmapNotify: goto exit; break;
 			}
 		}
 
 		{
 			ATimeUs now = aAppTime();
 			float dt;
-			if (!last_paint) last_paint = now;
+			if (!last_paint)
+				last_paint = now;
 			dt = (now - last_paint) * 1e-6f;
 
 			if (a__app_proctable.paint)
@@ -381,13 +420,13 @@ exit:
 }
 
 void aAppGrabInput(int grab) {
-	if (grab == a_app_state->grabbed) return;
+	if (grab == a_app_state->grabbed)
+		return;
 	if (grab) {
-		XGrabPointer(a__x11.display, a__x11.window, True, 0, GrabModeAsync, GrabModeAsync,
-				a__x11.window, None, CurrentTime);
+		XGrabPointer(
+			a__x11.display, a__x11.window, True, 0, GrabModeAsync, GrabModeAsync, a__x11.window, None, CurrentTime);
 		XFixesHideCursor(a__x11.display, a__x11.window);
-		XWarpPointer(a__x11.display, None, a__x11.window, 0, 0, 0, 0,
-				a__app_state.width / 2, a__app_state.height / 2);
+		XWarpPointer(a__x11.display, None, a__x11.window, 0, 0, 0, 0, a__app_state.width / 2, a__app_state.height / 2);
 	} else {
 		XFixesShowCursor(a__x11.display, a__x11.window);
 		XUngrabPointer(a__x11.display, CurrentTime);

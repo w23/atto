@@ -1,13 +1,13 @@
 #ifndef ATTO_APP_WIDTH
-#define ATTO_APP_WIDTH 1280
+	#define ATTO_APP_WIDTH 1280
 #endif
 
 #ifndef ATTO_APP_HEIGHT
-#define ATTO_APP_HEIGHT 720
+	#define ATTO_APP_HEIGHT 720
 #endif
 
 #ifndef ATTO_APP_NAME
-#define ATTO_APP_NAME "atto app"
+	#define ATTO_APP_NAME "atto app"
 #endif
 
 #include <string.h>
@@ -32,10 +32,9 @@ static struct AAppState a__app_state;
 const struct AAppState *a_app_state = &a__app_state;
 static struct AAppProctable a__app_proctable;
 
-static const PIXELFORMATDESCRIPTOR a__pfd = {
-	sizeof(a__pfd), 0, PFD_DOUBLEBUFFER | PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL,
-	PFD_TYPE_RGBA, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-};
+static const PIXELFORMATDESCRIPTOR a__pfd = {sizeof(a__pfd), 0,
+	PFD_DOUBLEBUFFER | PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL, PFD_TYPE_RGBA, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0};
 
 static LARGE_INTEGER a__time_freq;
 static LARGE_INTEGER a__time_start;
@@ -45,7 +44,10 @@ static struct {
 	HDC hdc;
 	HGLRC hglrc;
 
-	struct { int resetAbsolute; long x, y; } rawMouse;
+	struct {
+		int resetAbsolute;
+		long x, y;
+	} rawMouse;
 } g;
 
 ATimeUs aAppTime() {
@@ -55,8 +57,7 @@ ATimeUs aAppTime() {
 		QueryPerformanceCounter(&a__time_start);
 	}
 	QueryPerformanceCounter(&now);
-	return (ATimeUs)((now.QuadPart - a__time_start.QuadPart) * 1000000ul
-		/ a__time_freq.QuadPart);
+	return (ATimeUs)((now.QuadPart - a__time_start.QuadPart) * 1000000ul / a__time_freq.QuadPart);
 }
 
 void aAppDebugPrintf(const char *fmt, ...) {
@@ -74,9 +75,7 @@ void aAppTerminate(int code) {
 	ExitProcess(code);
 }
 
-int WINAPI WinMain(
-		HINSTANCE hInstance, HINSTANCE hPrevInstance,
-		LPSTR lpCmdLine, int nCmdShow) {
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
 	WNDCLASSEX wndclass;
 	ATimeUs last_paint = 0;
 
@@ -95,10 +94,8 @@ int WINAPI WinMain(
 	wndclass.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
 	ATTO_ASSERT(RegisterClassEx(&wndclass));
 
-	g.hwnd = CreateWindow(
-		TEXT("atto"), TEXT(ATTO_APP_NAME),
-		WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
-		0, 0, ATTO_APP_WIDTH, ATTO_APP_HEIGHT, NULL, NULL, hInstance, NULL);
+	g.hwnd = CreateWindow(TEXT("atto"), TEXT(ATTO_APP_NAME), WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS, 0,
+		0, ATTO_APP_WIDTH, ATTO_APP_HEIGHT, NULL, NULL, hInstance, NULL);
 	ATTO_ASSERT(0 != g.hwnd);
 	g.hdc = GetDC(g.hwnd);
 	ATTO_ASSERT(0 != g.hdc);
@@ -111,17 +108,16 @@ int WINAPI WinMain(
 	{
 		int i;
 		char **argv;
-		LPWSTR* wargv = CommandLineToArgvW(GetCommandLineW(), &a__app_state.argc);
-		argv = malloc(sizeof(char*) * (a__app_state.argc + 1));
-		for (i = 0; i < a__app_state.argc; ++i)
-			argv[i] = wchar_to_utf8(wargv[i], -1, NULL);
-		a__app_state.argv = (const char**)argv;
+		LPWSTR *wargv = CommandLineToArgvW(GetCommandLineW(), &a__app_state.argc);
+		argv = malloc(sizeof(char *) * (a__app_state.argc + 1));
+		for (i = 0; i < a__app_state.argc; ++i) argv[i] = wchar_to_utf8(wargv[i], -1, NULL);
+		a__app_state.argv = (const char **)argv;
 	}
 
 	a__app_state.gl_version = AOGLV_21;
 	a__app_state.width = ATTO_APP_WIDTH;
 	a__app_state.height = ATTO_APP_HEIGHT;
-	
+
 	ATTO_APP_INIT_FUNC(&a__app_proctable);
 	if (a__app_proctable.resize)
 		a__app_proctable.resize(aAppTime(), 0, 0);
@@ -131,14 +127,16 @@ int WINAPI WinMain(
 	for (;;) {
 		MSG msg;
 		while (0 != PeekMessage(&msg, g.hwnd, 0, 0, PM_NOREMOVE)) {
-			if (0 == GetMessage(&msg, NULL, 0, 0)) goto exit;
+			if (0 == GetMessage(&msg, NULL, 0, 0))
+				goto exit;
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
 
 		{
 			ATimeUs now = aAppTime();
-			if (!last_paint) last_paint = now;
+			if (!last_paint)
+				last_paint = now;
 			float dt = (now - last_paint) * 1e-6f;
 			if (a__app_proctable.paint)
 				a__app_proctable.paint(now, dt);
@@ -163,9 +161,10 @@ static void a__AppCleanup(void) {
 
 static void a__AppOpenConsole(void) {
 	AllocConsole();
-	freopen("CONIN$", "r", stdin);
-	freopen("CONOUT$", "w", stdout);
-	freopen("CONOUT$", "w", stderr);
+	FILE *dummy_file;
+	freopen_s(&dummy_file, "CONIN$", "r", stdin);
+	freopen_s(&dummy_file, "CONOUT$", "w", stdout);
+	freopen_s(&dummy_file, "CONOUT$", "w", stderr);
 }
 
 #if 0
@@ -204,8 +203,10 @@ static void a__message_and_exit(const char *message, const char *file, int line)
 */
 
 static AKey a__AppMapKey(WPARAM key) {
-	if (key >= 'A' && key <= 'Z') return AK_A + key - 'A';
-	if (key >= '0' && key <= '9') return AK_A + key - '0';
+	if (key >= 'A' && key <= 'Z')
+		return AK_A + key - 'A';
+	if (key >= '0' && key <= '9')
+		return AK_A + key - '0';
 
 	switch (key) {
 	case VK_BACK: return AK_Backspace;
@@ -241,6 +242,8 @@ static AKey a__AppMapKey(WPARAM key) {
 	case VK_F10: return AK_F10;
 	case VK_F11: return AK_F11;
 	case VK_F12: return AK_F12;
+	case VK_OEM_MINUS: return AK_Minus;
+	case VK_OEM_PLUS: return AK_Plus;
 	}
 	return AK_Unknown;
 }
@@ -256,21 +259,18 @@ static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 	unsigned int new_button_state = a__app_state.pointer.buttons;
 
 	switch (msg) {
-	case WM_SIZE:
-		{
-			const unsigned int oldw = a__app_state.width, oldh = a__app_state.height;
-			const int width = (int)(lparam & 0xffff), height = (int)(lparam >> 16);
-			if (a__app_state.width == width
-				&& a__app_state.height == height) break;
-			a__app_state.width = width;
-			a__app_state.height = height;
-			if (a__app_proctable.resize)
-				a__app_proctable.resize(aAppTime(), oldw, oldh);
-		}
-		break;
+	case WM_SIZE: {
+		const unsigned int oldw = a__app_state.width, oldh = a__app_state.height;
+		const int width = (int)(lparam & 0xffff), height = (int)(lparam >> 16);
+		if (a__app_state.width == width && a__app_state.height == height)
+			break;
+		a__app_state.width = width;
+		a__app_state.height = height;
+		if (a__app_proctable.resize)
+			a__app_proctable.resize(aAppTime(), oldw, oldh);
+	} break;
 
-	case WM_KEYDOWN:
-		down = 1;
+	case WM_KEYDOWN: down = 1;
 	case WM_KEYUP:
 		key = a__AppMapKey(wparam);
 		if (key == AK_Unknown)
@@ -285,9 +285,7 @@ static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 			a__app_proctable.key(aAppTime(), key, down);
 		break;
 
-	case WM_CLOSE:
-		ExitProcess(0);
-		break;
+	case WM_CLOSE: ExitProcess(0); break;
 
 	case WM_LBUTTONDOWN:
 		late_event = MouseClickEvent;
@@ -307,18 +305,18 @@ static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 		break;
 
 	case WM_MOUSEMOVE:
-		if (!a__app_state.grabbed)
-		{
+		if (!a__app_state.grabbed) {
 			const int x = GET_X_LPARAM(lparam), y = GET_Y_LPARAM(lparam);
 			const int dx = x - a__app_state.pointer.x, dy = y - a__app_state.pointer.y;
+			a__app_state.pointer.x = x;
+			a__app_state.pointer.y = y;
 
 			if (a__app_proctable.pointer)
 				a__app_proctable.pointer(aAppTime(), dx, dy, 0);
 		}
 		break;
 
-	case WM_INPUT:
-	{
+	case WM_INPUT: {
 		RAWINPUT ri;
 		UINT ri_size = sizeof(ri);
 		const HRAWINPUT hrawinput = (HRAWINPUT)lparam;
@@ -359,11 +357,9 @@ static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 
 			break;
 		}
-	}
-		break;
+	} break;
 
-	default:
-		return DefWindowProc(hwnd, msg, wparam, lparam);
+	default: return DefWindowProc(hwnd, msg, wparam, lparam);
 	}
 
 	if (late_event == MouseClickEvent && new_button_state != a__app_state.pointer.buttons) {
@@ -378,8 +374,8 @@ static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 
 void aAppGrabInput(int grab) {
 	RAWINPUTDEVICE devices[] = {
-		{1, 2, grab ? RIDEV_NOLEGACY /*| RIDEV_CAPTUREMOUSE*/: RIDEV_REMOVE, grab ? g.hwnd : NULL}, /* mouse */
-		/* {1, 6, RIDEV_NOLEGACY, NULL}, /* keyboard */
+		{1, 2, grab ? RIDEV_NOLEGACY /*| RIDEV_CAPTUREMOUSE*/ : RIDEV_REMOVE, grab ? g.hwnd : NULL}, /* mouse */
+		/*{1, 6, RIDEV_NOLEGACY, NULL},*/ /* keyboard */
 	};
 
 	if (grab == a__app_state.grabbed)

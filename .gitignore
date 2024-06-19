@@ -8,3 +8,4 @@ build/
 *~
 *.db
 *.opendb
+.vscode

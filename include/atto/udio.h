@@ -2,11 +2,11 @@
 #define ATTO_UDIO_H__DECLARED
 
 #ifndef ATTO_UDIO_SAMPLERATE
-#define ATTO_UDIO_SAMPLERATE 48000
+	#define ATTO_UDIO_SAMPLERATE 48000
 #endif
 
 #ifndef ATTO_UDIO_CHANNELS
-#define ATTO_UDIO_CHANNELS 2
+	#define ATTO_UDIO_CHANNELS 2
 #endif
 
 typedef void (*a_udio_callback_f)(void *opaque, unsigned int sample, float *samples, unsigned int nsamples);
@@ -20,25 +20,25 @@ void aUdioStop();
 #ifdef ATTO_UDIO_H_IMPLEMENT
 
 #ifndef ATTO_PLATFORM
-#error ATTO_PLATFORM must be already defined
+	#error ATTO_PLATFORM must be already defined
 #endif
 
 #ifdef ATTO_UDIO_H__IMPLEMENTED
-#error atto_udio.h can be implemented only once
+	#error atto_udio.h can be implemented only once
 #endif /* ifdef ATTO_UDIO_H__IMPLEMENTED */
 #define ATTO_UDIO_H__IMPLEMENTED
 
 #ifndef ATTO_UDIO_BUFFER_SAMPLES
-#define ATTO_UDIO_BUFFER_SAMPLES 512
+	#define ATTO_UDIO_BUFFER_SAMPLES 512
 #endif
 
 #ifdef ATTO_PLATFORM_LINUX
-/* Use pulseaudio simple api */
-#include <pthread.h>
-/* pulseaudio, y u no c89?! */
-#define inline
-#include <pulse/simple.h>
-#undef inline
+	/* Use pulseaudio simple api */
+	#include <pthread.h>
+	/* pulseaudio, y u no c89?! */
+	#define inline
+	#include <pulse/simple.h>
+	#undef inline
 
 static pthread_mutex_t a__udio_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t a__udio_thread;
@@ -54,11 +54,9 @@ static void *a__udio_thread_main(void *arg) {
 	ss.format = PA_SAMPLE_FLOAT32NE;
 	ss.channels = ATTO_UDIO_CHANNELS;
 	ss.rate = ATTO_UDIO_SAMPLERATE;
-	s = pa_simple_new(
-		NULL, ATTO_APP_NAME, PA_STREAM_PLAYBACK,
-		NULL, "m", &ss, NULL, NULL, NULL);
+	s = pa_simple_new(NULL, ATTO_APP_NAME, PA_STREAM_PLAYBACK, NULL, "m", &ss, NULL, NULL, NULL);
 
-	for(;;) {
+	for (;;) {
 		float buffer[ATTO_UDIO_BUFFER_SAMPLES * ATTO_UDIO_CHANNELS];
 
 		if (a__udio_callback == 0) {
@@ -125,23 +123,22 @@ void aUdioStop() {
 #endif
 
 #ifdef ATTO_PLATFORM_WINDOWS
-#include <mmsystem.h>
-#include <mmreg.h>
+	#include <mmsystem.h>
+	#include <mmreg.h>
 
 static struct {
 	HWAVEOUT waveout;
 	HANDLE thread, event;
 	a_udio_callback_f callback;
 	void *opaque;
-} a__udio = { 0 };
-
+} a__udio = {0};
 
 
 static DWORD WINAPI a__udio_thread(LPVOID lpParameter) {
 	float buffer[ATTO_UDIO_BUFFER_SAMPLES * ATTO_UDIO_CHANNELS];
 	unsigned int sample = 0;
 	MMRESULT result;
-	WAVEHDR whdr[2] = { { 0 }, { 0 } };
+	WAVEHDR whdr[2] = {{0}, {0}};
 	whdr[0].lpData = buffer;
 	whdr[1].lpData = buffer + ATTO_UDIO_BUFFER_SAMPLES * ATTO_UDIO_CHANNELS / 2;
 	whdr[0].dwBufferLength = whdr[1].dwBufferLength = sizeof(buffer) / 2;
@@ -193,8 +190,7 @@ int aUdioStart(a_udio_callback_f callback, void *opaque) {
 
 	a__udio.event = CreateEvent(NULL, FALSE, TRUE, "AttoUdio");
 
-	MMRESULT result = waveOutOpen(&a__udio.waveout, WAVE_MAPPER,
-		&wvfmt, a__udio.event, 0, CALLBACK_EVENT);
+	MMRESULT result = waveOutOpen(&a__udio.waveout, WAVE_MAPPER, &wvfmt, a__udio.event, 0, CALLBACK_EVENT);
 	if (result != MMSYSERR_NOERROR) {
 		fprintf(stderr, "waveOutOpen: %d\n", result);
 		return -2;

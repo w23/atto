@@ -6,7 +6,8 @@
 #include <math.h>
 
 static void keyPress(ATimeUs timestamp, AKey key, int pressed) {
-	(void)(timestamp); (void)(pressed);
+	(void)(timestamp);
+	(void)(pressed);
 	if (key == AK_Esc)
 		aAppTerminate(0);
 }
@@ -16,30 +17,29 @@ static const char shader_vertex[] =
 	"attribute vec3 av3_pos;\n"
 	"varying vec3 vv3_color;\n"
 	"void main() {\n"
-		"vec4 pos = vec4(av3_pos, 1.);\n"
-		"vv3_color = av3_pos * .5 + .5;\n"
-		"gl_Position = um4_vp * um4_model * pos;\n"
-	"}"
-;
+	"  vec4 pos = vec4(av3_pos, 1.);\n"
+	"  vv3_color = av3_pos * .5 + .5;\n"
+	"  gl_Position = um4_vp * um4_model * pos;\n"
+	"}";
 
 static const char shader_fragment[] =
 	"varying vec3 vv3_color;\n"
 	"void main() {\n"
-		"gl_FragColor = vec4(vv3_color, 1.);\n"
-	"}"
-;
+	"  gl_FragColor = vec4(vv3_color, 1.);\n"
+	"}";
 
 static const struct AVec3f vertexes[8] = {
-	{ 1.f, -1.f,  1.f},
-	{ 1.f,  1.f,  1.f},
-	{ 1.f, -1.f, -1.f},
-	{ 1.f,  1.f, -1.f},
+	{1.f, -1.f, 1.f},
+	{1.f, 1.f, 1.f},
+	{1.f, -1.f, -1.f},
+	{1.f, 1.f, -1.f},
 	{-1.f, -1.f, -1.f},
-	{-1.f,  1.f, -1.f},
-	{-1.f, -1.f,  1.f},
-	{-1.f,  1.f,  1.f},
+	{-1.f, 1.f, -1.f},
+	{-1.f, -1.f, 1.f},
+	{-1.f, 1.f, 1.f},
 };
 
+// clang-format off
 static const unsigned short indices[36] = {
 	0, 3, 1, 0, 2, 3,
 	2, 5, 3, 2, 4, 5,
@@ -48,6 +48,7 @@ static const unsigned short indices[36] = {
 	6, 2, 0, 6, 4, 2,
 	1, 5, 7, 1, 3, 5,
 };
+// clang-format on
 
 static struct {
 	AGLAttribute attr[1];
@@ -104,7 +105,9 @@ static void init(void) {
 }
 
 static void resize(ATimeUs timestamp, unsigned int old_w, unsigned int old_h) {
-	(void)(timestamp); (void)(old_w); (void)(old_h);
+	(void)(timestamp);
+	(void)(old_w);
+	(void)(old_h);
 	g.target.viewport.x = g.target.viewport.y = 0;
 	g.target.viewport.w = a_app_state->width;
 	g.target.viewport.h = a_app_state->height;
@@ -121,20 +124,19 @@ static void paint(ATimeUs timestamp, float dt) {
 	(void)(dt);
 
 	clear.a = 1;
-	clear.r = .3f*sinf(t*.1f);
-	clear.g = .3f*sinf(t*.2f);
-	clear.b = .3f*sinf(t*.3f);
+	clear.r = .3f * sinf(t * .1f);
+	clear.g = .3f * sinf(t * .2f);
+	clear.b = .3f * sinf(t * .3f);
 	clear.depth = 1;
 	clear.bits = AGLCB_Everything;
 
 	aGLClear(&clear, &g.target);
 
 	struct AReFrame frame;
-	frame.orient = aQuatRotation(aVec3fNormalize(aVec3f(.7f*sinf(t*.37f), .2f, .7f)), -t*.4f);
+	frame.orient = aQuatRotation(aVec3fNormalize(aVec3f(.7f * sinf(t * .37f), .2f, .7f)), -t * .4f);
 	frame.transl = aVec3f(0, 0, 0);
 
-	struct AMat4f model4 = aMat4fReFrame(frame),
-		vp4 = aMat4fMul(g.projection, aMat4fTranslation(aVec3f(0,0,-10)));
+	struct AMat4f model4 = aMat4fReFrame(frame), vp4 = aMat4fMul(g.projection, aMat4fTranslation(aVec3f(0, 0, -10)));
 	g.pun[1].value.pf = &model4.X.x;
 	g.pun[0].value.pf = &vp4.X.x;
 
