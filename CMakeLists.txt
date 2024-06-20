@@ -2,12 +2,13 @@ cmake_minimum_required(VERSION 3.10)
 project(atto C)
 
 set(OpenGL_GL_PREFERENCE GLVND)
-find_package(OpenGL REQUIRED)
 
 if(WIN32)
 	set(ATTO_SRC
 		${CMAKE_CURRENT_SOURCE_DIR}/src/app_windows.c)
 elseif(CMAKE_SYSTEM_NAME MATCHES ".*Linux")
+	option(ATTO_USE_EGL "Use EGL for OpenGL context creation" ON)
+
 	find_package(X11 REQUIRED)
 	set(ATTO_LIBS
 		${X11_LIBRARIES}
@@ -17,14 +18,25 @@ elseif(CMAKE_SYSTEM_NAME MATCHES ".*Linux")
 	set(ATTO_SRC
 		${CMAKE_CURRENT_SOURCE_DIR}/src/app_linux.c 
 		${CMAKE_CURRENT_SOURCE_DIR}/src/app_x11.c)
+
 else()
 	message(FATAL_ERROR "Not ported")
 endif()
 
 add_library(atto STATIC ${ATTO_SRC})
+
+if (ATTO_USE_EGL)
+	find_package(OpenGL REQUIRED EGL)
+	set(ATTO_GL_LIBS OpenGL::GL OpenGL::EGL)
+	target_compile_definitions(atto PUBLIC ATTO_EGL)
+else()
+	find_package(OpenGL REQUIRED)
+	set(ATTO_GL_LIBS OpenGL::GL)
+endif()
+
 target_include_directories(atto PUBLIC include)
 target_link_libraries(atto
-	PUBLIC OpenGL::GL
+	PUBLIC ${ATTO_GL_LIBS}
 	PRIVATE ${ATTO_LIBS})
 set_target_properties(atto PROPERTIES
 	C_STANDARD 99
