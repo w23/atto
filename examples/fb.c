@@ -5,11 +5,13 @@
 #include <atto/gl.h>
 
 static const char shader_vertex[] =
+"precision mediump float;\n"
 	"attribute vec2 av2_pos;"
 	"varying vec2 vv2_pos;"
 	"void main() { vv2_pos = av2_pos; gl_Position = vec4(av2_pos, 0., 1.); }";
 
 static const char shader_fragment[] =
+"precision mediump float;\n"
 	"uniform float uf_time;"
 	"varying vec2 vv2_pos;"
 	"void main() {"
@@ -23,6 +25,7 @@ static const char shader_fragment[] =
 	"}";
 
 static const char shader_fragment_show[] =
+"precision mediump float;\n"
 	"uniform sampler2D us2_texture;"
 	"uniform float uf_time;"
 	"varying vec2 vv2_pos;"

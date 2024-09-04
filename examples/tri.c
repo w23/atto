@@ -13,7 +13,8 @@ static void keyPress(ATimeUs timestamp, AKey key, int pressed) {
 }
 
 static const char shader_vertex[] =
-	"uniform float uf_time;"
+"precision mediump float;\n"
+	"uniform float uf_time;\n"
 	"attribute vec2 av2_pos;\n"
 	"varying vec3 vv3_color;\n"
 	"void main() {\n"
@@ -26,6 +27,7 @@ static const char shader_vertex[] =
 	"}";
 
 static const char shader_fragment[] =
+"precision mediump float;\n"
 	"varying vec3 vv3_color;\n"
 	"void main() {\n"
 	"  gl_FragColor = vec4(vv3_color, 1.);\n"
