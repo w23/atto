@@ -27,7 +27,8 @@ elseif(CMAKE_SYSTEM_NAME MATCHES ".*Linux")
 			${CMAKE_CURRENT_SOURCE_DIR}/src/app_main.c
 			)
 
-		set(ATTO_DEFS ${ATTO_DEFS} ATTO_KMS)
+		# TODO decouple GLES
+		set(ATTO_DEFS ${ATTO_DEFS} ATTO_KMS ATTO_GLES)
 
 	else()
 		find_package(X11 REQUIRED)
