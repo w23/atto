@@ -295,10 +295,20 @@ static Framebobuffer *getFramebufferForGbmBo(struct gbm_bo* bo) {
 		modifiers[i] = modifiers[0];
 	}
 
-	uint32_t flags = (modifiers[0] && modifiers[0] != DRM_FORMAT_MOD_INVALID) ? DRM_MODE_FB_MODIFIERS : 0;
-	const int ret = drmModeAddFB2WithModifiers(a__kms.drm.fd, width, height, format, handles, pitches, offsets, modifiers, &fbo->fb_id, flags);
-	ATTO_ASSERT(ret == 0);
+	const uint32_t flags = (modifiers[0] && modifiers[0] != DRM_FORMAT_MOD_INVALID) ? DRM_MODE_FB_MODIFIERS : 0;
+	const int fb_with_modifiers_result = drmModeAddFB2WithModifiers(a__kms.drm.fd, width, height, format, handles, pitches, offsets, modifiers, &fbo->fb_id, flags);
+	if (fb_with_modifiers_result != 0) {
+		ALOG("Trying libdrm framebuffer without modifiers");
 
+		const uint32_t handles[4] = { gbm_bo_get_handle(bo).u32, 0, 0, 0 };
+		const uint32_t pitches[4] = { gbm_bo_get_stride(bo), 0, 0, 0 };
+		const uint32_t offsets[4] = { 0, 0, 0, 0 };
+		const uint32_t flags = 0;
+		const int fb_wo_modifiers_result = drmModeAddFB2(a__kms.drm.fd, width, height, format, handles, pitches, offsets, &fbo->fb_id, flags);
+		ATTO_ASSERT(fb_wo_modifiers_result == 0);
+	}
+
+	// Track associated drm framebuffer with gbm buffer object
 	gbm_bo_set_user_data(bo, fbo, fboDestroy);
 
 	return fbo;
