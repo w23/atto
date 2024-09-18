@@ -4,13 +4,16 @@ static struct AAppState a__global_state;
 const struct AAppState *a_app_state = &a__global_state;
 static struct AAppProctable a__app_proctable;
 
-#ifdef ATTO_KMS
-// FIXME evdev
+#ifdef ATTO_EVDEV
+#include "app_evdev.c"
+// TODO
+#else
 static void a__inputInit(void) {}
 static void a__inputPoll(void) {}
 static void a__inputDestroy(void) {}
+#endif
 
-// FIXME ...
+#ifdef ATTO_KMS
 #include "app_kms.c"
 #define a__videoInit a__kmsInit
 #define a__videoSwap a__kmsSwap
@@ -69,6 +72,4 @@ void aAppTerminate(int code) {
 void aAppGrabInput(int grab) {
 	(void)grab;
 	ATTO_ASSERT(!"Not implemented");
-	/* No-op. Input is always 'grabbed' in evdev */
-	a__global_state.grabbed = grab;
 }
