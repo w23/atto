@@ -993,7 +993,11 @@ static void a__GLFramebufferBind(const AGLFramebufferParams *fb) {
 
 	if (fb->depth.mode != AGLDBM_Texture && (depth || color)) {
 		AGL__CALL(glBindRenderbuffer(GL_RENDERBUFFER, a__gl_state.framebuffer.depth_buffer));
+#ifndef ATTO_GLES
 		AGL__CALL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, fb->color->width, fb->color->height));
+#else
+		AGL__CALL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, fb->color->width, fb->color->height));
+#endif
 		AGL__CALL(glFramebufferRenderbuffer(
 			GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, a__gl_state.framebuffer.depth_buffer));
 	}
