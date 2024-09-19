@@ -5,6 +5,8 @@
 	#include "atto/platform.h"
 #endif
 
+#include <stdint.h>
+
 #if !defined(ATTO_GL_HEADERS_INCLUDED)
 	#ifdef ATTO_PLATFORM_X11
 		#define GL_GLEXT_PROTOTYPES 1
