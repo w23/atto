@@ -1,6 +1,7 @@
 #include "atto/app.h"
 
 #define ATTO_GL_H_IMPLEMENT
+#define ATTO_GL_PRINT_LIMITS
 #include "atto/gl.h"
 
 #include <math.h>

@@ -201,7 +201,7 @@ static const EGLint egl_context_attrs[] = {
 
 static void initEgl() {
 	const char *client_extensions = eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
-	ALOG("EGL_EXTENSIONS: %s", client_extensions);
+	ALOG("EGL_EXTENSIONS(client): %s", client_extensions);
 
 	a__kms.egl.display = eglGetPlatformDisplay(EGL_PLATFORM_GBM_MESA, a__kms.gbm.device, NULL);
 	ATTO_ASSERT(a__kms.egl.display != EGL_NO_DISPLAY);
@@ -210,6 +210,14 @@ static void initEgl() {
 		EGLint vmaj, vmin;
 		ATTO_ASSERT(eglInitialize(a__kms.egl.display, &vmaj, &vmin));
 		ALOG("EGL %d.%d", vmaj, vmin);
+
+		if (vmaj > 1 || vmin >= 2) {
+			ALOG("EGL_CLIENT_APIS: %s", eglQueryString(a__kms.egl.display, EGL_CLIENT_APIS));
+		}
+
+		ALOG("EGL_VENDOR: %s", eglQueryString(a__kms.egl.display, EGL_VENDOR));
+		ALOG("EGL_VERSION: %s", eglQueryString(a__kms.egl.display, EGL_VERSION));
+		ALOG("EGL_EXTENSIONS(display): %s", eglQueryString(a__kms.egl.display, EGL_EXTENSIONS));
 	}
 
 	{
