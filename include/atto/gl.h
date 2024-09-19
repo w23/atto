@@ -76,7 +76,7 @@ extern "C" {
 #endif
 
 /* Initialize GL stuff, like load GL>=2 procs on Windows */
-void aGLInit();
+void aGLInit(void);
 
 /* Textures */
 
@@ -126,10 +126,16 @@ typedef struct {
 	/* \todo unsigned int sequence__; */
 } AGLTexture;
 
+enum AGLTextureUploadFlags {
+	// Available only in GLES2+ and GL3+
+	AGLTU_GenerateMipmaps = (1 << 0),
+};
+
 typedef struct {
 	AGLTextureFormat format;
 	int x, y, width, height;
 	const void *pixels;
+	uint32_t flags; // Combination of AGLTextureUploadFlags
 } AGLTextureUploadData;
 
 AGLTexture aGLTextureCreate(void);
@@ -942,7 +948,8 @@ void aGLTextureUpload(AGLTexture *tex, const AGLTextureUploadData *data) {
 	} else
 		AGL__CALL(glTexImage2D(GL_TEXTURE_2D, 0, internal, data->width, data->height, 0, format, type, data->pixels));
 
-	glGenerateMipmap(GL_TEXTURE_2D);
+	if (data->pixels && (data->flags & AGLTU_GenerateMipmaps))
+		AGL__CALL(glGenerateMipmap(GL_TEXTURE_2D));
 
 	tex->width = data->width;
 	tex->height = data->height;
