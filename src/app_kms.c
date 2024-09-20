@@ -393,6 +393,7 @@ static void pageFlip(uint32_t framebuffer_id) {
 	const int ret = drmModePageFlip(a__kms.drm.fd, a__kms.drm.crtc_id, framebuffer_id,
 		// NO VSYNC DRM_MODE_PAGE_FLIP_ASYNC | 
 		DRM_MODE_PAGE_FLIP_EVENT, &flip_is_done);
+	ATTO_ASSERT(ret == 0);
 
 	// Poll the DRM fd for events until the flip event happens
 	while (!flip_is_done) {

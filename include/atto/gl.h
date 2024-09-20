@@ -514,7 +514,7 @@ static void a__GlPrintError(const char *message, int error) {
 			ATTO_GL_PROFILE_PREAMBLE \
 			f; \
 			ATTO_GL_PROFILE_FUNC(#f, aAppTime() - start); \
-			const int glerror = glGetError(); \
+			const GLenum glerror = glGetError(); \
 			if (glerror != GL_NO_ERROR) { \
 				a__GlPrintError(__FILE__ ":" ATTO__GL_STR(__LINE__) ": " #f " returned ", glerror); \
 				abort(); \

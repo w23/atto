@@ -69,7 +69,7 @@ target_link_libraries(atto
 set_target_properties(atto PROPERTIES
 	C_STANDARD 99
 	C_STANDARD_REQUIRED TRUE
-	C_EXTENSIONS FALSE)
+	C_EXTENSIONS TRUE)
 
 message("C compiler ID: " ${CMAKE_C_COMPILER_ID})
 target_compile_options(atto PRIVATE
