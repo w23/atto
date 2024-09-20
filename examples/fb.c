@@ -94,6 +94,9 @@ static void init(void) {
 
 	g.fbtex = aGLTextureCreate();
 
+	// Framebuffer texture has no mipmaps, therefore mipmap minification is not available
+	g.fbtex.min_filter = AGLTmF_Linear;
+
 	g.clear.r = g.clear.g = g.clear.b = g.clear.a = 0;
 	g.clear.depth = 1;
 	g.clear.bits = AGLCB_Color;
@@ -208,7 +211,7 @@ static void resize(ATimeUs timestamp, unsigned int old_w, unsigned int old_h) {
 }
 
 static void paint(ATimeUs timestamp, float dt) {
-	float t = timestamp * 1e-6f;
+	const float t = timestamp * 1e-6f;
 	(void)(dt);
 
 	g.clear.r = sinf(t * .1f);
