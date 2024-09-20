@@ -374,6 +374,11 @@ static void page_flipped(int fd,
 	unsigned int tv_usec,
 	void *user_data)
 {
+	(void)fd;
+	(void)sequence;
+	(void)tv_sec;
+	(void)tv_usec;
+	
 	int *flip_is_done = user_data;
 	*flip_is_done = 1;
 }
