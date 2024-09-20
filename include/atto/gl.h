@@ -482,7 +482,7 @@ extern "C" {
 	#define AGL__CALL(f) (f)
 #else
 	#include <stdlib.h> /* abort() */
-static void a__GlPrintError(const char *message, int error) {
+static void a__GlPrintError(const char *message, GLenum error) {
 	const char *errstr = "UNKNOWN";
 	switch (error) {
 	case GL_INVALID_ENUM: errstr = "GL_INVALID_ENUM"; break;
@@ -1082,21 +1082,21 @@ static void a__GLTextureBind(const AGLTexture *texture, GLint unit) {
 	AGL__CALL(glBindTexture(GL_TEXTURE_2D, texture->_.name));
 
 	AGLTexture *mutable_texture = (AGLTexture *)texture;
-	if (mutable_texture->_.min_filter != mutable_texture->min_filter) {
+	if (mutable_texture->_.min_filter != (GLenum)mutable_texture->min_filter) {
 		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, mutable_texture->min_filter));
-		mutable_texture->_.min_filter = mutable_texture->min_filter;
+		mutable_texture->_.min_filter = (GLenum)mutable_texture->min_filter;
 	}
-	if (mutable_texture->_.mag_filter != mutable_texture->mag_filter) {
+	if (mutable_texture->_.mag_filter != (GLenum)mutable_texture->mag_filter) {
 		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, mutable_texture->mag_filter));
-		mutable_texture->_.mag_filter = mutable_texture->mag_filter;
+		mutable_texture->_.mag_filter = (GLenum)mutable_texture->mag_filter;
 	}
-	if (mutable_texture->_.wrap_s != mutable_texture->wrap_s) {
+	if (mutable_texture->_.wrap_s != (GLenum)mutable_texture->wrap_s) {
 		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, mutable_texture->wrap_s));
-		mutable_texture->_.wrap_s = mutable_texture->wrap_s;
+		mutable_texture->_.wrap_s = (GLenum)mutable_texture->wrap_s;
 	}
-	if (mutable_texture->_.wrap_t != mutable_texture->wrap_t) {
+	if (mutable_texture->_.wrap_t != (GLenum)mutable_texture->wrap_t) {
 		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, mutable_texture->wrap_t));
-		mutable_texture->_.wrap_t = mutable_texture->wrap_t;
+		mutable_texture->_.wrap_t = (GLenum)mutable_texture->wrap_t;
 	}
 	ATTO_GL_PROFILE_END
 }
