@@ -21,12 +21,12 @@ static const char shader_fragment[] =
 	"uniform float uf_time;\n"
 	"varying vec2 vv2_pos;\n"
 	"void main() {\n"
-	"  float a = 5. * atan(vv2_pos.x, vv2_pos.y);\n"
-	"  float r = 10. * sin(uf_time + length(vv2_pos)*6.);\n"
+	"  vec2 dir = vec2(4., 3.)*(2. + sin(uf_time))*4.;\n"
+	"  float phase = 3.1415926 * floor(dot(vv2_pos, dir) + uf_time);\n"
 	"  gl_FragColor = abs(vec4(\n"
-	"    sin(a+uf_time*4.+r),\n"
-	"    sin(2.+a+uf_time*3.+r),\n"
-	"    sin(4.+a+uf_time*5.+r),\n"
+	"    .5+.5*sin(phase*.3),\n"
+	"    .5+.5*sin(phase*.4+.3),\n"
+	"    .5+.5*sin(phase*.5+.4),\n"
 	"    1.));\n"
 	"}\n";
 
@@ -36,17 +36,13 @@ static const char shader_fragment_show[] =
 #endif
 	"uniform sampler2D us2_texture;\n"
 	"uniform float uf_time;\n"
-	"varying vec2 vv2_pos;\n"
+	"uniform vec2 uv2_resolution;\n"
 	"void main() {\n"
-	//"  float a = 5. * atan(vv2_pos.x, vv2_pos.y);"
-	//"  float r = .1 * sin(.4 * uf_time + length(vv2_pos)*3.);"
+	"  vec2 uv = gl_FragCoord.xy / uv2_resolution;\n"
+	"  uv.x += sin(uv.y * 17. + uf_time) * 50. / uv2_resolution.x;\n"
+	"  uv.y += sin(uv.x * 15. + uf_time) * 50. / uv2_resolution.y;\n"
 	"  gl_FragColor = "
-	" vec4(vv2_pos, fract(uf_time), 0.) * .5 + "
-	//" vec4(fract(uf_time), 0., 0., 0.); "
-	//" vec4(fract(uf_time)) + "
-	//"    texture2D(us2_texture, vv2_pos*.5 - vec2(.5) + r*vec2(sin(a),cos(a)));"
-	//"    texture2D(us2_texture, fract(uf_time) + vv2_pos*.5 - vec2(.5));"
-	"    texture2D(us2_texture, vv2_pos*.5 - vec2(.5));"
+	"    texture2D(us2_texture, uv);"
 	"}\n";
 
 // clang-format off
@@ -68,7 +64,7 @@ static struct {
 	AGLProgramUniform uni[1];
 
 	AGLAttribute shattr[1];
-	AGLProgramUniform shuni[2];
+	AGLProgramUniform shuni[3];
 
 	AGLDrawSource draw, show;
 	AGLDrawMerge merge;
@@ -77,6 +73,8 @@ static struct {
 	AGLTexture fbtex;
 	AGLFramebuffer fbo;
 	AGLClearParams clear;
+
+	float resolution[2];
 } g;
 
 static void init(void) {
@@ -151,6 +149,13 @@ static void init(void) {
 	g.shuni[1].value.texture = &g.fbtex;
 	g.shuni[1].count = 1;
 
+	g.shuni[2] = (AGLProgramUniform) {
+		.name = "uv2_resolution",
+		.type = AGLAT_Vec2,
+		.count = 1,
+		.value.pf = g.resolution,
+	};
+
 	g.show.uniforms.p = g.shuni;
 	g.show.uniforms.n = sizeof g.shuni / sizeof *g.shuni;
 	aGLUniformLocate(g.show.program, g.shuni, g.show.uniforms.n);
@@ -176,6 +181,9 @@ static void resize(ATimeUs timestamp, unsigned int old_w, unsigned int old_h) {
 	(void)(timestamp);
 	(void)(old_w);
 	(void)(old_h);
+
+	g.resolution[0] = a_app_state->width;
+	g.resolution[1] = a_app_state->height;
 
 	{
 		const AGLTextureUploadData data = {
