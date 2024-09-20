@@ -395,6 +395,7 @@ extern char a_gl_error[];
 		ATTO__FUNCLIST_DO(PFNGLCOMPILESHADERPROC, CompileShader) \
 		ATTO__FUNCLIST_DO(PFNGLGENFRAMEBUFFERSPROC, GenFramebuffers) \
 		ATTO__FUNCLIST_DO(PFNGLDELETEFRAMEBUFFERSPROC, DeleteFramebuffers) \
+		ATTO__FUNCLIST_DO(PFNGLDELETERENDERBUFFERSPROC, DeleteRenderbuffers) \
 		ATTO__FUNCLIST_DO(PFNGLBINDFRAMEBUFFERPROC, BindFramebuffer) \
 		ATTO__FUNCLIST_DO(PFNGLFRAMEBUFFERTEXTURE2DPROC, FramebufferTexture2D) \
 		ATTO__FUNCLIST_DO(PFNGLUSEPROGRAMPROC, UseProgram) \
@@ -1234,7 +1235,6 @@ AGLFramebuffer aGLFramebufferCreate(AGLFramebufferCreate params) {
 		if (params.depth.texture) {
 			AGL__CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, params.depth.texture->_.name, 0));
 		} else {
-			GLuint depth_renderbuffer;
 #ifdef ATTO_GLES
 			const GLenum depth_component = GL_DEPTH_COMPONENT16;
 #else
