@@ -14,10 +14,13 @@ function(add_example EXAMPLE_NAME)
 	set_target_properties(${EXAMPLE_NAME} PROPERTIES
 		C_STANDARD 99
 		C_STANDARD_REQUIRED TRUE
-		C_EXTENSIONS OFF)
+		C_EXTENSIONS FALSE)
+
+	message("C compiler ID: " ${CMAKE_C_COMPILER_ID})
 	target_compile_options(${EXAMPLE_NAME} PRIVATE
-		$<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
-		$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Werror>
+		$<$<C_COMPILER_ID:MSVC>:/W4 /WX>
+		$<$<NOT:$<C_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Werror>
+		$<$<C_COMPILER_ID:Clang>:-Wno-gnu-zero-variadic-macro-arguments>
 	)
 endfunction()
 

@@ -596,7 +596,7 @@ static void a__GlGetAndPrintInteger(GLenum pname, const char *name, int count) {
 }
 #endif
 
-void aGLInit() {
+void aGLInit(void) {
 #ifdef ATTO_PLATFORM_WINDOWS
 	#define ATTO__FUNCLIST_DO(T, N) gl##N = (T)a__check_get_proc_address("gl" #N);
 	ATTO__FUNCLIST
