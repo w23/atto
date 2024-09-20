@@ -207,6 +207,9 @@ static void paint(ATimeUs timestamp, float dt) {
 		g.draw.primitive.count = split;
 		aGLDraw(&g.draw, &g.merge, &g.target);
 	}
+
+	g.pun[VUniModel].value.pf = NULL;
+	g.pun[VUniVP].value.pf = NULL;
 }
 
 void attoAppInit(struct AAppProctable *proctable) {

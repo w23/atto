@@ -71,6 +71,11 @@ set_target_properties(atto PROPERTIES
 	C_STANDARD_REQUIRED TRUE
 	C_EXTENSIONS ON)
 
+target_compile_options(atto PRIVATE
+  $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
+  $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Werror>
+)
+
 # Also build examples if current cmake is root (not included from other cmake)
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 	add_subdirectory(examples)

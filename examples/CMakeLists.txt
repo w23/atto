@@ -15,6 +15,10 @@ function(add_example EXAMPLE_NAME)
 		C_STANDARD 99
 		C_STANDARD_REQUIRED TRUE
 		C_EXTENSIONS OFF)
+	target_compile_options(${EXAMPLE_NAME} PRIVATE
+		$<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
+		$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Werror>
+	)
 endfunction()
 
 add_example(app)
