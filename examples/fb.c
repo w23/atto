@@ -182,8 +182,8 @@ static void resize(ATimeUs timestamp, unsigned int old_w, unsigned int old_h) {
 	(void)(old_w);
 	(void)(old_h);
 
-	g.resolution[0] = a_app_state->width;
-	g.resolution[1] = a_app_state->height;
+	g.resolution[0] = (float)a_app_state->width;
+	g.resolution[1] = (float)a_app_state->height;
 
 	{
 		const AGLTextureUploadData data = {

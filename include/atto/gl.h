@@ -896,8 +896,8 @@ AGLTexture aGLTextureCreate(void) {
 	AGL__CALL(glGenTextures(1, &tex._.name));
 	tex.width = tex.height = 0;
 	tex.format = AGLTF_Unknown;
-	tex._.mag_filter = tex._.min_filter = -1;
-	tex._.wrap_s = tex._.wrap_t = -1;
+	tex._.mag_filter = tex._.min_filter = (GLenum)-1;
+	tex._.wrap_s = tex._.wrap_t = (GLenum)-1;
 	tex.mag_filter = AGLTMF_Linear;
 	tex.min_filter = AGLTmF_LinearMipLinear;
 	tex.wrap_s = tex.wrap_t = AGLTW_Repeat;

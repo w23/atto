@@ -50,7 +50,7 @@ static struct {
 	} rawMouse;
 } g;
 
-ATimeUs aAppTime() {
+ATimeUs aAppTime(void) {
 	LARGE_INTEGER now;
 	if (a__time_start.QuadPart == 0) {
 		QueryPerformanceFrequency(&a__time_freq);
