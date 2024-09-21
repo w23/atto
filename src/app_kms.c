@@ -282,7 +282,7 @@ static Framebobuffer *getFramebufferForGbmBo(struct gbm_bo* bo) {
 	if (fbo)
 		return fbo;
 
-	ALOG("Creating new framebuffer for GBM bo=%p", bo);
+	ALOG("Creating new framebuffer for GBM bo=%p", (void*)bo);
 
 	fbo = malloc(sizeof(*fbo));
 	*fbo = (Framebobuffer) {
@@ -291,7 +291,7 @@ static Framebobuffer *getFramebufferForGbmBo(struct gbm_bo* bo) {
 
 	const uint32_t width = gbm_bo_get_width(bo), height = gbm_bo_get_height(bo), format = gbm_bo_get_format(bo);
 	const int planes_count = gbm_bo_get_plane_count(bo);
-	ALOG("bo=%p %ux%u fmt=%.4s planes=%d", bo, width, height, (const char*)&format, planes_count);
+	ALOG("bo=%p %ux%u fmt=%.4s planes=%d", (void*)bo, width, height, (const char*)&format, planes_count);
 
 	uint32_t handles[4] = {0}, pitches[4] = {0}, offsets[4] = {0};
 	uint64_t modifiers[4] = {0};
@@ -374,6 +374,11 @@ static void page_flipped(int fd,
 	unsigned int tv_usec,
 	void *user_data)
 {
+	(void)fd;
+	(void)sequence;
+	(void)tv_sec;
+	(void)tv_usec;
+	
 	int *flip_is_done = user_data;
 	*flip_is_done = 1;
 }
@@ -388,6 +393,7 @@ static void pageFlip(uint32_t framebuffer_id) {
 	const int ret = drmModePageFlip(a__kms.drm.fd, a__kms.drm.crtc_id, framebuffer_id,
 		// NO VSYNC DRM_MODE_PAGE_FLIP_ASYNC | 
 		DRM_MODE_PAGE_FLIP_EVENT, &flip_is_done);
+	ATTO_ASSERT(ret == 0);
 
 	// Poll the DRM fd for events until the flip event happens
 	while (!flip_is_done) {

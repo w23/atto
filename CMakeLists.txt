@@ -69,7 +69,14 @@ target_link_libraries(atto
 set_target_properties(atto PROPERTIES
 	C_STANDARD 99
 	C_STANDARD_REQUIRED TRUE
-	C_EXTENSIONS ON)
+	C_EXTENSIONS TRUE)
+
+message("C compiler ID: " ${CMAKE_C_COMPILER_ID})
+target_compile_options(atto PRIVATE
+	$<$<C_COMPILER_ID:MSVC>:/W4 /WX>
+	$<$<NOT:$<C_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Werror>
+	$<$<C_COMPILER_ID:Clang>:-Wno-gnu-zero-variadic-macro-arguments>
+)
 
 # Also build examples if current cmake is root (not included from other cmake)
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)

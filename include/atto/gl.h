@@ -50,7 +50,7 @@
  *   + gl error detection
  *   - profiling
  * - framebuffer
- *   - fb object
+ *   + fb object
  *   - multiple attachments
  *   - depth texture attachment
  * - textures
@@ -323,21 +323,27 @@ typedef struct {
 	AGLDepthParams depth;
 } AGLDrawMerge;
 
-typedef enum { AGLDBM_Texture, AGLDBM_Best } AGLDepthBufferMode;
-
 typedef struct {
 	const AGLTexture *color;
 	struct {
-		AGLDepthBufferMode mode;
+		int enable;
 		AGLTexture *texture;
 	} depth;
-} AGLFramebufferParams;
+} AGLFramebufferCreate;
+
+typedef struct {
+	GLuint name;
+	GLuint depth_renderbuffer;
+} AGLFramebuffer;
+
+AGLFramebuffer aGLFramebufferCreate(AGLFramebufferCreate params);
+void aGLFramebufferDestroy(AGLFramebuffer);
 
 typedef struct {
 	struct {
 		unsigned x, y, w, h;
 	} viewport;
-	AGLFramebufferParams *framebuffer;
+	const AGLFramebuffer *framebuffer;
 } AGLDrawTarget;
 
 void aGLDraw(const AGLDrawSource *source, const AGLDrawMerge *merge, const AGLDrawTarget *target);
@@ -355,6 +361,11 @@ typedef struct {
 } AGLClearParams;
 
 void aGLClear(const AGLClearParams *params, const AGLDrawTarget *target);
+#if 0
+// TODO: need to check whether it's available: gl4, gles3, or GL_ARB_invalidate_subdata
+// For that, need to have _features_, either at compile time "I NEED THIS, FAIL WITHOUT", or at runtime -- cheap bools.
+void aGLInvalidate(const AGLFramebuffer *fbo);
+#endif
 
 /* \todo
 typedef struct {
@@ -389,6 +400,7 @@ extern char a_gl_error[];
 		ATTO__FUNCLIST_DO(PFNGLCOMPILESHADERPROC, CompileShader) \
 		ATTO__FUNCLIST_DO(PFNGLGENFRAMEBUFFERSPROC, GenFramebuffers) \
 		ATTO__FUNCLIST_DO(PFNGLDELETEFRAMEBUFFERSPROC, DeleteFramebuffers) \
+		ATTO__FUNCLIST_DO(PFNGLDELETERENDERBUFFERSPROC, DeleteRenderbuffers) \
 		ATTO__FUNCLIST_DO(PFNGLBINDFRAMEBUFFERPROC, BindFramebuffer) \
 		ATTO__FUNCLIST_DO(PFNGLFRAMEBUFFERTEXTURE2DPROC, FramebufferTexture2D) \
 		ATTO__FUNCLIST_DO(PFNGLUSEPROGRAMPROC, UseProgram) \
@@ -475,7 +487,7 @@ extern "C" {
 	#define AGL__CALL(f) (f)
 #else
 	#include <stdlib.h> /* abort() */
-static void a__GlPrintError(const char *message, int error) {
+static void a__GlPrintError(const char *message, GLenum error) {
 	const char *errstr = "UNKNOWN";
 	switch (error) {
 	case GL_INVALID_ENUM: errstr = "GL_INVALID_ENUM"; break;
@@ -507,7 +519,7 @@ static void a__GlPrintError(const char *message, int error) {
 			ATTO_GL_PROFILE_PREAMBLE \
 			f; \
 			ATTO_GL_PROFILE_FUNC(#f, aAppTime() - start); \
-			const int glerror = glGetError(); \
+			const GLenum glerror = glGetError(); \
 			if (glerror != GL_NO_ERROR) { \
 				a__GlPrintError(__FILE__ ":" ATTO__GL_STR(__LINE__) ": " #f " returned ", glerror); \
 				abort(); \
@@ -532,8 +544,6 @@ typedef struct {
 } AGLStats;
 
 static struct {
-	/* \todo GLuint framebuffer;
-	AGLFramebufferParams framebuffer; */
 	AGLProgram program;
 	AGLCullMode cull_mode;
 	AGLFrontFace front_face;
@@ -545,12 +555,11 @@ static struct {
 		AGLAttribute attrib;
 		unsigned serial;
 	} attribs[ATTO_GL_MAX_ATTRIBS];
+
 	struct {
-		AGLFramebufferParams params;
-		/* store color explicitly by value? */
-		GLuint depth_buffer;
-		GLuint name, binding;
+		GLuint binding;
 	} framebuffer;
+
 	struct {
 		unsigned x, y, w, h;
 	} viewport;
@@ -565,7 +574,7 @@ static void a__GLAttribsBind(const AGLAttribute *attrs, int nattrs);
 static void a__GLCullingBind(AGLCullMode cull, AGLFrontFace front);
 static void a__GLDepthBind(AGLDepthParams depth);
 static void a__GLBlendBind(const AGLBlendParams *blend);
-static void a__GLFramebufferBind(const AGLFramebufferParams *fb);
+static void a__GLFramebufferBind(const AGLFramebuffer *fbo);
 static void a__GLTargetBind(const AGLDrawTarget *target);
 
 #ifdef ATTO_PLATFORM_WINDOWS
@@ -592,7 +601,7 @@ static void a__GlGetAndPrintInteger(GLenum pname, const char *name, int count) {
 }
 #endif
 
-void aGLInit() {
+void aGLInit(void) {
 #ifdef ATTO_PLATFORM_WINDOWS
 	#define ATTO__FUNCLIST_DO(T, N) gl##N = (T)a__check_get_proc_address("gl" #N);
 	ATTO__FUNCLIST
@@ -830,9 +839,6 @@ void aGLInit() {
 		a__gl_state.attribs[i].buffer = -1;
 		a__gl_state.attribs[i].serial = 0;
 	}
-
-	AGL__CALL(glGenFramebuffers(1, &a__gl_state.framebuffer.name));
-	AGL__CALL(glGenRenderbuffers(1, &a__gl_state.framebuffer.depth_buffer));
 }
 
 GLint aGLProgramCreate(const char *const *vertex, const char *const *fragment) {
@@ -890,8 +896,8 @@ AGLTexture aGLTextureCreate(void) {
 	AGL__CALL(glGenTextures(1, &tex._.name));
 	tex.width = tex.height = 0;
 	tex.format = AGLTF_Unknown;
-	tex._.mag_filter = tex._.min_filter = -1;
-	tex._.wrap_s = tex._.wrap_t = -1;
+	tex._.mag_filter = tex._.min_filter = (GLenum)-1;
+	tex._.wrap_s = tex._.wrap_t = (GLenum)-1;
 	tex.mag_filter = AGLTMF_Linear;
 	tex.min_filter = AGLTmF_LinearMipLinear;
 	tex.wrap_s = tex.wrap_t = AGLTW_Repeat;
@@ -1081,21 +1087,21 @@ static void a__GLTextureBind(const AGLTexture *texture, GLint unit) {
 	AGL__CALL(glBindTexture(GL_TEXTURE_2D, texture->_.name));
 
 	AGLTexture *mutable_texture = (AGLTexture *)texture;
-	if (mutable_texture->_.min_filter != mutable_texture->min_filter) {
+	if (mutable_texture->_.min_filter != (GLenum)mutable_texture->min_filter) {
 		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, mutable_texture->min_filter));
-		mutable_texture->_.min_filter = mutable_texture->min_filter;
+		mutable_texture->_.min_filter = (GLenum)mutable_texture->min_filter;
 	}
-	if (mutable_texture->_.mag_filter != mutable_texture->mag_filter) {
+	if (mutable_texture->_.mag_filter != (GLenum)mutable_texture->mag_filter) {
 		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, mutable_texture->mag_filter));
-		mutable_texture->_.mag_filter = mutable_texture->mag_filter;
+		mutable_texture->_.mag_filter = (GLenum)mutable_texture->mag_filter;
 	}
-	if (mutable_texture->_.wrap_s != mutable_texture->wrap_s) {
+	if (mutable_texture->_.wrap_s != (GLenum)mutable_texture->wrap_s) {
 		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, mutable_texture->wrap_s));
-		mutable_texture->_.wrap_s = mutable_texture->wrap_s;
+		mutable_texture->_.wrap_s = (GLenum)mutable_texture->wrap_s;
 	}
-	if (mutable_texture->_.wrap_t != mutable_texture->wrap_t) {
+	if (mutable_texture->_.wrap_t != (GLenum)mutable_texture->wrap_t) {
 		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, mutable_texture->wrap_t));
-		mutable_texture->_.wrap_t = mutable_texture->wrap_t;
+		mutable_texture->_.wrap_t = (GLenum)mutable_texture->wrap_t;
 	}
 	ATTO_GL_PROFILE_END
 }
@@ -1214,44 +1220,73 @@ static void a__GLCullingBind(AGLCullMode cull, AGLFrontFace front) {
 		AGL__CALL(glFrontFace(a__gl_state.front_face = front));
 }
 
-static void a__GLFramebufferBind(const AGLFramebufferParams *fb) {
-	int depth, color;
-	GLenum status;
+static void a__GLFramebufferBind(const AGLFramebuffer *fbo) {
+	const GLuint desired_binding = fbo ? fbo->name : 0;
+	if (a__gl_state.framebuffer.binding != desired_binding)
+		AGL__CALL(glBindFramebuffer(GL_FRAMEBUFFER, a__gl_state.framebuffer.binding = desired_binding));
+}
 
-	if (!fb) {
-		if (a__gl_state.framebuffer.binding)
+AGLFramebuffer aGLFramebufferCreate(AGLFramebufferCreate params) {
+	AGLFramebuffer fbo = {0};
+	AGL__CALL(glGenFramebuffers(1, &fbo.name));
+	AGL__CALL(glBindFramebuffer(GL_FRAMEBUFFER, fbo.name));
+
+	ATTO_ASSERT(params.color);
+
+	if (params.color)
+		AGL__CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, params.color->_.name, 0));
+
+	if (params.depth.enable) {
+		if (params.depth.texture) {
+			AGL__CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, params.depth.texture->_.name, 0));
+		} else {
+#ifdef ATTO_GLES
+			const GLenum depth_component = GL_DEPTH_COMPONENT16;
+#else
+			const GLenum depth_component = GL_DEPTH_COMPONENT;
+#endif
+			AGL__CALL(glGenRenderbuffers(1, &fbo.depth_renderbuffer));
+			AGL__CALL(glBindRenderbuffer(GL_RENDERBUFFER, fbo.depth_renderbuffer));
+			AGL__CALL(glRenderbufferStorage(GL_RENDERBUFFER, depth_component, params.color->width, params.color->height));
+			AGL__CALL(glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+				GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fbo.depth_renderbuffer));
+			AGL__CALL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
+		}
+	} else {
+		// Depth disabled
+		AGL__CALL(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0));
+	}
+
+	const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	ATTO_ASSERT(status == GL_FRAMEBUFFER_COMPLETE);
+
+	AGL__CALL(glBindFramebuffer(GL_FRAMEBUFFER, a__gl_state.framebuffer.binding));
+	return fbo;
+}
+
+void aGLFramebufferDestroy(AGLFramebuffer fbo) {
+	if (fbo.name) {
+		if (fbo.name == a__gl_state.framebuffer.binding)
 			AGL__CALL(glBindFramebuffer(GL_FRAMEBUFFER, a__gl_state.framebuffer.binding = 0));
+		glDeleteFramebuffers(1, &fbo.name);
+	}
+
+	if (fbo.depth_renderbuffer)
+		glDeleteRenderbuffers(1, &fbo.depth_renderbuffer);
+}
+
+#if 0
+void aGLInvalidate(const AGLFramebuffer *fbo) {
+	a__GLFramebufferBind(fbo);
+	if (!fbo || fbo->name == 0) {
+		GLenum attachments[] = {GL_COLOR, GL_DEPTH};
+		glInvalidateFramebuffer(GL_FRAMEBUFFER, 2, attachments);
 		return;
 	}
 
-	if (a__gl_state.framebuffer.binding != a__gl_state.framebuffer.name)
-		AGL__CALL(glBindFramebuffer(GL_FRAMEBUFFER, a__gl_state.framebuffer.binding = a__gl_state.framebuffer.name));
-
-	depth = a__gl_state.framebuffer.params.depth.mode != fb->depth.mode;
-	color = a__gl_state.framebuffer.params.color != fb->color;
-
-	if (color)
-		AGL__CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fb->color->_.name, 0));
-
-	if (fb->depth.mode != AGLDBM_Texture && (depth || color)) {
-		AGL__CALL(glBindRenderbuffer(GL_RENDERBUFFER, a__gl_state.framebuffer.depth_buffer));
-#ifndef ATTO_GLES
-		AGL__CALL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, fb->color->width, fb->color->height));
-#else
-		AGL__CALL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, fb->color->width, fb->color->height));
-#endif
-		AGL__CALL(glFramebufferRenderbuffer(
-			GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, a__gl_state.framebuffer.depth_buffer));
-	}
-
-	if (depth && fb->depth.mode == AGLDBM_Texture)
-		AGL__CALL(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0));
-
-	status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-	/* \fixme */ ATTO_ASSERT(status == GL_FRAMEBUFFER_COMPLETE);
-
-	a__gl_state.framebuffer.params = *fb;
+	ATTO_ASSERT(!"Not implemented");
 }
+#endif
 
 #if defined(__cplusplus)
 } /* extern "C" */

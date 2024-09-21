@@ -62,12 +62,12 @@ static struct AVec3f randomVector(struct ALCGRand *rng, float scale) {
 	return aVec3fMulf(aVec3fSubf(aVec3f(aLcgRandf(rng), aLcgRandf(rng), aLcgRandf(rng)), .5f), 2.f * scale);
 }
 
-static void generateTriangles(unsigned int triangles) {
-	struct ALCGRand rng = {triangles};
+static void generateTriangles(unsigned int count) {
+	struct ALCGRand rng = {count};
 
-	g.vertices_count = triangles * 6;
+	g.vertices_count = count * 6;
 	g.vertices = malloc(sizeof(*g.vertices) * g.vertices_count);
-	for (unsigned int i = 0; i < triangles; ++i) {
+	for (unsigned int i = 0; i < count; ++i) {
 		struct TriVertex *v = g.vertices + i * 6;
 		const struct AVec3f center = randomVector(&rng, 1.f);
 		v[0].tricenter = v[1].tricenter = v[2].tricenter = center;
@@ -207,6 +207,9 @@ static void paint(ATimeUs timestamp, float dt) {
 		g.draw.primitive.count = split;
 		aGLDraw(&g.draw, &g.merge, &g.target);
 	}
+
+	g.pun[VUniModel].value.pf = NULL;
+	g.pun[VUniVP].value.pf = NULL;
 }
 
 void attoAppInit(struct AAppProctable *proctable) {

@@ -147,7 +147,7 @@ struct AAppProctable {
 	void (*paint)(ATimeUs ts, float dt);
 	void (*key)(ATimeUs ts, AKey key, int down);
 	void (*pointer)(ATimeUs ts, int dx, int dy, unsigned int buttons_changed_bits);
-	void (*close)();
+	void (*close)(void);
 };
 
 #ifndef ATTO_APP_INIT_FUNC

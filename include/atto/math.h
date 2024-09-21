@@ -206,7 +206,7 @@ static inline AMat3f aMat3fScale(float s) {
 	return m;
 }
 
-static inline AMat3f aMat3fIdentity() {
+static inline AMat3f aMat3fIdentity(void) {
 	return aMat3fScale(1.f);
 }
 
@@ -251,7 +251,7 @@ static inline AMat3f aMat3fMul(AMat3f a, AMat3f b) {
 /* Matrix 4 */
 /* Intended usage: homogenous coordinates */
 
-static inline AMat4f aMat4fIdentity() {
+static inline AMat4f aMat4fIdentity(void) {
 	const AMat4f m = {aVec4f(1, 0, 0, 0), aVec4f(0, 1, 0, 0), aVec4f(0, 0, 1, 0), aVec4f(0, 0, 0, 1)};
 	return m;
 }
@@ -291,7 +291,7 @@ typedef struct AQuat {
 	float w;
 } AQuat;
 
-static inline AQuat aQuatIdentity() {
+static inline AQuat aQuatIdentity(void) {
 	const AQuat q = {{0, 0, 0}, 1};
 	return q;
 }

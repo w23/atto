@@ -50,7 +50,7 @@ static struct {
 	} rawMouse;
 } g;
 
-ATimeUs aAppTime() {
+ATimeUs aAppTime(void) {
 	LARGE_INTEGER now;
 	if (a__time_start.QuadPart == 0) {
 		QueryPerformanceFrequency(&a__time_freq);
@@ -261,7 +261,7 @@ static LRESULT CALLBACK a__AppWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM
 	switch (msg) {
 	case WM_SIZE: {
 		const unsigned int oldw = a__app_state.width, oldh = a__app_state.height;
-		const int width = (int)(lparam & 0xffff), height = (int)(lparam >> 16);
+		const unsigned int width = (unsigned int)(lparam & 0xffff), height = (unsigned int)(lparam >> 16);
 		if (a__app_state.width == width && a__app_state.height == height)
 			break;
 		a__app_state.width = width;
