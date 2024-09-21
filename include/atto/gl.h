@@ -361,6 +361,11 @@ typedef struct {
 } AGLClearParams;
 
 void aGLClear(const AGLClearParams *params, const AGLDrawTarget *target);
+#if 0
+// TODO: need to check whether it's available: gl4, gles3, or GL_ARB_invalidate_subdata
+// For that, need to have _features_, either at compile time "I NEED THIS, FAIL WITHOUT", or at runtime -- cheap bools.
+void aGLInvalidate(const AGLFramebuffer *fbo);
+#endif
 
 /* \todo
 typedef struct {
@@ -1269,6 +1274,19 @@ void aGLFramebufferDestroy(AGLFramebuffer fbo) {
 	if (fbo.depth_renderbuffer)
 		glDeleteRenderbuffers(1, &fbo.depth_renderbuffer);
 }
+
+#if 0
+void aGLInvalidate(const AGLFramebuffer *fbo) {
+	a__GLFramebufferBind(fbo);
+	if (!fbo || fbo->name == 0) {
+		GLenum attachments[] = {GL_COLOR, GL_DEPTH};
+		glInvalidateFramebuffer(GL_FRAMEBUFFER, 2, attachments);
+		return;
+	}
+
+	ATTO_ASSERT(!"Not implemented");
+}
+#endif
 
 #if defined(__cplusplus)
 } /* extern "C" */
