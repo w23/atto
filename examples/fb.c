@@ -90,10 +90,16 @@ static void init(void) {
 		/* \fixme add fatal */
 	}
 
-	g.fbtex = aGLTextureCreate();
-
-	// Framebuffer texture has no mipmaps, therefore mipmap minification is not available
-	g.fbtex.min_filter = AGLTmF_Linear;
+	g.fbtex = aGLTextureCreate(&(AGLTextureData) {
+			.type = AGLTT_2D,
+			.format = AGLTF_U8_RGBA,
+			.x = 0,
+			.y = 0,
+			.width = a_app_state->width,
+			.height = a_app_state->height,
+			.pixels = 0,
+		}
+	);
 
 	g.clear.r = g.clear.g = g.clear.b = g.clear.a = 0;
 	g.clear.depth = 1;
@@ -186,7 +192,8 @@ static void resize(ATimeUs timestamp, unsigned int old_w, unsigned int old_h) {
 	g.resolution[1] = (float)a_app_state->height;
 
 	{
-		const AGLTextureUploadData data = {
+		const AGLTextureData data = {
+			.type = AGLTT_2D,
 			.format = AGLTF_U8_RGBA,
 			.x = 0,
 			.y = 0,
@@ -194,7 +201,7 @@ static void resize(ATimeUs timestamp, unsigned int old_w, unsigned int old_h) {
 			.height = a_app_state->height,
 			.pixels = 0,
 		};
-		aGLTextureUpload(&g.fbtex, &data);
+		aGLTextureUpdate(&g.fbtex, &data);
 	}
 
 	aGLFramebufferDestroy(g.fbo);

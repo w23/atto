@@ -114,9 +114,18 @@ typedef enum {
 	AGLTW_MirroredRepeat = GL_MIRRORED_REPEAT
 } AGLTextureWrap;
 
+typedef enum {
+	AGLTT_NULL,
+	AGLTT_1D,
+	AGLTT_2D,
+	AGLTT_3D,
+	AGLTT_2DArray,
+} AGLTextureType;
+
 typedef struct {
+	AGLTextureType type;
 	AGLTextureFormat format;
-	GLsizei width, height;
+	GLsizei width, height, depth;
 	AGLTextureMinFilter min_filter;
 	AGLTextureMagFilter mag_filter;
 	AGLTextureWrap wrap_s, wrap_t;
@@ -128,20 +137,21 @@ typedef struct {
 	/* \todo unsigned int sequence__; */
 } AGLTexture;
 
-enum AGLTextureUploadFlags {
+enum AGLTextureUpdateFlags {
 	// Available only in GLES2+ and GL3+
-	AGLTU_GenerateMipmaps = (1 << 0),
+	AGLTUF_GenerateMipmaps = (1 << 0),
 };
 
 typedef struct {
+	AGLTextureType type;
 	AGLTextureFormat format;
-	int x, y, width, height;
+	int x, y, z, width, height, depth;
+	uint32_t flags; // Combination of AGLTextureUpdateFlags
 	const void *pixels;
-	uint32_t flags; // Combination of AGLTextureUploadFlags
-} AGLTextureUploadData;
+} AGLTextureData;
 
-AGLTexture aGLTextureCreate(void);
-void aGLTextureUpload(AGLTexture *texture, const AGLTextureUploadData *data);
+AGLTexture aGLTextureCreate(const AGLTextureData *data);
+void aGLTextureUpdate(AGLTexture *texture, const AGLTextureData *data);
 #define aGLTextureDestroy(t) \
 	do { \
 		glDeleteTextures(1, &(t)->_.name); \
@@ -884,83 +894,195 @@ GLint aGLProgramCreateSimple(const char *vertex, const char *fragment) {
 }
 
 void aGLUniformLocate(AGLProgram program, AGLProgramUniform *uniforms, int count) {
-	for (int i = 0; i < count; ++i) { uniforms[i]._.location = glGetUniformLocation(program, uniforms[i].name); }
+	for (int i = 0; i < count; ++i)
+		uniforms[i]._.location = glGetUniformLocation(program, uniforms[i].name);
 }
 
 void aGLAttributeLocate(AGLProgram program, AGLAttribute *attribs, int count) {
-	for (int i = 0; i < count; ++i) { attribs[i]._.location = glGetAttribLocation(program, attribs[i].name); }
+	for (int i = 0; i < count; ++i)
+		attribs[i]._.location = glGetAttribLocation(program, attribs[i].name);
 }
 
-AGLTexture aGLTextureCreate(void) {
-	AGLTexture tex;
+AGLTexture aGLTextureCreate(const AGLTextureData *data) {
+	AGLTexture tex = {
+		.type = data->type,
+		.format = AGLTF_Unknown,
+		._.mag_filter = tex._.min_filter = (GLenum)-1,
+		._.wrap_s = tex._.wrap_t = (GLenum)-1,
+		.mag_filter = AGLTMF_Linear,
+		.min_filter = (data->flags & AGLTUF_GenerateMipmaps)
+			? AGLTmF_LinearMipLinear
+			: AGLTmF_Linear,
+		.wrap_s = tex.wrap_t = AGLTW_Repeat,
+	};
+
 	AGL__CALL(glGenTextures(1, &tex._.name));
-	tex.width = tex.height = 0;
-	tex.format = AGLTF_Unknown;
-	tex._.mag_filter = tex._.min_filter = (GLenum)-1;
-	tex._.wrap_s = tex._.wrap_t = (GLenum)-1;
-	tex.mag_filter = AGLTMF_Linear;
-	tex.min_filter = AGLTmF_LinearMipLinear;
-	tex.wrap_s = tex.wrap_t = AGLTW_Repeat;
+	aGLTextureUpdate(&tex, data);
 	return tex;
 }
 
-void aGLTextureUpload(AGLTexture *tex, const AGLTextureUploadData *data) {
+struct A__GLTextureFormat {
 	GLenum internal, format, type;
-	int maxwidth = data->x + data->width;
-	int maxheight = data->y + data->height;
-	switch (data->format) {
+};
+
+static struct A__GLTextureFormat getTextureFormat(AGLTextureFormat aformat) {
+	struct A__GLTextureFormat tf = {0};
+	switch (aformat) {
 	case AGLTF_U8_R:
-		internal = format = GL_LUMINANCE;
-		type = GL_UNSIGNED_BYTE;
+		tf.internal = tf.format = GL_LUMINANCE;
+		tf.type = GL_UNSIGNED_BYTE;
 		break;
 	case AGLTF_U8_RA:
-		internal = format = GL_LUMINANCE_ALPHA;
-		type = GL_UNSIGNED_BYTE;
+		tf.internal = tf.format = GL_LUMINANCE_ALPHA;
+		tf.type = GL_UNSIGNED_BYTE;
 		break;
 	case AGLTF_U8_RGB:
-		internal = format = GL_RGB;
-		type = GL_UNSIGNED_BYTE;
+		tf.internal = tf.format = GL_RGB;
+		tf.type = GL_UNSIGNED_BYTE;
 		break;
 	case AGLTF_U8_RGBA:
-		internal = format = GL_RGBA;
-		type = GL_UNSIGNED_BYTE;
+		tf.internal = tf.format = GL_RGBA;
+		tf.type = GL_UNSIGNED_BYTE;
 		break;
 	case AGLTF_U565_RGB:
-		internal = format = GL_RGB;
-		type = GL_UNSIGNED_SHORT_5_6_5;
+		tf.internal = tf.format = GL_RGB;
+		tf.type = GL_UNSIGNED_SHORT_5_6_5;
 		break;
 	case AGLTF_U5551_RGBA:
-		internal = format = GL_RGBA;
-		type = GL_UNSIGNED_SHORT_5_5_5_1;
+		tf.internal = tf.format = GL_RGBA;
+		tf.type = GL_UNSIGNED_SHORT_5_5_5_1;
 		break;
 	case AGLTF_U4444_RGBA:
-		internal = format = GL_RGBA;
-		type = GL_UNSIGNED_SHORT_4_4_4_4;
+		tf.internal = tf.format = GL_RGBA;
+		tf.type = GL_UNSIGNED_SHORT_4_4_4_4;
 		break;
 	case AGLTF_F32_RGBA:
 #ifdef GL_RGBA32F
-		internal = GL_RGBA32F;
-		format = GL_RGBA;
-		type = GL_FLOAT;
+		tf.internal = GL_RGBA32F;
+		tf.format = GL_RGBA;
+		tf.type = GL_FLOAT;
 		break;
 #endif
-	default: ATTO_ASSERT(!"Unknown format"); return;
+	case AGLTF_Unknown: ATTO_ASSERT(!"Unknown format");
 	}
-	AGL__CALL(glBindTexture(GL_TEXTURE_2D, tex->_.name));
+	ATTO_ASSERT(tf.internal != 0);
+	return tf;
+}
 
-	if (data->x || data->y) {
-		if (maxwidth > data->width || maxheight > data->height)
-			AGL__CALL(glTexImage2D(GL_TEXTURE_2D, 0, internal, maxwidth, maxheight, 0, format, type, 0));
-		AGL__CALL(
-			glTexSubImage2D(GL_TEXTURE_2D, 0, data->x, data->y, data->width, data->height, format, type, data->pixels));
-	} else
-		AGL__CALL(glTexImage2D(GL_TEXTURE_2D, 0, internal, data->width, data->height, 0, format, type, data->pixels));
+typedef void (a__gl_texture_upload_func)(AGLTexture *tex, const AGLTextureData *data, GLenum binding, struct A__GLTextureFormat tf);
 
-	if (data->pixels && (data->flags & AGLTU_GenerateMipmaps))
-		AGL__CALL(glGenerateMipmap(GL_TEXTURE_2D));
+static void a__GLTexureUpload1D(AGLTexture *tex, const AGLTextureData *data, GLenum binding, struct A__GLTextureFormat tf) {
+	const int maxwidth = data->x + data->width;
 
-	tex->width = data->width;
-	tex->height = data->height;
+	const int expand = maxwidth > tex->width;
+	const int is_subimage = data->x > 0;
+
+	ATTO_ASSERT(binding == GL_TEXTURE_1D);
+
+	if (expand) {
+		AGL__CALL(glTexImage1D(binding, 0, tf.internal, maxwidth, 0,
+			tf.format, tf.type, is_subimage ? NULL : data->pixels));
+		tex->width = maxwidth;
+	}
+
+	if (is_subimage) {
+		ATTO_ASSERT(data->pixels);
+		AGL__CALL(glTexSubImage1D(binding, 0,
+			data->x, data->width,
+			tf.format, tf.type, data->pixels));
+	}
+}
+
+static void a__GLTexureUpload2D(AGLTexture *tex, const AGLTextureData *data, GLenum binding, struct A__GLTextureFormat tf) {
+	const int maxwidth = data->x + data->width;
+	const int maxheight = data->y + data->height;
+
+	const int expand = (maxwidth > tex->width) || (maxheight > tex->height);
+	const int is_subimage = (data->x > 0 || data->y > 0);
+
+	ATTO_ASSERT(binding == GL_TEXTURE_2D);
+
+	if (expand) {
+		AGL__CALL(glTexImage2D(binding, 0, tf.internal, maxwidth, maxheight, 0,
+			tf.format, tf.type, is_subimage ? NULL : data->pixels));
+		tex->width = maxwidth;
+		tex->height = maxheight;
+	}
+
+	if (is_subimage) {
+		ATTO_ASSERT(data->pixels);
+		AGL__CALL(glTexSubImage2D(binding, 0,
+			data->x, data->y, data->width, data->height,
+			tf.format, tf.type, data->pixels));
+	}
+}
+
+static void a__GLTexureUpload3D(AGLTexture *tex, const AGLTextureData *data, GLenum binding, struct A__GLTextureFormat tf) {
+	const int maxwidth = data->x + data->width;
+	const int maxheight = data->y + data->height;
+	const int maxdepth = data->z + data->depth;
+
+	const int expand = (maxwidth > tex->width)
+		|| (maxheight > tex->height)
+		|| (maxdepth > tex->depth);
+	const int is_subimage = (data->x > 0 || data->y > 0 || data->z > 0);
+
+	ATTO_ASSERT(binding == GL_TEXTURE_3D || binding == GL_TEXTURE_2D_ARRAY);
+
+	if (expand) {
+		AGL__CALL(glTexImage3D(binding, 0, tf.internal,
+			maxwidth, maxheight, maxdepth, 0,
+			tf.format, tf.type,
+			is_subimage ? NULL : data->pixels));
+		tex->width = maxwidth;
+		tex->height = maxheight;
+		tex->depth = maxdepth;
+	}
+
+	if (is_subimage) {
+		ATTO_ASSERT(data->pixels);
+		AGL__CALL(glTexSubImage3D(binding, 0,
+			data->x, data->y, data->z, data->width, data->height, data->depth,
+			tf.format, tf.type, data->pixels));
+	}
+}
+
+void aGLTextureUpdate(AGLTexture *tex, const AGLTextureData *data) {
+	struct A__GLTextureFormat tf = getTextureFormat(data->format);
+
+	a__gl_texture_upload_func *upload_func = NULL;
+	GLenum binding = 0;
+
+	switch (data->type) {
+		case AGLTT_1D:
+			upload_func = &a__GLTexureUpload1D;
+			binding = GL_TEXTURE_1D;
+			break;
+		case AGLTT_2D:
+			upload_func = &a__GLTexureUpload2D;
+			binding = GL_TEXTURE_2D;
+			break;
+		case AGLTT_3D:
+			upload_func = &a__GLTexureUpload3D;
+			binding = GL_TEXTURE_3D;
+			break;
+		case AGLTT_2DArray:
+			upload_func = &a__GLTexureUpload3D;
+			binding = GL_TEXTURE_2D_ARRAY;
+			break;
+		case AGLTT_NULL: ATTO_ASSERT(!"Invalid texture type");
+	}
+	ATTO_ASSERT(upload_func);
+
+	// TODO track bindings properly
+	AGL__CALL(glBindTexture(binding, tex->_.name));
+
+	upload_func(tex, data, binding, tf);
+
+	if (data->pixels && (data->flags & AGLTUF_GenerateMipmaps))
+		AGL__CALL(glGenerateMipmap(binding));
+
+	tex->type = data->type;
 	tex->format = data->format;
 }
 
