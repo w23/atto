@@ -91,6 +91,7 @@ typedef enum {
 	AGLTF_U565_RGB,
 	AGLTF_U5551_RGBA,
 	AGLTF_U4444_RGBA,
+	AGLTF_F32_R,
 	AGLTF_F32_RGBA
 } AGLTextureFormat;
 
@@ -114,9 +115,18 @@ typedef enum {
 	AGLTW_MirroredRepeat = GL_MIRRORED_REPEAT
 } AGLTextureWrap;
 
+typedef enum {
+	AGLTT_NULL,
+	AGLTT_1D,
+	AGLTT_2D,
+	AGLTT_3D,
+	AGLTT_2DArray,
+} AGLTextureType;
+
 typedef struct {
+	AGLTextureType type;
 	AGLTextureFormat format;
-	GLsizei width, height;
+	GLsizei width, height, depth;
 	AGLTextureMinFilter min_filter;
 	AGLTextureMagFilter mag_filter;
 	AGLTextureWrap wrap_s, wrap_t;
@@ -128,20 +138,21 @@ typedef struct {
 	/* \todo unsigned int sequence__; */
 } AGLTexture;
 
-enum AGLTextureUploadFlags {
+enum AGLTextureUpdateFlags {
 	// Available only in GLES2+ and GL3+
-	AGLTU_GenerateMipmaps = (1 << 0),
+	AGLTUF_GenerateMipmaps = (1 << 0),
 };
 
 typedef struct {
+	AGLTextureType type;
 	AGLTextureFormat format;
-	int x, y, width, height;
+	int x, y, z, width, height, depth;
+	uint32_t flags; // Combination of AGLTextureUpdateFlags
 	const void *pixels;
-	uint32_t flags; // Combination of AGLTextureUploadFlags
-} AGLTextureUploadData;
+} AGLTextureData;
 
-AGLTexture aGLTextureCreate(void);
-void aGLTextureUpload(AGLTexture *texture, const AGLTextureUploadData *data);
+AGLTexture aGLTextureCreate(const AGLTextureData *data);
+void aGLTextureUpdate(AGLTexture *texture, const AGLTextureData *data);
 #define aGLTextureDestroy(t) \
 	do { \
 		glDeleteTextures(1, &(t)->_.name); \
@@ -380,66 +391,69 @@ extern char a_gl_error[];
 /***************************************************************************************/
 
 #ifdef ATTO_PLATFORM_WINDOWS
-	#define ATTO__FUNCLIST \
-		ATTO__FUNCLIST_DO(PFNGLGENBUFFERSPROC, GenBuffers) \
-		ATTO__FUNCLIST_DO(PFNGLGENRENDERBUFFERSPROC, GenRenderbuffers) \
-		ATTO__FUNCLIST_DO(PFNGLBINDBUFFERPROC, BindBuffer) \
-		ATTO__FUNCLIST_DO(PFNGLBUFFERDATAPROC, BufferData) \
-		ATTO__FUNCLIST_DO(PFNGLGETATTRIBLOCATIONPROC, GetAttribLocation) \
-		ATTO__FUNCLIST_DO(PFNGLDISABLEVERTEXATTRIBARRAYPROC, DisableVertexAttribArray) \
-		ATTO__FUNCLIST_DO(PFNGLBLENDCOLORPROC, BlendColor) \
-		ATTO__FUNCLIST_DO(PFNGLBLENDEQUATIONPROC, BlendEquation) \
-		ATTO__FUNCLIST_DO(PFNGLBLENDEQUATIONSEPARATEPROC, BlendEquationSeparate) \
-		ATTO__FUNCLIST_DO(PFNGLBLENDFUNCSEPARATEPROC, BlendFuncSeparate) \
-		ATTO__FUNCLIST_DO(PFNGLBINDRENDERBUFFERPROC, BindRenderbuffer) \
-		ATTO__FUNCLIST_DO(PFNGLRENDERBUFFERSTORAGEPROC, RenderbufferStorage) \
-		ATTO__FUNCLIST_DO(PFNGLFRAMEBUFFERRENDERBUFFERPROC, FramebufferRenderbuffer) \
-		ATTO__FUNCLIST_DO(PFNGLACTIVETEXTUREPROC, ActiveTexture) \
-		ATTO__FUNCLIST_DO(PFNGLCREATESHADERPROC, CreateShader) \
-		ATTO__FUNCLIST_DO(PFNGLSHADERSOURCEPROC, ShaderSource) \
-		ATTO__FUNCLIST_DO(PFNGLCOMPILESHADERPROC, CompileShader) \
-		ATTO__FUNCLIST_DO(PFNGLGENFRAMEBUFFERSPROC, GenFramebuffers) \
-		ATTO__FUNCLIST_DO(PFNGLDELETEFRAMEBUFFERSPROC, DeleteFramebuffers) \
-		ATTO__FUNCLIST_DO(PFNGLDELETERENDERBUFFERSPROC, DeleteRenderbuffers) \
-		ATTO__FUNCLIST_DO(PFNGLBINDFRAMEBUFFERPROC, BindFramebuffer) \
-		ATTO__FUNCLIST_DO(PFNGLFRAMEBUFFERTEXTURE2DPROC, FramebufferTexture2D) \
-		ATTO__FUNCLIST_DO(PFNGLUSEPROGRAMPROC, UseProgram) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM1FVPROC, Uniform1fv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM2FVPROC, Uniform2fv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM3FVPROC, Uniform3fv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM4FVPROC, Uniform4fv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM1FPROC, Uniform1f) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM2FPROC, Uniform2f) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM3FPROC, Uniform3f) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM4FPROC, Uniform4f) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORMMATRIX2FVPROC, UniformMatrix2fv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORMMATRIX3FVPROC, UniformMatrix3fv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORMMATRIX4FVPROC, UniformMatrix4fv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM1IPROC, Uniform1i) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM1IVPROC, Uniform1iv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM2IVPROC, Uniform2iv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM3IVPROC, Uniform3iv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM4IVPROC, Uniform4iv) \
-		ATTO__FUNCLIST_DO(PFNGLCREATEPROGRAMPROC, CreateProgram) \
-		ATTO__FUNCLIST_DO(PFNGLATTACHSHADERPROC, AttachShader) \
-		ATTO__FUNCLIST_DO(PFNGLBINDATTRIBLOCATIONPROC, BindAttribLocation) \
-		ATTO__FUNCLIST_DO(PFNGLLINKPROGRAMPROC, LinkProgram) \
-		ATTO__FUNCLIST_DO(PFNGLGETUNIFORMLOCATIONPROC, GetUniformLocation) \
-		ATTO__FUNCLIST_DO(PFNGLDELETESHADERPROC, DeleteShader) \
-		ATTO__FUNCLIST_DO(PFNGLGETPROGRAMINFOLOGPROC, GetProgramInfoLog) \
-		ATTO__FUNCLIST_DO(PFNGLDELETEPROGRAMPROC, DeleteProgram) \
-		ATTO__FUNCLIST_DO(PFNGLGETSHADERIVPROC, GetShaderiv) \
-		ATTO__FUNCLIST_DO(PFNGLGETSHADERINFOLOGPROC, GetShaderInfoLog) \
-		ATTO__FUNCLIST_DO(PFNGLGETPROGRAMIVPROC, GetProgramiv) \
-		ATTO__FUNCLIST_DO(PFNGLCHECKFRAMEBUFFERSTATUSPROC, CheckFramebufferStatus) \
-		ATTO__FUNCLIST_DO(PFNGLENABLEVERTEXATTRIBARRAYPROC, EnableVertexAttribArray) \
-		ATTO__FUNCLIST_DO(PFNGLVERTEXATTRIBPOINTERPROC, VertexAttribPointer) \
-		ATTO__FUNCLIST_DO(PFNGLGENERATEMIPMAPPROC, GenerateMipmap) \
-		ATTO__FUNCLIST_DO(PFNGLCLEARDEPTHFPROC, ClearDepthf) \
-		ATTO__FUNCLIST_DO(PFNGLDRAWBUFFERSPROC, DrawBuffers)
-	#define ATTO__FUNCLIST_DO(T, N) extern T gl##N;
-ATTO__FUNCLIST
-	#undef ATTO__FUNCLIST_DO
+	#define ATTO__GL_FUNCS_LIST(X) \
+		X(PFNGLACTIVETEXTUREPROC, glActiveTexture) \
+		X(PFNGLATTACHSHADERPROC, glAttachShader) \
+		X(PFNGLBINDATTRIBLOCATIONPROC, glBindAttribLocation) \
+		X(PFNGLBINDBUFFERPROC, glBindBuffer) \
+		X(PFNGLBINDFRAMEBUFFERPROC, glBindFramebuffer) \
+		X(PFNGLBINDRENDERBUFFERPROC, glBindRenderbuffer) \
+		X(PFNGLBLENDCOLORPROC, glBlendColor) \
+		X(PFNGLBLENDEQUATIONPROC, glBlendEquation) \
+		X(PFNGLBLENDEQUATIONSEPARATEPROC, glBlendEquationSeparate) \
+		X(PFNGLBLENDFUNCSEPARATEPROC, glBlendFuncSeparate) \
+		X(PFNGLBUFFERDATAPROC, glBufferData) \
+		X(PFNGLCHECKFRAMEBUFFERSTATUSPROC, glCheckFramebufferStatus) \
+		X(PFNGLCLEARDEPTHFPROC, glClearDepthf) \
+		X(PFNGLCOMPILESHADERPROC, glCompileShader) \
+		X(PFNGLCREATEPROGRAMPROC, glCreateProgram) \
+		X(PFNGLCREATESHADERPROC, glCreateShader) \
+		X(PFNGLDELETEFRAMEBUFFERSPROC, glDeleteFramebuffers) \
+		X(PFNGLDELETEPROGRAMPROC, glDeleteProgram) \
+		X(PFNGLDELETERENDERBUFFERSPROC, glDeleteRenderbuffers) \
+		X(PFNGLDELETESHADERPROC, glDeleteShader) \
+		X(PFNGLDISABLEVERTEXATTRIBARRAYPROC, glDisableVertexAttribArray) \
+		X(PFNGLDRAWBUFFERSPROC, glDrawBuffers) \
+		X(PFNGLENABLEVERTEXATTRIBARRAYPROC, glEnableVertexAttribArray) \
+		X(PFNGLFRAMEBUFFERRENDERBUFFERPROC, glFramebufferRenderbuffer) \
+		X(PFNGLFRAMEBUFFERTEXTURE2DPROC, glFramebufferTexture2D) \
+		X(PFNGLGENBUFFERSPROC, glGenBuffers) \
+		X(PFNGLGENERATEMIPMAPPROC, glGenerateMipmap) \
+		X(PFNGLGENFRAMEBUFFERSPROC, glGenFramebuffers) \
+		X(PFNGLGENRENDERBUFFERSPROC, glGenRenderbuffers) \
+		X(PFNGLGETATTRIBLOCATIONPROC, glGetAttribLocation) \
+		X(PFNGLGETPROGRAMINFOLOGPROC, glGetProgramInfoLog) \
+		X(PFNGLGETPROGRAMIVPROC, glGetProgramiv) \
+		X(PFNGLGETSHADERINFOLOGPROC, glGetShaderInfoLog) \
+		X(PFNGLGETSHADERIVPROC, glGetShaderiv) \
+		X(PFNGLGETUNIFORMLOCATIONPROC, glGetUniformLocation) \
+		X(PFNGLLINKPROGRAMPROC, glLinkProgram) \
+		X(PFNGLRENDERBUFFERSTORAGEPROC, glRenderbufferStorage) \
+		X(PFNGLSHADERSOURCEPROC, glShaderSource) \
+		X(PFNGLTEXIMAGE3DPROC, glTexImage3D) \
+		X(PFNGLTEXSUBIMAGE3DPROC, glTexSubImage3D) \
+		X(PFNGLUNIFORM1FPROC, glUniform1f) \
+		X(PFNGLUNIFORM1FVPROC, glUniform1fv) \
+		X(PFNGLUNIFORM1IPROC, glUniform1i) \
+		X(PFNGLUNIFORM1IVPROC, glUniform1iv) \
+		X(PFNGLUNIFORM2FPROC, glUniform2f) \
+		X(PFNGLUNIFORM2FVPROC, glUniform2fv) \
+		X(PFNGLUNIFORM2IVPROC, glUniform2iv) \
+		X(PFNGLUNIFORM3FPROC, glUniform3f) \
+		X(PFNGLUNIFORM3FVPROC, glUniform3fv) \
+		X(PFNGLUNIFORM3IVPROC, glUniform3iv) \
+		X(PFNGLUNIFORM4FPROC, glUniform4f) \
+		X(PFNGLUNIFORM4FVPROC, glUniform4fv) \
+		X(PFNGLUNIFORM4IVPROC, glUniform4iv) \
+		X(PFNGLUNIFORMMATRIX2FVPROC, glUniformMatrix2fv) \
+		X(PFNGLUNIFORMMATRIX3FVPROC, glUniformMatrix3fv) \
+		X(PFNGLUNIFORMMATRIX4FVPROC, glUniformMatrix4fv) \
+		X(PFNGLUSEPROGRAMPROC, glUseProgram) \
+		X(PFNGLVERTEXATTRIBPOINTERPROC, glVertexAttribPointer) \
+
+#define ATTO__DECLARE_FUNC_EXTERN(T_, N_) extern T_ N_;
+ATTO__GL_FUNCS_LIST(ATTO__DECLARE_FUNC_EXTERN)
+#undef ATTO__DECLARE_FUNC_EXTERN
 #endif /* ifdef ATTO_PLATFORM_WINDOWS */
 
 #if defined(__cplusplus)
@@ -578,9 +592,9 @@ static void a__GLFramebufferBind(const AGLFramebuffer *fbo);
 static void a__GLTargetBind(const AGLDrawTarget *target);
 
 #ifdef ATTO_PLATFORM_WINDOWS
-#define ATTO__FUNCLIST_DO(T, N) T gl##N = 0;
-ATTO__FUNCLIST
-#undef ATTO__FUNCLIST_DO
+#define ATTO__DECLARE_FUNC(T_, N_) T_ N_ = 0;
+ATTO__GL_FUNCS_LIST(ATTO__DECLARE_FUNC)
+#undef ATTO__DECLARE_FUNC
 
 static PROC a__check_get_proc_address(const char *name) {
 	PROC ret = wglGetProcAddress(name);
@@ -603,9 +617,9 @@ static void a__GlGetAndPrintInteger(GLenum pname, const char *name, int count) {
 
 void aGLInit(void) {
 #ifdef ATTO_PLATFORM_WINDOWS
-	#define ATTO__FUNCLIST_DO(T, N) gl##N = (T)a__check_get_proc_address("gl" #N);
-	ATTO__FUNCLIST
-	#undef ATTO__FUNCLIST_DO
+#define ATTO__GET_FUNC(T_, N_) N_ = (T_)a__check_get_proc_address(#N_);
+	ATTO__GL_FUNCS_LIST(ATTO__GET_FUNC)
+#undef ATTO__GET_FUNC
 #endif /* ifdef ATTO_PLATFORM_WINDOWS */
 
 #ifndef ATTO_GL_DONT_PRINT_INFO
@@ -884,83 +898,210 @@ GLint aGLProgramCreateSimple(const char *vertex, const char *fragment) {
 }
 
 void aGLUniformLocate(AGLProgram program, AGLProgramUniform *uniforms, int count) {
-	for (int i = 0; i < count; ++i) { uniforms[i]._.location = glGetUniformLocation(program, uniforms[i].name); }
+	for (int i = 0; i < count; ++i)
+		uniforms[i]._.location = glGetUniformLocation(program, uniforms[i].name);
 }
 
 void aGLAttributeLocate(AGLProgram program, AGLAttribute *attribs, int count) {
-	for (int i = 0; i < count; ++i) { attribs[i]._.location = glGetAttribLocation(program, attribs[i].name); }
+	for (int i = 0; i < count; ++i)
+		attribs[i]._.location = glGetAttribLocation(program, attribs[i].name);
 }
 
-AGLTexture aGLTextureCreate(void) {
-	AGLTexture tex;
+AGLTexture aGLTextureCreate(const AGLTextureData *data) {
+	AGLTexture tex = {
+		.type = data->type,
+		.format = AGLTF_Unknown,
+		._.mag_filter = tex._.min_filter = (GLenum)-1,
+		._.wrap_s = tex._.wrap_t = (GLenum)-1,
+		.mag_filter = AGLTMF_Linear,
+		.min_filter = (data->flags & AGLTUF_GenerateMipmaps)
+			? AGLTmF_LinearMipLinear
+			: AGLTmF_Linear,
+		.wrap_s = tex.wrap_t = AGLTW_Repeat,
+	};
+
 	AGL__CALL(glGenTextures(1, &tex._.name));
-	tex.width = tex.height = 0;
-	tex.format = AGLTF_Unknown;
-	tex._.mag_filter = tex._.min_filter = (GLenum)-1;
-	tex._.wrap_s = tex._.wrap_t = (GLenum)-1;
-	tex.mag_filter = AGLTMF_Linear;
-	tex.min_filter = AGLTmF_LinearMipLinear;
-	tex.wrap_s = tex.wrap_t = AGLTW_Repeat;
+	aGLTextureUpdate(&tex, data);
 	return tex;
 }
 
-void aGLTextureUpload(AGLTexture *tex, const AGLTextureUploadData *data) {
+struct A__GLTextureFormat {
 	GLenum internal, format, type;
-	int maxwidth = data->x + data->width;
-	int maxheight = data->y + data->height;
-	switch (data->format) {
+};
+
+static struct A__GLTextureFormat getTextureFormat(AGLTextureFormat aformat) {
+	struct A__GLTextureFormat tf = {0};
+	switch (aformat) {
 	case AGLTF_U8_R:
-		internal = format = GL_LUMINANCE;
-		type = GL_UNSIGNED_BYTE;
+		tf.internal = tf.format = GL_LUMINANCE;
+		tf.type = GL_UNSIGNED_BYTE;
 		break;
 	case AGLTF_U8_RA:
-		internal = format = GL_LUMINANCE_ALPHA;
-		type = GL_UNSIGNED_BYTE;
+		tf.internal = tf.format = GL_LUMINANCE_ALPHA;
+		tf.type = GL_UNSIGNED_BYTE;
 		break;
 	case AGLTF_U8_RGB:
-		internal = format = GL_RGB;
-		type = GL_UNSIGNED_BYTE;
+		tf.internal = tf.format = GL_RGB;
+		tf.type = GL_UNSIGNED_BYTE;
 		break;
 	case AGLTF_U8_RGBA:
-		internal = format = GL_RGBA;
-		type = GL_UNSIGNED_BYTE;
+		tf.internal = tf.format = GL_RGBA;
+		tf.type = GL_UNSIGNED_BYTE;
 		break;
 	case AGLTF_U565_RGB:
-		internal = format = GL_RGB;
-		type = GL_UNSIGNED_SHORT_5_6_5;
+		tf.internal = tf.format = GL_RGB;
+		tf.type = GL_UNSIGNED_SHORT_5_6_5;
 		break;
 	case AGLTF_U5551_RGBA:
-		internal = format = GL_RGBA;
-		type = GL_UNSIGNED_SHORT_5_5_5_1;
+		tf.internal = tf.format = GL_RGBA;
+		tf.type = GL_UNSIGNED_SHORT_5_5_5_1;
 		break;
 	case AGLTF_U4444_RGBA:
-		internal = format = GL_RGBA;
-		type = GL_UNSIGNED_SHORT_4_4_4_4;
+		tf.internal = tf.format = GL_RGBA;
+		tf.type = GL_UNSIGNED_SHORT_4_4_4_4;
+		break;
+	case AGLTF_F32_R:
+#ifdef GL_R32F
+		tf.internal = GL_R32F;
+		tf.format = GL_RED;
+		tf.type = GL_FLOAT;
+#else
+		ATTO_ASSERT(!"Unknown format");
+#endif
 		break;
 	case AGLTF_F32_RGBA:
 #ifdef GL_RGBA32F
-		internal = GL_RGBA32F;
-		format = GL_RGBA;
-		type = GL_FLOAT;
-		break;
+		tf.internal = GL_RGBA32F;
+		tf.format = GL_RGBA;
+		tf.type = GL_FLOAT;
+#else
+		ATTO_ASSERT(!"Unknown format");
 #endif
-	default: ATTO_ASSERT(!"Unknown format"); return;
+		break;
+	case AGLTF_Unknown: ATTO_ASSERT(!"Unknown format");
 	}
-	AGL__CALL(glBindTexture(GL_TEXTURE_2D, tex->_.name));
+	ATTO_ASSERT(tf.internal != 0);
+	return tf;
+}
 
-	if (data->x || data->y) {
-		if (maxwidth > data->width || maxheight > data->height)
-			AGL__CALL(glTexImage2D(GL_TEXTURE_2D, 0, internal, maxwidth, maxheight, 0, format, type, 0));
-		AGL__CALL(
-			glTexSubImage2D(GL_TEXTURE_2D, 0, data->x, data->y, data->width, data->height, format, type, data->pixels));
-	} else
-		AGL__CALL(glTexImage2D(GL_TEXTURE_2D, 0, internal, data->width, data->height, 0, format, type, data->pixels));
+typedef void (a__gl_texture_upload_func)(AGLTexture *tex, const AGLTextureData *data, GLenum binding, struct A__GLTextureFormat tf);
 
-	if (data->pixels && (data->flags & AGLTU_GenerateMipmaps))
-		AGL__CALL(glGenerateMipmap(GL_TEXTURE_2D));
+static void a__GLTexureUpload1D(AGLTexture *tex, const AGLTextureData *data, GLenum binding, struct A__GLTextureFormat tf) {
+	const int maxwidth = data->x + data->width;
 
-	tex->width = data->width;
-	tex->height = data->height;
+	const int expand = maxwidth > tex->width;
+	const int is_subimage = data->x > 0;
+	const void *const to_upload = (!is_subimage && data->pixels) ? data->pixels : NULL;
+
+	ATTO_ASSERT(binding == GL_TEXTURE_1D);
+
+	if (expand || to_upload) {
+		AGL__CALL(glTexImage1D(binding, 0, tf.internal, maxwidth, 0,
+			tf.format, tf.type, to_upload));
+		tex->width = maxwidth;
+	}
+
+	if (is_subimage) {
+		ATTO_ASSERT(data->pixels);
+		AGL__CALL(glTexSubImage1D(binding, 0,
+			data->x, data->width,
+			tf.format, tf.type, data->pixels));
+	}
+}
+
+static void a__GLTexureUpload2D(AGLTexture *tex, const AGLTextureData *data, GLenum binding, struct A__GLTextureFormat tf) {
+	const int maxwidth = data->x + data->width;
+	const int maxheight = data->y + data->height;
+
+	const int expand = (maxwidth > tex->width) || (maxheight > tex->height);
+	const int is_subimage = (data->x > 0 || data->y > 0);
+	const void *const to_upload = (!is_subimage && data->pixels) ? data->pixels : NULL;
+
+	ATTO_ASSERT(binding == GL_TEXTURE_2D);
+
+	if (expand || to_upload) {
+		AGL__CALL(glTexImage2D(binding, 0, tf.internal, maxwidth, maxheight, 0,
+			tf.format, tf.type, to_upload));
+		tex->width = maxwidth;
+		tex->height = maxheight;
+	}
+
+	if (is_subimage) {
+		ATTO_ASSERT(data->pixels);
+		AGL__CALL(glTexSubImage2D(binding, 0,
+			data->x, data->y, data->width, data->height,
+			tf.format, tf.type, data->pixels));
+	}
+}
+
+static void a__GLTexureUpload3D(AGLTexture *tex, const AGLTextureData *data, GLenum binding, struct A__GLTextureFormat tf) {
+	const int maxwidth = data->x + data->width;
+	const int maxheight = data->y + data->height;
+	const int maxdepth = data->z + data->depth;
+
+	const int expand = (maxwidth > tex->width)
+		|| (maxheight > tex->height)
+		|| (maxdepth > tex->depth);
+	const int is_subimage = (data->x > 0 || data->y > 0 || data->z > 0);
+	const void *const to_upload = (!is_subimage && data->pixels) ? data->pixels : NULL;
+
+	ATTO_ASSERT(binding == GL_TEXTURE_3D || binding == GL_TEXTURE_2D_ARRAY);
+
+	if (expand || to_upload) {
+		AGL__CALL(glTexImage3D(binding, 0, tf.internal,
+			maxwidth, maxheight, maxdepth, 0,
+			tf.format, tf.type,
+			to_upload));
+		tex->width = maxwidth;
+		tex->height = maxheight;
+		tex->depth = maxdepth;
+	}
+
+	if (is_subimage) {
+		ATTO_ASSERT(data->pixels);
+		AGL__CALL(glTexSubImage3D(binding, 0,
+			data->x, data->y, data->z, data->width, data->height, data->depth,
+			tf.format, tf.type, data->pixels));
+	}
+}
+
+void aGLTextureUpdate(AGLTexture *tex, const AGLTextureData *data) {
+	ATTO_ASSERT(data->type == tex->type);
+
+	struct A__GLTextureFormat tf = getTextureFormat(data->format);
+
+	a__gl_texture_upload_func *upload_func = NULL;
+	GLenum binding = 0;
+
+	switch (data->type) {
+		case AGLTT_1D:
+			upload_func = &a__GLTexureUpload1D;
+			binding = GL_TEXTURE_1D;
+			break;
+		case AGLTT_2D:
+			upload_func = &a__GLTexureUpload2D;
+			binding = GL_TEXTURE_2D;
+			break;
+		case AGLTT_3D:
+			upload_func = &a__GLTexureUpload3D;
+			binding = GL_TEXTURE_3D;
+			break;
+		case AGLTT_2DArray:
+			upload_func = &a__GLTexureUpload3D;
+			binding = GL_TEXTURE_2D_ARRAY;
+			break;
+		case AGLTT_NULL: ATTO_ASSERT(!"Invalid texture type");
+	}
+	ATTO_ASSERT(upload_func);
+
+	// TODO track bindings properly
+	AGL__CALL(glBindTexture(binding, tex->_.name));
+
+	upload_func(tex, data, binding, tf);
+
+	if (data->pixels && (data->flags & AGLTUF_GenerateMipmaps))
+		AGL__CALL(glGenerateMipmap(binding));
+
 	tex->format = data->format;
 }
 

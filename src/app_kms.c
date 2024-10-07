@@ -134,7 +134,9 @@ static struct {
 		struct gbm_device *device;
 		struct gbm_surface *surface;
 		uint32_t format;
-		struct gbm_bo *locked_previous_frame;
+
+		struct gbm_bo *bo_currently_displayed;
+		struct gbm_bo *bo_enqueued_to_flip;
 	} gbm;
 	struct {
 		EGLDisplay display;
@@ -199,7 +201,7 @@ static const EGLint egl_context_attrs[] = {
 	EGL_NONE
 };
 
-static void initEgl() {
+static void initEgl(void) {
 	const char *client_extensions = eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
 	ALOG("EGL_EXTENSIONS(client): %s", client_extensions);
 
@@ -322,7 +324,7 @@ static Framebobuffer *getFramebufferForGbmBo(struct gbm_bo* bo) {
 	return fbo;
 }
 
-static void createSurfaces() {
+static void createSurfaces(void) {
 	const drmModeModeInfoPtr mode = &a__kms.drm.mode;
 	ALOG("%ux%u fmt=%.4s", mode->hdisplay, mode->vdisplay, (const char*)&a__kms.gbm.format);
 	a__kms.gbm.surface = gbm_surface_create(a__kms.gbm.device,
@@ -361,7 +363,8 @@ void a__kmsInit(struct AAppState *state) {
 	const uint32_t framebuffer_id = getFramebufferForGbmBo(buffer)->fb_id;
 	ATTO_ASSERT(0 == drmModeSetCrtc(a__kms.drm.fd, a__kms.drm.crtc_id, framebuffer_id, 0, 0,
 		&a__kms.drm.connector_id, 1, &a__kms.drm.mode));
-	a__kms.gbm.locked_previous_frame = buffer;
+	a__kms.gbm.bo_currently_displayed = buffer;
+	a__kms.gbm.bo_enqueued_to_flip = NULL;
 
 	state->width = a__kms.drm.mode.hdisplay;
 	state->height = a__kms.drm.mode.vdisplay;
@@ -378,25 +381,27 @@ static void page_flipped(int fd,
 	(void)sequence;
 	(void)tv_sec;
 	(void)tv_usec;
-	
-	int *flip_is_done = user_data;
-	*flip_is_done = 1;
+
+	// Make sure we're reacting to the right flip event
+	ATTO_ASSERT(user_data == a__kms.gbm.bo_enqueued_to_flip);
+
+	// Release previous buffer being displayed, and set the enqueued buffer as currently displayer one
+	gbm_surface_release_buffer(a__kms.gbm.surface, a__kms.gbm.bo_currently_displayed);
+	a__kms.gbm.bo_currently_displayed = a__kms.gbm.bo_enqueued_to_flip;
+
+	// There's no buffer enqueued to be flipped
+	a__kms.gbm.bo_enqueued_to_flip = NULL;
 }
 
-static void pageFlip(uint32_t framebuffer_id) {
+static void pageFlip(struct gbm_bo *bo) {
+	// 1. Wait for previous flip, if any
+	// React to page flip event
 	drmEventContext event_context = {
 		.version = DRM_EVENT_CONTEXT_VERSION,
 		.page_flip_handler = page_flipped,
 	};
-	int flip_is_done = 0;
 
-	const int ret = drmModePageFlip(a__kms.drm.fd, a__kms.drm.crtc_id, framebuffer_id,
-		// NO VSYNC DRM_MODE_PAGE_FLIP_ASYNC | 
-		DRM_MODE_PAGE_FLIP_EVENT, &flip_is_done);
-	ATTO_ASSERT(ret == 0);
-
-	// Poll the DRM fd for events until the flip event happens
-	while (!flip_is_done) {
+	while (a__kms.gbm.bo_enqueued_to_flip) {
 		struct pollfd pfd[1] = {{
 			.fd = a__kms.drm.fd,
 			.events = POLLIN,
@@ -412,24 +417,33 @@ static void pageFlip(uint32_t framebuffer_id) {
 		if (pfd[0].revents & POLLIN)
 			drmHandleEvent(a__kms.drm.fd, &event_context);
 	}
+
+	// 2. Enqueue the next one
+	// drmModePageFlip() operates on fb_id, get one for bo
+	const uint32_t framebuffer_id = getFramebufferForGbmBo(bo)->fb_id;
+
+	// Enqueue the flip until the next vblank
+	const int ret = drmModePageFlip(a__kms.drm.fd, a__kms.drm.crtc_id, framebuffer_id,
+		// NO VSYNC DRM_MODE_PAGE_FLIP_ASYNC |
+		DRM_MODE_PAGE_FLIP_EVENT, bo);
+	if (ret != 0)
+		ALOG("drmModePageFlip returned %d", ret);
+	ATTO_ASSERT(ret == 0);
+
+	// Mark this new bo as the one we're waiting to be flipped
+	a__kms.gbm.bo_enqueued_to_flip = bo;
 }
 
 void a__kmsSwap(void) {
 	// Finish rendering previous frame
 	eglSwapBuffers(a__kms.egl.display, a__kms.egl.surface);
 
-	// Lock the finished frame and get its drm framebuffer id
-	struct gbm_bo *buffer = gbm_surface_lock_front_buffer(a__kms.gbm.surface);
-	const uint32_t framebuffer_id = getFramebufferForGbmBo(buffer)->fb_id;
+	// Lock the finished frame
+	struct gbm_bo *bo = gbm_surface_lock_front_buffer(a__kms.gbm.surface);
 
 	// Show the locked framebuffer
-	// Waits for the flip to complete
-	pageFlip(framebuffer_id);
-
-	// After page flip is done, release the previous framebuffer's GBM buffer
-	ATTO_ASSERT(a__kms.gbm.locked_previous_frame);
-	gbm_surface_release_buffer(a__kms.gbm.surface, a__kms.gbm.locked_previous_frame);
-	a__kms.gbm.locked_previous_frame = buffer;
+	// Waits for the previous flip to complete, and then schedules this new one
+	pageFlip(bo);
 }
 
 void a__kmsDestroy(void) {
