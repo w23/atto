@@ -91,6 +91,7 @@ typedef enum {
 	AGLTF_U565_RGB,
 	AGLTF_U5551_RGBA,
 	AGLTF_U4444_RGBA,
+	AGLTF_F32_R,
 	AGLTF_F32_RGBA
 } AGLTextureFormat;
 
@@ -959,13 +960,24 @@ static struct A__GLTextureFormat getTextureFormat(AGLTextureFormat aformat) {
 		tf.internal = tf.format = GL_RGBA;
 		tf.type = GL_UNSIGNED_SHORT_4_4_4_4;
 		break;
+	case AGLTF_F32_R:
+#ifdef GL_R32F
+		tf.internal = GL_R32F;
+		tf.format = GL_RED;
+		tf.type = GL_FLOAT;
+#else
+		ATTO_ASSERT(!"Unknown format");
+#endif
+		break;
 	case AGLTF_F32_RGBA:
 #ifdef GL_RGBA32F
 		tf.internal = GL_RGBA32F;
 		tf.format = GL_RGBA;
 		tf.type = GL_FLOAT;
-		break;
+#else
+		ATTO_ASSERT(!"Unknown format");
 #endif
+		break;
 	case AGLTF_Unknown: ATTO_ASSERT(!"Unknown format");
 	}
 	ATTO_ASSERT(tf.internal != 0);
