@@ -991,12 +991,13 @@ static void a__GLTexureUpload1D(AGLTexture *tex, const AGLTextureData *data, GLe
 
 	const int expand = maxwidth > tex->width;
 	const int is_subimage = data->x > 0;
+	const void *const to_upload = (!is_subimage && data->pixels) ? data->pixels : NULL;
 
 	ATTO_ASSERT(binding == GL_TEXTURE_1D);
 
-	if (expand) {
+	if (expand || to_upload) {
 		AGL__CALL(glTexImage1D(binding, 0, tf.internal, maxwidth, 0,
-			tf.format, tf.type, is_subimage ? NULL : data->pixels));
+			tf.format, tf.type, to_upload));
 		tex->width = maxwidth;
 	}
 
@@ -1014,12 +1015,13 @@ static void a__GLTexureUpload2D(AGLTexture *tex, const AGLTextureData *data, GLe
 
 	const int expand = (maxwidth > tex->width) || (maxheight > tex->height);
 	const int is_subimage = (data->x > 0 || data->y > 0);
+	const void *const to_upload = (!is_subimage && data->pixels) ? data->pixels : NULL;
 
 	ATTO_ASSERT(binding == GL_TEXTURE_2D);
 
-	if (expand) {
+	if (expand || to_upload) {
 		AGL__CALL(glTexImage2D(binding, 0, tf.internal, maxwidth, maxheight, 0,
-			tf.format, tf.type, is_subimage ? NULL : data->pixels));
+			tf.format, tf.type, to_upload));
 		tex->width = maxwidth;
 		tex->height = maxheight;
 	}
@@ -1041,14 +1043,15 @@ static void a__GLTexureUpload3D(AGLTexture *tex, const AGLTextureData *data, GLe
 		|| (maxheight > tex->height)
 		|| (maxdepth > tex->depth);
 	const int is_subimage = (data->x > 0 || data->y > 0 || data->z > 0);
+	const void *const to_upload = (!is_subimage && data->pixels) ? data->pixels : NULL;
 
 	ATTO_ASSERT(binding == GL_TEXTURE_3D || binding == GL_TEXTURE_2D_ARRAY);
 
-	if (expand) {
+	if (expand || to_upload) {
 		AGL__CALL(glTexImage3D(binding, 0, tf.internal,
 			maxwidth, maxheight, maxdepth, 0,
 			tf.format, tf.type,
-			is_subimage ? NULL : data->pixels));
+			to_upload));
 		tex->width = maxwidth;
 		tex->height = maxheight;
 		tex->depth = maxdepth;
@@ -1063,6 +1066,8 @@ static void a__GLTexureUpload3D(AGLTexture *tex, const AGLTextureData *data, GLe
 }
 
 void aGLTextureUpdate(AGLTexture *tex, const AGLTextureData *data) {
+	ATTO_ASSERT(data->type == tex->type);
+
 	struct A__GLTextureFormat tf = getTextureFormat(data->format);
 
 	a__gl_texture_upload_func *upload_func = NULL;
@@ -1097,7 +1102,6 @@ void aGLTextureUpdate(AGLTexture *tex, const AGLTextureData *data) {
 	if (data->pixels && (data->flags & AGLTUF_GenerateMipmaps))
 		AGL__CALL(glGenerateMipmap(binding));
 
-	tex->type = data->type;
 	tex->format = data->format;
 }
 
