@@ -211,7 +211,7 @@ typedef struct {
 AGLBuffer aGLBufferCreate(AGLBufferType type);
 void aGLBufferUpload(AGLBuffer *buffer, GLsizei size, const void *data);
 #define aGLBufferDestroy(b) \
-	do { AGL__CALL(glDeleteBuffers(1, &(b)->name); (b)->name = 0); } while (0)
+	do { glDeleteBuffers(1, &(b)->name); (b)->name = 0; } while (0)
 
 /* Draw */
 
