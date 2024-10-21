@@ -180,12 +180,12 @@ typedef enum {
 typedef struct {
 	const char *name;
 	AGLAttributeType type;
+	GLsizei count;
 	union {
 		const GLfloat *pf;
 		const GLint *pi;
 		const AGLTexture *texture;
 	} value;
-	GLsizei count;
 	struct {
 		GLint location;
 	} _;
