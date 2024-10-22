@@ -33,6 +33,7 @@ elseif(CMAKE_SYSTEM_NAME MATCHES ".*Linux")
 			${X11_LIBRARIES}
 			${X11_Xext_LIB}
 			${X11_Xfixes_LIB}
+			${X11_Xrandr_LIB}
 			)
 		set(ATTO_SOURCES ${ATTO_SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/src/app_x11.c)
 	endif()

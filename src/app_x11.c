@@ -18,6 +18,13 @@
 #include <X11/Xutil.h>
 #include <X11/XKBlib.h>
 #include <X11/extensions/Xfixes.h>
+#ifdef ATTO_APP_PREINIT_FUNC
+#include <X11/extensions/Xrandr.h>
+#include <X11/Xatom.h>
+#include <stdio.h> // snprintf()
+#include <fcntl.h> // open()
+#include <unistd.h> // close()
+#endif
 #ifndef ATTO_EGL
 #include <GL/glx.h>
 #else
@@ -36,6 +43,8 @@ void aAppTerminate(int code) {
 	exit(code);
 }
 
+#define A__X11_MAX_DISPLAYS 16
+
 static struct {
 	Display *display;
 	Window window;
@@ -43,6 +52,9 @@ static struct {
 	GLXDrawable drawable;
 	GLXContext context;
 #endif
+
+	AAppDisplay displays[A__X11_MAX_DISPLAYS];
+	int displays_count;
 } a__x11;
 
 static void a__appProcessXKeyEvent(XEvent *e) {
@@ -241,16 +253,167 @@ static const EGLint a__app_egl_context_attrs[] = {
 EGLDisplay a_app_egl_display;
 #endif
 
+static int hackReadEdidFromSysfs(const char *connector, unsigned char edid[A_EDID_LENGTH]) {
+	aAppDebugPrintf("No native Xrandr EDID found, trying to find it in sysfs manually...");
+	/* Note that trying to guess GPU by reading /proc/self/fd* wouldn't work, as that would be just a render node, not kms */
+	for (int k = 0; k < 4; ++k) {
+		char path[128];
+		/* Will definitely read incorrect EDIDs with multi-gpu multi-monitor setups */
+		snprintf(path, sizeof(path), "/sys/class/drm/card%d-%s/edid", k, connector);
+		const int fd = open(path, O_RDONLY);
+		if (fd < 0)
+			continue;
+		aAppDebugPrintf("Found %s", path);
+		const int read_size = read(fd, edid, A_EDID_LENGTH);
+		close(fd);
+		if (read_size == A_EDID_LENGTH)
+			return read_size;
+	}
+
+	return 0;
+}
+
+static char *strClone(const char *src) {
+	const int len = strlen(src);
+	char *out = malloc(len + 1);
+	memcpy(out, src, len);
+	out[len] = '\0';
+	return out;
+}
+
+static void enumerateDisplays(void) {
+	const Atom atom_edid = XInternAtom(a__x11.display, RR_PROPERTY_RANDR_EDID, False);
+	const int screens_count = XScreenCount(a__x11.display);
+	aAppDebugPrintf("screens_count = %d", screens_count);
+	for (int i = 0; i < screens_count; ++i) {
+		const Screen *const screen = XScreenOfDisplay(a__x11.display, i);
+		aAppDebugPrintf("  screen[%d]: %dx%d", i, screen->width, screen->height);
+		XRRScreenResources *screen_res = XRRGetScreenResources(a__x11.display, screen->root);
+		aAppDebugPrintf("    noutput = %d", screen_res->noutput);
+		for (int j = 0; j < screen_res->noutput; ++j) {
+			AAppDisplay *const disp = a__x11.displays + a__x11.displays_count;
+
+			RROutput output = screen_res->outputs[j];
+			XRROutputInfo *const info = XRRGetOutputInfo(a__x11.display, screen_res, output);
+			XRRCrtcInfo *const crtc = XRRGetCrtcInfo(a__x11.display, screen_res, info->crtc);
+			aAppDebugPrintf("    output[%d]: name=\"%s\" pos=%d,%d mode=%dx%d", j,
+				info->name, crtc->x, crtc->y, crtc->width, crtc->height);
+
+			disp->name = strClone(info->name); /* leaks */
+			disp->_.x = crtc->x;
+			disp->_.y = crtc->y;
+			disp->width = crtc->width;
+			disp->height = crtc->height;
+			disp->flags = 0;
+
+			int have_edid = 0;
+			{
+				int props_count = 0;
+				Atom *const props = XRRListOutputProperties(a__x11.display, output, &props_count);
+					aAppDebugPrintf("     props_count = %d", props_count);
+				for (int k = 0; k < props_count; ++k) {
+					if (props[k] == atom_edid)
+						have_edid = 1;
+					aAppDebugPrintf("      prop[%d]: %s", k, XGetAtomName(a__x11.display, props[k]));
+				}
+				XFree(props);
+			}
+
+			if (have_edid) {
+				const long offset = 0;
+				const long length = A_EDID_LENGTH;
+				const Bool _delete = False;
+				const Bool pending = False;
+				const Atom req_type = AnyPropertyType;
+				Atom actual_type;
+				int actual_format;
+				unsigned long nitems;
+				unsigned long bytes_after;
+				unsigned char *out_edid;
+				XRRGetOutputProperty(a__x11.display, output, atom_edid,
+					offset, length, _delete, pending, req_type,
+					&actual_type, &actual_format, &nitems, &bytes_after, &out_edid);
+				aAppDebugPrintf("      edid_size = %d", (int)nitems);
+				if (nitems > 0) {
+					memcpy(disp->edid, out_edid, nitems);
+					disp->flags |= AAPP_DISPLAY_HAS_EDID;
+				}
+				XFree(out_edid);
+			} else {
+				const int edid_size = hackReadEdidFromSysfs(info->name, disp->edid);
+				if (edid_size > 0)
+					disp->flags |= AAPP_DISPLAY_HAS_EDID;
+			}
+			XRRFreeCrtcInfo(crtc);
+			XRRFreeOutputInfo(info);
+
+			if (++a__x11.displays_count == A__X11_MAX_DISPLAYS) {
+				aAppDebugPrintf("Max number of displays reached, stopping enumeration");
+				break;
+			}
+		}
+		XRRFreeScreenResources(screen_res);
+	}
+}
+
+static void createWindow(const XVisualInfo *vinfo, int x, int y, int w, int h, int fullscreen) {
+	XSetWindowAttributes winattrs = {
+		.event_mask = KeyPressMask | KeyReleaseMask
+			| ButtonPressMask | ButtonReleaseMask | PointerMotionMask
+			| ExposureMask | VisibilityChangeMask | StructureNotifyMask,
+		.border_pixel = 0,
+		.bit_gravity = StaticGravity,
+		.colormap = XCreateColormap(a__x11.display,
+			RootWindow(a__x11.display, vinfo->screen), vinfo->visual, AllocNone),
+	};
+	unsigned int attrs_mask =   CWBorderPixel | CWBitGravity | CWEventMask | CWColormap;
+
+	// FIXME this requires a lot of manual work, and doesn't work that well easily
+	if (fullscreen) {
+		attrs_mask |= CWOverrideRedirect;
+		winattrs.override_redirect = True;
+	}
+
+	a__x11.window =
+		XCreateWindow(a__x11.display, RootWindow(a__x11.display, vinfo->screen),
+			x, y, w, h,
+			0, vinfo->depth, InputOutput, vinfo->visual, attrs_mask, &winattrs);
+	ATTO_ASSERT(a__x11.window);
+
+	if (fullscreen) {
+		// This should have been sufficient, but no, I couldn't make it work w/o override_redirect
+		const Atom wm_state = XInternAtom (a__x11.display, "_NET_WM_STATE", True );
+		const Atom wm_fullscreen = XInternAtom (a__x11.display, "_NET_WM_STATE_FULLSCREEN", True );
+		XChangeProperty(a__x11.display, a__x11.window, wm_state, XA_ATOM, 32, PropModeReplace, (unsigned char *)&wm_fullscreen, 1);
+
+		// TODO const Atom wm_fullscreen_monitors = XInternAtom (a__x11.display, "_NET_WM_FULLSCREEN_MONITORS", True );
+		// TODO const Atom wm_bypass_compositor = XInternAtom (a__x11.display, "_NET_WM_BYPASS_COMPOSITOR", True );
+	}
+
+	XStoreName(a__x11.display, a__x11.window, ATTO_APP_NAME);
+
+	{
+		Atom delete_message = XInternAtom(a__x11.display, "WM_DELETE_WINDOW", True);
+		XSetWMProtocols(a__x11.display, a__x11.window, &delete_message, 1);
+	}
+
+	//XSync(a__x11.display, False);
+	XMapWindow(a__x11.display, a__x11.window);
+
+	XSelectInput(a__x11.display, a__x11.window,
+		StructureNotifyMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask);
+}
+
 int main(int argc, char *argv[]) {
 	ATimeUs timestamp = aAppTime();
-	XSetWindowAttributes winattrs;
-	Atom delete_message;
 #ifndef ATTO_EGL
 	int nglxconfigs = 0;
 	GLXFBConfig *glxconfigs = NULL;
 #endif
 	XVisualInfo *vinfo = NULL;
 	ATimeUs last_paint = 0;
+	int x = 0, y = 0, w = ATTO_APP_WIDTH, h = ATTO_APP_HEIGHT;
+	int fullscreen = 0;
 
 	ATTO_ASSERT(a__x11.display = XOpenDisplay(NULL));
 
@@ -271,14 +434,10 @@ int main(int argc, char *argv[]) {
 	ATTO_ASSERT(eglInitialize(a_app_egl_display, &ver_maj, &ver_min));
 
 	aAppDebugPrintf("EGL: version %d.%d", ver_maj, ver_min);
-	aAppDebugPrintf("EGL: EGL_VERSION: '%s'",
-		eglQueryString(a_app_egl_display, EGL_VERSION));
-	aAppDebugPrintf("EGL: EGL_VENDOR: '%s'",
-		eglQueryString(a_app_egl_display, EGL_VENDOR));
-	aAppDebugPrintf("EGL: EGL_CLIENT_APIS: '%s'",
-		eglQueryString(a_app_egl_display, EGL_CLIENT_APIS));
-	aAppDebugPrintf("EGL: EGL_EXTENSIONS: '%s'",
-		eglQueryString(a_app_egl_display, EGL_EXTENSIONS));
+	aAppDebugPrintf("EGL: EGL_VERSION: '%s'", eglQueryString(a_app_egl_display, EGL_VERSION));
+	aAppDebugPrintf("EGL: EGL_VENDOR: '%s'", eglQueryString(a_app_egl_display, EGL_VENDOR));
+	aAppDebugPrintf("EGL: EGL_CLIENT_APIS: '%s'", eglQueryString(a_app_egl_display, EGL_CLIENT_APIS));
+	aAppDebugPrintf("EGL: EGL_EXTENSIONS: '%s'", eglQueryString(a_app_egl_display, EGL_EXTENSIONS));
 
 	ATTO_ASSERT(eglChooseConfig(a_app_egl_display, a__app_egl_config_attrs,
 		&config, 1, &num_config));
@@ -295,26 +454,32 @@ int main(int argc, char *argv[]) {
 	}
 #endif // ATTO_EGL
 
-	memset(&winattrs, 0, sizeof(winattrs));
-	winattrs.event_mask = KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask |
-		ExposureMask | VisibilityChangeMask | StructureNotifyMask;
-	winattrs.border_pixel = 0;
-	winattrs.bit_gravity = StaticGravity;
-	winattrs.colormap =
-		XCreateColormap(a__x11.display, RootWindow(a__x11.display, vinfo->screen), vinfo->visual, AllocNone);
-	winattrs.override_redirect = False;
+#ifdef ATTO_APP_PREINIT_FUNC
+	{
+		enumerateDisplays();
+		const AAppPreinitArgs args = {
+			.argc = argc,
+			.argv = argv,
+			.displays = a__x11.displays,
+			.displays_count = a__x11.displays_count,
+		};
+		const AAppPreinitResult result = ATTO_APP_PREINIT_FUNC(&args);
 
-	a__x11.window =
-		XCreateWindow(a__x11.display, RootWindow(a__x11.display, vinfo->screen), 0, 0, ATTO_APP_WIDTH, ATTO_APP_HEIGHT, 0,
-			vinfo->depth, InputOutput, vinfo->visual, CWBorderPixel | CWBitGravity | CWEventMask | CWColormap, &winattrs);
-	ATTO_ASSERT(a__x11.window);
+		if (result.fullscreen_display_index >= 0) {
+			const AAppDisplay *const disp = args.displays + result.fullscreen_display_index;
+			x = disp->_.x;
+			y = disp->_.y;
+			w = disp->width;
+			h = disp->height;
+			fullscreen = 1;
+			aAppDebugPrintf("Making a fullscreen window at display[%d] %s %d,%d %dx%d",
+				result.fullscreen_display_index, disp->name,
+				disp->_.x, disp->_.y, disp->width, disp->height);
+		}
+	}
+#endif
 
-	XStoreName(a__x11.display, a__x11.window, ATTO_APP_NAME);
-
-	delete_message = XInternAtom(a__x11.display, "WM_DELETE_WINDOW", True);
-	XSetWMProtocols(a__x11.display, a__x11.window, &delete_message, 1);
-
-	XMapWindow(a__x11.display, a__x11.window);
+	createWindow(vinfo, x, y, w, h, fullscreen);
 
 	XkbSetDetectableAutoRepeat(a__x11.display, True, NULL);
 
@@ -336,13 +501,11 @@ int main(int argc, char *argv[]) {
 		a__app_egl.surface, a__app_egl.context));
 #endif // !ATTO_EGL
 
-	XSelectInput(a__x11.display, a__x11.window,
-		StructureNotifyMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask);
 	a__app_state.argc = argc;
 	a__app_state.argv = (const char *const *)argv;
 	a__app_state.gl_version = AOGLV_21;
-	a__app_state.width = ATTO_APP_WIDTH;
-	a__app_state.height = ATTO_APP_HEIGHT;
+	a__app_state.width = w;
+	a__app_state.height = h;
 
 	ATTO_APP_INIT_FUNC(&a__app_proctable);
 
