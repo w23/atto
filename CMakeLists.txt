@@ -61,7 +61,7 @@ else()
 	set(ATTO_PUBLIC_LIBS OpenGL::GL)
 endif()
 
-target_include_directories(atto PUBLIC include)
+target_include_directories(atto PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 target_link_libraries(atto
 	PUBLIC ${ATTO_PUBLIC_LIBS}

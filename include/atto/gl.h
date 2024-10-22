@@ -418,6 +418,7 @@ extern char a_gl_error[];
 		X(PFNGLFRAMEBUFFERRENDERBUFFERPROC, glFramebufferRenderbuffer) \
 		X(PFNGLFRAMEBUFFERTEXTURE2DPROC, glFramebufferTexture2D) \
 		X(PFNGLGENBUFFERSPROC, glGenBuffers) \
+		X(PFNGLDELETEBUFFERSPROC, glDeleteBuffers) \
 		X(PFNGLGENERATEMIPMAPPROC, glGenerateMipmap) \
 		X(PFNGLGENFRAMEBUFFERSPROC, glGenFramebuffers) \
 		X(PFNGLGENRENDERBUFFERSPROC, glGenRenderbuffers) \
