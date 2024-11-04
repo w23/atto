@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <errno.h>
+#include <string.h> // strcmp
 
 #include "atto/app.h"
 
@@ -124,12 +125,18 @@ static uint32_t findCrtcIdForConnector(int fd, const drmModeResPtr res, const dr
 	return 0;
 }
 
+#define MAX_DISPLAYS 1
+
 static struct {
 	struct {
 		int fd;
 		drmModeModeInfo mode;
 		uint32_t crtc_id, connector_id;
 	} drm;
+	struct {
+		AAppDisplay arr[MAX_DISPLAYS];
+		int count;
+	} displays;
 	struct {
 		struct gbm_device *device;
 		struct gbm_surface *surface;
@@ -157,6 +164,35 @@ static void openKmsAndGbm(void) {
 	ATTO_ASSERT(a__kms.gbm.device);
 }
 
+static int findEdidForConnector(int fd, const drmModeConnectorPtr conn, uint8_t *out_edid /*[A_EDID_LENGTH]*/) {
+	int ret = 0;
+	for(int j = 0; j < conn->count_props && ret == 0; ++j) {
+		const uint64_t prop_value_id = conn->prop_values[j];
+
+		drmModePropertyPtr prop = drmModeGetProperty(fd, conn->props[j]);
+		if ((prop->flags & DRM_MODE_PROP_BLOB)
+				&& strcmp("EDID", prop->name) == 0) {
+			drmModePropertyBlobPtr blob = drmModeGetPropertyBlob(fd, prop_value_id);
+			if (blob) {
+				if (blob->length < A_EDID_LENGTH) {
+					ALOG("EDID has invalid length %d, should be %d", (int)blob->length, A_EDID_LENGTH);
+				} else {
+					memcpy(out_edid, blob->data, A_EDID_LENGTH);
+					ret = 1;
+				}
+				drmModeFreePropertyBlob(blob);
+			}
+		}
+
+		drmModeFreeProperty(prop);
+	} // for properties
+
+	if (!ret)
+		ALOG("No EDID property found for connector");
+
+	return ret;
+}
+
 static void findBestMode(void) {
 	drmModeResPtr res = NULL;
 	drmModeConnectorPtr conn = NULL;
@@ -176,6 +212,17 @@ static void findBestMode(void) {
 
 	a__kms.drm.crtc_id = crtc_id;
 	a__kms.drm.connector_id = conn->connector_id;
+
+	a__kms.displays.count = 1;
+	AAppDisplay *const disp = &a__kms.displays.arr[0];
+	*disp = (AAppDisplay) {
+		.name = "fixme_drm_connector",
+		.width = a__kms.drm.mode.hdisplay,
+		.height = a__kms.drm.mode.vdisplay,
+	};
+	const int has_edid = findEdidForConnector(a__kms.drm.fd, conn, disp->edid);
+
+	a__kms.displays.arr[0].flags = has_edid ? AAPP_DISPLAY_HAS_EDID : 0;
 
 	drmModeFreeConnector(conn);
 	drmModeFreeResources(res);
@@ -343,6 +390,19 @@ void a__kmsInit(struct AAppState *state) {
 	// needs: kms.fd
 	// provides: kms.mode,crtc_id,connector_id
 	findBestMode();
+
+#ifdef ATTO_APP_PREINIT_FUNC
+	{
+		const AAppPreinitArgs args = {
+			.argc = state->argc,
+			.argv = (char *const *const)state->argv,
+			.displays = a__kms.displays.arr,
+			.displays_count = a__kms.displays.count,
+		};
+		const AAppPreinitResult result = ATTO_APP_PREINIT_FUNC(&args);
+		(void)result;
+	}
+#endif
 
 	// needs: gbm.device
 	// provides: egl.display,config gbm.format
