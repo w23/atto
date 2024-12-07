@@ -122,6 +122,14 @@ typedef enum {
 	AB_WheelDown = 1 << 4
 } AButton;
 
+typedef enum {
+	AG_Stick0X,
+	AG_Stick0Y,
+	AG_Stick1X,
+	AG_Stick1Y,
+	AG_ButtonX,
+} AGamepadAxis;
+
 typedef enum { AOGLV_21, AOGLV_ES_20 } AOpenGLVersion;
 
 struct AAppState {
@@ -147,6 +155,7 @@ struct AAppProctable {
 	void (*paint)(ATimeUs ts, float dt);
 	void (*key)(ATimeUs ts, AKey key, int down);
 	void (*pointer)(ATimeUs ts, int dx, int dy, unsigned int buttons_changed_bits);
+	void (*gamepad)(ATimeUs ts, int axis, int value);
 	void (*close)(void);
 };
 

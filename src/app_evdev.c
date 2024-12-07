@@ -53,7 +53,29 @@ struct linux_dirent {
 	*/
 };
 
-void a__EvdevScan() {
+static struct A__EvdevDevice *findSlotForDevice(const char *name) {
+	struct A__EvdevDevice *slot = 0;
+	for (int i = 0; i < ATTO_EVDEV_MAX_DEVICES; ++i) {
+		struct A__EvdevDevice *const dev = a__evdev.devices + i;
+
+		// If the device is already in the table, return it
+		if (strcmp(dev->name, name) == 0)
+			return dev;
+
+		// If slot is not empty, continue
+		if (dev->fd > 0)
+			continue;
+
+		// Only set the first empty slot
+		if (!slot)
+			slot = dev;
+
+		// Continue looking for slot with the same device name
+	} /* for max devices */
+	return slot;
+}
+
+static void a__EvdevScan(void) {
 	char buffer[8192];
 	int evdir = open("/dev/input", O_RDONLY);
 	ATTO_ASSERT(evdir > 0);
@@ -82,36 +104,33 @@ void a__EvdevScan() {
 			continue;
 		}
 
-		if (d_type == DT_CHR) {
-			int idev = 0;
-			struct A__EvdevDevice *dev_empty = 0;
-			for (; idev < ATTO_EVDEV_MAX_DEVICES; ++idev) {
-				struct A__EvdevDevice *dev = a__evdev.devices + idev;
-				if (dev->fd < 0) {
-					if (!dev_empty)
-						dev_empty = dev;
-				} else if (strcmp(dev->name, dent->d_name) == 0)
-					break;
-			} /* for max devices */
+		// Skip non-char devices
+		if (d_type != DT_CHR)
+			continue;
 
-			if (idev == ATTO_EVDEV_MAX_DEVICES) {
-				ATTO_PRINT("New evdev device: %s", dent->d_name);
-				if (!dev_empty) {
-					ATTO_PRINT("Exceeded max devices %d", ATTO_EVDEV_MAX_DEVICES);
-				} else {
-					char device_name[12 + ATTO_EVDEV_DEVICE_MAX_NAME] = "/dev/input/";
-					strcpy(device_name + 11, dent->d_name);
-					dev_empty->fd = open(device_name, O_RDONLY | O_NONBLOCK);
-					if (dev_empty->fd < 0) {
-						ATTO_PRINT("Failed to open device \"%s\"", device_name);
-					} else {
-						ioctl(dev_empty->fd, EVIOCGRAB, 1);
-						strcpy(dev_empty->name, dent->d_name);
-						ATTO_PRINT("Device %s opened as fd=%d", dev_empty->name, dev_empty->fd);
-					}
-				} /* have new device slot */
-			} /* device is new */
-		} /* if a character device */
+		struct A__EvdevDevice *const slot = findSlotForDevice(dent->d_name);
+
+		if (!slot) {
+			ATTO_PRINT("Unable to add new evdev device %s: Exceeded max devices %d",
+				dent->d_name, ATTO_EVDEV_MAX_DEVICES);
+			continue;
+		}
+
+		// Skip already opened devices
+		if (slot->fd > 0)
+			continue;
+
+		char device_name[12 + ATTO_EVDEV_DEVICE_MAX_NAME] = "/dev/input/";
+		strcpy(device_name + 11, dent->d_name);
+		slot->fd = open(device_name, O_RDONLY | O_NONBLOCK);
+
+		if (slot->fd < 0) {
+			ATTO_PRINT("Failed to open device \"%s\"", device_name);
+		} else {
+			ioctl(slot->fd, EVIOCGRAB, 1);
+			strcpy(slot->name, dent->d_name);
+			ATTO_PRINT("Device %s opened as fd=%d", slot->name, slot->fd);
+		}
 	} /* for all dirents */
 }
 
@@ -122,6 +141,7 @@ void a__EvdevInit(struct AAppState *state, struct AAppProctable *proc) {
 		a__evdev.devices[i].name[0] = '\0';
 		a__evdev.devices[i].fd = -1;
 	}
+	a__EvdevScan();
 }
 
 static AKey a__evdevKey(int code) {
@@ -225,6 +245,30 @@ static void a__EvdevRead(int fd) {
 
 		ts = event.time.tv_usec + event.time.tv_sec * 1000000ull;
 
+		// FIXME care for input device type
+
+		// FIXME not correct, this can be something else, not gamepad
+		if (event.type == EV_ABS) {
+			switch (event.code) {
+				case ABS_X:
+					if (a__evdev.proc->gamepad)
+						a__evdev.proc->gamepad(ts, AG_Stick0X, event.value);
+					break;
+				case ABS_Y:
+					if (a__evdev.proc->gamepad)
+						a__evdev.proc->gamepad(ts, AG_Stick0Y, event.value);
+					break;
+				case ABS_Z:
+					if (a__evdev.proc->gamepad)
+						a__evdev.proc->gamepad(ts, AG_Stick1X, event.value);
+					break;
+				case ABS_RZ:
+					if (a__evdev.proc->gamepad)
+						a__evdev.proc->gamepad(ts, AG_Stick1Y, event.value);
+					break;
+			}
+		}
+
 		if (event.type == EV_KEY) {
 			int button = 0;
 			if (event.code == BTN_LEFT)
@@ -261,7 +305,7 @@ static void a__EvdevRead(int fd) {
 	} /* for all events */
 }
 
-void a__EvdevProcess() {
+void a__EvdevProcess(void) {
 	struct pollfd fds[ATTO_EVDEV_MAX_DEVICES];
 	int nfds = 0;
 	for (int i = 0; i < ATTO_EVDEV_MAX_DEVICES; ++i)
@@ -298,7 +342,7 @@ void a__EvdevProcess() {
 	} /* for all fds */
 }
 
-void a__EvdevClose() {
+void a__EvdevClose(void) {
 	for (int i = 0; i < ATTO_EVDEV_MAX_DEVICES; ++i)
 		if (a__evdev.devices[i].fd >= 0) {
 			close(a__evdev.devices[i].fd);

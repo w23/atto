@@ -6,7 +6,9 @@ static struct AAppProctable a__app_proctable;
 
 #ifdef ATTO_EVDEV
 #include "app_evdev.c"
-// TODO
+#define a__inputInit a__EvdevInit
+#define a__inputPoll a__EvdevProcess
+#define a__inputDestroy a__EvdevClose
 #else
 static void a__inputInit(void) {}
 static void a__inputPoll(void) {}
@@ -30,7 +32,7 @@ int main(int argc, char *argv[]) {
 	a__global_state.argv = (const char **)argv;
 
 	a__videoInit(&a__global_state);
-	a__inputInit();
+	a__inputInit(&a__global_state, &a__app_proctable);
 
 	a__global_state.gl_version = AOGLV_ES_20;
 
