@@ -384,10 +384,17 @@ static void createWindow(const XVisualInfo *vinfo, int x, int y, int w, int h, i
 		// This should have been sufficient, but no, I couldn't make it work w/o override_redirect
 		const Atom wm_state = XInternAtom (a__x11.display, "_NET_WM_STATE", True );
 		const Atom wm_fullscreen = XInternAtom (a__x11.display, "_NET_WM_STATE_FULLSCREEN", True );
-		XChangeProperty(a__x11.display, a__x11.window, wm_state, XA_ATOM, 32, PropModeReplace, (unsigned char *)&wm_fullscreen, 1);
+		if (wm_state != None && wm_fullscreen != None) {
+			XChangeProperty(a__x11.display, a__x11.window, wm_state, XA_ATOM, 32, PropModeReplace, (unsigned char *)&wm_fullscreen, 1);
+		}
 
 		// TODO const Atom wm_fullscreen_monitors = XInternAtom (a__x11.display, "_NET_WM_FULLSCREEN_MONITORS", True );
-		// TODO const Atom wm_bypass_compositor = XInternAtom (a__x11.display, "_NET_WM_BYPASS_COMPOSITOR", True );
+
+		const Atom wm_bypass_compositor = XInternAtom (a__x11.display, "_NET_WM_BYPASS_COMPOSITOR", True );
+		if (wm_bypass_compositor != None) {
+			const unsigned long bypass = 1;
+			XChangeProperty(a__x11.display, a__x11.window, wm_bypass_compositor, XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&bypass, 1);
+		}
 	}
 
 	XStoreName(a__x11.display, a__x11.window, ATTO_APP_NAME);
