@@ -238,6 +238,7 @@ static void a__EvdevRead(int fd) {
 		const ssize_t rd = read(fd, &event, sizeof event);
 		if (rd < (ssize_t)sizeof event)
 			break;
+
 		/*
 		ATTO_PRINT("%ld.%ld %d %d %d", event.time.tv_sec, event.time.tv_usec,
 				event.type, event.code, event.value);
@@ -266,6 +267,14 @@ static void a__EvdevRead(int fd) {
 					if (a__evdev.proc->gamepad)
 						a__evdev.proc->gamepad(ts, AG_Stick1Y, event.value);
 					break;
+				case ABS_HAT0X:
+					if (a__evdev.proc->gamepad)
+						a__evdev.proc->gamepad(ts, AG_Pad0X, event.value);
+					break;
+				case ABS_HAT0Y:
+					if (a__evdev.proc->gamepad)
+						a__evdev.proc->gamepad(ts, AG_Pad0Y, event.value);
+					break;
 			}
 		}
 
@@ -277,6 +286,17 @@ static void a__EvdevRead(int fd) {
 				button = AB_Right;
 			else if (event.code == BTN_MIDDLE)
 				button = AB_Middle;
+
+			switch (event.code) {
+				case BTN_A:
+					if (a__evdev.proc->gamepad) a__evdev.proc->gamepad(ts, AG_ButtonA, event.value); break;
+				case BTN_B:
+					if (a__evdev.proc->gamepad) a__evdev.proc->gamepad(ts, AG_ButtonB, event.value); break;
+				case BTN_X:
+					if (a__evdev.proc->gamepad) a__evdev.proc->gamepad(ts, AG_ButtonX, event.value); break;
+				case BTN_Y:
+					if (a__evdev.proc->gamepad) a__evdev.proc->gamepad(ts, AG_ButtonY, event.value); break;
+			}
 
 			if (button) {
 				if (event.value)

@@ -127,7 +127,12 @@ typedef enum {
 	AG_Stick0Y,
 	AG_Stick1X,
 	AG_Stick1Y,
+	AG_Pad0X,
+	AG_Pad0Y,
+	AG_ButtonA,
+	AG_ButtonB,
 	AG_ButtonX,
+	AG_ButtonY,
 } AGamepadAxis;
 
 typedef enum { AOGLV_21, AOGLV_ES_20 } AOpenGLVersion;
