@@ -183,7 +183,7 @@ void ATTO_APP_INIT_FUNC(struct AAppProctable *proctable);
 enum {
 	AAPP_DISPLAY_HAS_EDID = (1<<0),
 };
-typedef struct {
+typedef struct AAppDisplay {
 	const char *name;
 
 	/* Current or preferred mode */
@@ -198,7 +198,7 @@ typedef struct {
 	} _;
 } AAppDisplay;
 
-typedef struct {
+typedef struct AAppPreinitArgs {
 	int argc;
 	char *const *const argv;
 	const AAppDisplay *displays;
@@ -207,11 +207,11 @@ typedef struct {
 	/* TODO (W)(E)GL(X) visuals */
 } AAppPreinitArgs;
 
-typedef struct {
+typedef struct AAppPreinitResult {
 	/* return -1 for no fullscreen display */
 	int fullscreen_display_index;
 
-	/* TODO visual index */
+	/* TODO visual index, etc etc */
 } AAppPreinitResult;
 extern AAppPreinitResult ATTO_APP_PREINIT_FUNC(const AAppPreinitArgs* args);
 #endif
