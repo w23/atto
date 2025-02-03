@@ -77,7 +77,7 @@ static struct A__EvdevDevice *findSlotForDevice(const char *name) {
 
 static void a__EvdevScan(void) {
 	char buffer[8192];
-	int evdir = open("/dev/input", O_RDONLY);
+	const int evdir = open("/dev/input", O_RDONLY);
 	ATTO_ASSERT(evdir > 0);
 	const long bytes = syscall(SYS_getdents, evdir, buffer, sizeof buffer);
 	close(evdir);
@@ -289,13 +289,17 @@ static void a__EvdevRead(int fd) {
 
 			switch (event.code) {
 				case BTN_A:
-					if (a__evdev.proc->gamepad) a__evdev.proc->gamepad(ts, AG_ButtonA, event.value); break;
+					if (a__evdev.proc->gamepad) a__evdev.proc->gamepad(ts, AG_ButtonA, event.value);
+					break;
 				case BTN_B:
-					if (a__evdev.proc->gamepad) a__evdev.proc->gamepad(ts, AG_ButtonB, event.value); break;
+					if (a__evdev.proc->gamepad) a__evdev.proc->gamepad(ts, AG_ButtonB, event.value);
+					break;
 				case BTN_X:
-					if (a__evdev.proc->gamepad) a__evdev.proc->gamepad(ts, AG_ButtonX, event.value); break;
+					if (a__evdev.proc->gamepad) a__evdev.proc->gamepad(ts, AG_ButtonX, event.value);
+					break;
 				case BTN_Y:
-					if (a__evdev.proc->gamepad) a__evdev.proc->gamepad(ts, AG_ButtonY, event.value); break;
+					if (a__evdev.proc->gamepad) a__evdev.proc->gamepad(ts, AG_ButtonY, event.value);
+					break;
 			}
 
 			if (button) {
@@ -326,6 +330,18 @@ static void a__EvdevRead(int fd) {
 }
 
 void a__EvdevProcess(void) {
+	// Scan evdev devices every 5 seconds
+	{
+		static ATimeUs last_scan = 0;
+		const ATimeUs now = aAppTime();
+		const ATimeUs delta = now - last_scan;
+		if (last_scan == 0 || delta > 5000000) {
+			ATTO_PRINT("evdev scan %ums", delta/1000);
+			a__EvdevScan();
+			last_scan = now;
+		}
+	}
+
 	struct pollfd fds[ATTO_EVDEV_MAX_DEVICES];
 	int nfds = 0;
 	for (int i = 0; i < ATTO_EVDEV_MAX_DEVICES; ++i)
@@ -335,7 +351,7 @@ void a__EvdevProcess(void) {
 			++nfds;
 		}
 
-	int events = poll(fds, nfds, 0);
+	const int events = poll(fds, nfds, 0);
 	if (events == 0)
 		return;
 	if (events < 0) {
