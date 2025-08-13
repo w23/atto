@@ -135,10 +135,15 @@ struct AAppState {
 		unsigned int buttons;
 	} pointer;
 	int grabbed;
+	int redraw;
 };
 
 /* hide cursor, pin mouse to window center and report only delta */
 void aAppGrabInput(int grab);
+
+// App redraws indefinitely by default.
+// Call this with redraw=0 on each frame to stop auto-redraw on vsync.
+void aAppRedraw(int redraw);
 
 extern const struct AAppState *a_app_state;
 
