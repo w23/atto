@@ -16,11 +16,12 @@
 #define GL_GLEXT_PROTOTYPES 1
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <X11/Xatom.h>
 #include <X11/XKBlib.h>
 #include <X11/extensions/Xfixes.h>
-#ifdef ATTO_APP_PREINIT_FUNC
+#include <X11/extensions/XKBstr.h>
+#ifdef ATTO_APP_DISPLAY
 #include <X11/extensions/Xrandr.h>
-#include <X11/Xatom.h>
 #include <stdio.h> // snprintf()
 #include <fcntl.h> // open()
 #include <unistd.h> // close()
@@ -53,8 +54,10 @@ static struct {
 	GLXContext context;
 #endif
 
+#ifdef ATTO_APP_DISPLAY
 	AAppDisplay displays[A__X11_MAX_DISPLAYS];
 	int displays_count;
+#endif
 } a__x11;
 
 static void a__appProcessXKeyEvent(XEvent *e) {
@@ -253,6 +256,7 @@ static const EGLint a__app_egl_context_attrs[] = {
 EGLDisplay a_app_egl_display;
 #endif
 
+#ifdef ATTO_APP_DISPLAY
 static int hackReadEdidFromSysfs(const char *connector, unsigned char edid[A_EDID_LENGTH]) {
 	aAppDebugPrintf("No native Xrandr EDID found, trying to find it in sysfs manually...");
 	/* Note that trying to guess GPU by reading /proc/self/fd* wouldn't work, as that would be just a render node, not kms */
@@ -355,6 +359,7 @@ static void enumerateDisplays(void) {
 		XRRFreeScreenResources(screen_res);
 	}
 }
+#endif
 
 static void createWindow(const XVisualInfo *vinfo, int x, int y, int w, int h, int fullscreen) {
 	XSetWindowAttributes winattrs = {
@@ -380,6 +385,7 @@ static void createWindow(const XVisualInfo *vinfo, int x, int y, int w, int h, i
 			0, vinfo->depth, InputOutput, vinfo->visual, attrs_mask, &winattrs);
 	ATTO_ASSERT(a__x11.window);
 
+#ifdef ATTO_APP_DISPLAY
 	if (fullscreen) {
 		// This should have been sufficient, but no, I couldn't make it work w/o override_redirect
 		const Atom wm_state = XInternAtom (a__x11.display, "_NET_WM_STATE", True );
@@ -396,6 +402,7 @@ static void createWindow(const XVisualInfo *vinfo, int x, int y, int w, int h, i
 			XChangeProperty(a__x11.display, a__x11.window, wm_bypass_compositor, XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&bypass, 1);
 		}
 	}
+#endif
 
 	XStoreName(a__x11.display, a__x11.window, ATTO_APP_NAME);
 

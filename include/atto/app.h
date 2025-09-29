@@ -163,8 +163,13 @@ struct AAppProctable {
  */
 void ATTO_APP_INIT_FUNC(struct AAppProctable *proctable);
 
-#define ATTO_APP_PREINIT_FUNC attoAppPreInit
-#ifdef ATTO_APP_PREINIT_FUNC
+#ifdef ATTO_APP_DISPLAY
+#ifndef ATTO_APP_PREINIT_FUNC
+#error Display support does not make sense without preinit func
+#endif
+#endif
+
+#ifdef ATTO_APP_DISPLAY
 #define A_EDID_LENGTH 128
 enum {
 	AAPP_DISPLAY_HAS_EDID = (1<<0),
@@ -183,7 +188,9 @@ typedef struct {
 		int x, y;
 	} _;
 } AAppDisplay;
+#endif
 
+#ifdef ATTO_APP_PREINIT_FUNC
 typedef struct {
 	int argc;
 	char *const *const argv;
