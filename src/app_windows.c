@@ -56,8 +56,10 @@ static struct {
 		long x, y;
 	} rawMouse;
 
+#ifdef ATTO_APP_DISPLAYS
 	int displays_count;
 	AAppDisplay displays[A__MAX_DISPLAYS];
+#endif
 } g;
 
 ATimeUs aAppTime(void) {
@@ -97,6 +99,7 @@ static void printError(const char *msg, DWORD error) {
 
 #define printLastError(msg) printError(msg, GetLastError())
 
+#ifdef ATTO_APP_DISPLAYS
 static void printDisplayDevice(const char *prefix, const DISPLAY_DEVICE *dd) {
 	aAppDebugPrintf("%sDeviceName: %s", prefix, dd->DeviceName);
 	aAppDebugPrintf("%sDeviceString: %s", prefix, dd->DeviceString);
@@ -326,6 +329,7 @@ static BOOL CALLBACK monitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT l
 static void enumerateDisplays(void) {
 	EnumDisplayMonitors(NULL, NULL, monitorEnumProc, 0);
 }
+#endif //ifdef ATTO_APP_DISPLAYS
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
 	ATimeUs last_paint = 0;
