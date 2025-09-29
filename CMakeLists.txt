@@ -44,6 +44,15 @@ endif()
 
 add_library(atto STATIC ${ATTO_SOURCES})
 
+if (WIN32)
+	# TODO make optional, for displays/fullscreen support only
+	target_link_libraries(atto
+		PRIVATE
+			setupapi # setupapi.h, SetupDi*
+			shcore # shellscalingapi.h, GetDpiForMonitor
+	)
+endif()
+
 if (ATTO_APP_GLES)
 	set(ATTO_DEFS ${ATTO_DEFS} ATTO_GLES)
 	set(OPENGL_USE_GLES2 YES)
