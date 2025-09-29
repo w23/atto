@@ -122,6 +122,19 @@ typedef enum {
 	AB_WheelDown = 1 << 4
 } AButton;
 
+typedef enum {
+	AG_Stick0X,
+	AG_Stick0Y,
+	AG_Stick1X,
+	AG_Stick1Y,
+	AG_Pad0X,
+	AG_Pad0Y,
+	AG_ButtonA,
+	AG_ButtonB,
+	AG_ButtonX,
+	AG_ButtonY,
+} AGamepadAxis;
+
 typedef enum { AOGLV_21, AOGLV_ES_20 } AOpenGLVersion;
 
 struct AAppState {
@@ -147,6 +160,7 @@ struct AAppProctable {
 	void (*paint)(ATimeUs ts, float dt);
 	void (*key)(ATimeUs ts, AKey key, int down);
 	void (*pointer)(ATimeUs ts, int dx, int dy, unsigned int buttons_changed_bits);
+	void (*gamepad)(ATimeUs ts, int axis, int value);
 	void (*close)(void);
 };
 
@@ -174,7 +188,7 @@ void ATTO_APP_INIT_FUNC(struct AAppProctable *proctable);
 enum {
 	AAPP_DISPLAY_HAS_EDID = (1<<0),
 };
-typedef struct {
+typedef struct AAppDisplay {
 	const char *name;
 
 	/* Current or preferred mode */
@@ -191,7 +205,7 @@ typedef struct {
 #endif
 
 #ifdef ATTO_APP_PREINIT_FUNC
-typedef struct {
+typedef struct AAppPreinitArgs {
 	int argc;
 	char *const *const argv;
 	const AAppDisplay *displays;
@@ -200,11 +214,11 @@ typedef struct {
 	/* TODO (W)(E)GL(X) visuals */
 } AAppPreinitArgs;
 
-typedef struct {
+typedef struct AAppPreinitResult {
 	/* return -1 for no fullscreen display */
 	int fullscreen_display_index;
 
-	/* TODO visual index */
+	/* TODO visual index, etc etc */
 } AAppPreinitResult;
 extern AAppPreinitResult ATTO_APP_PREINIT_FUNC(const AAppPreinitArgs* args);
 #endif

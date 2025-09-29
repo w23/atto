@@ -429,6 +429,9 @@ int main(int argc, char *argv[]) {
 	int x = 0, y = 0, w = ATTO_APP_WIDTH, h = ATTO_APP_HEIGHT;
 	int fullscreen = 0;
 
+	a__app_state.argc = argc;
+	a__app_state.argv = (const char *const *)argv;
+
 	ATTO_ASSERT(a__x11.display = XOpenDisplay(NULL));
 
 #ifndef ATTO_EGL
@@ -515,8 +518,6 @@ int main(int argc, char *argv[]) {
 		a__app_egl.surface, a__app_egl.context));
 #endif // !ATTO_EGL
 
-	a__app_state.argc = argc;
-	a__app_state.argv = (const char *const *)argv;
 	a__app_state.gl_version = AOGLV_21;
 	a__app_state.width = w;
 	a__app_state.height = h;

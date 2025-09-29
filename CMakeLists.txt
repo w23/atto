@@ -19,7 +19,9 @@ elseif(CMAKE_SYSTEM_NAME MATCHES ".*Linux")
 		# TODO OpenGL flavor selection
 		set(ATTO_APP_GLES YES)
 
-		set(ATTO_DEFS ${ATTO_DEFS} ATTO_KMS)
+		#set(ATTO_APP_EVDEV YES)
+
+		set(ATTO_DEFS ${ATTO_DEFS} ATTO_KMS ATTO_EVDEV)
 		set(ATTO_SOURCES ${ATTO_SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/src/app_main.c)
 
 		find_package(PkgConfig REQUIRED)
