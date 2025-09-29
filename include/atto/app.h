@@ -163,6 +163,52 @@ struct AAppProctable {
  */
 void ATTO_APP_INIT_FUNC(struct AAppProctable *proctable);
 
+#ifdef ATTO_APP_DISPLAY
+#ifndef ATTO_APP_PREINIT_FUNC
+#error Display support does not make sense without preinit func
+#endif
+#endif
+
+#ifdef ATTO_APP_DISPLAY
+#define A_EDID_LENGTH 128
+enum {
+	AAPP_DISPLAY_HAS_EDID = (1<<0),
+};
+typedef struct {
+	const char *name;
+
+	/* Current or preferred mode */
+	int width, height;
+
+	unsigned int flags;
+	unsigned char edid[A_EDID_LENGTH];
+
+	/* private, do not use */
+	struct {
+		int x, y;
+	} _;
+} AAppDisplay;
+#endif
+
+#ifdef ATTO_APP_PREINIT_FUNC
+typedef struct {
+	int argc;
+	char *const *const argv;
+	const AAppDisplay *displays;
+	int displays_count;
+
+	/* TODO (W)(E)GL(X) visuals */
+} AAppPreinitArgs;
+
+typedef struct {
+	/* return -1 for no fullscreen display */
+	int fullscreen_display_index;
+
+	/* TODO visual index */
+} AAppPreinitResult;
+extern AAppPreinitResult ATTO_APP_PREINIT_FUNC(const AAppPreinitArgs* args);
+#endif
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

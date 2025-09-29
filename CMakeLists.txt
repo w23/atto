@@ -33,6 +33,7 @@ elseif(CMAKE_SYSTEM_NAME MATCHES ".*Linux")
 			${X11_LIBRARIES}
 			${X11_Xext_LIB}
 			${X11_Xfixes_LIB}
+			${X11_Xrandr_LIB}
 			)
 		set(ATTO_SOURCES ${ATTO_SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/src/app_x11.c)
 	endif()
@@ -42,6 +43,15 @@ else()
 endif()
 
 add_library(atto STATIC ${ATTO_SOURCES})
+
+if (WIN32)
+	# TODO make optional, for displays/fullscreen support only
+	target_link_libraries(atto
+		PRIVATE
+			setupapi # setupapi.h, SetupDi*
+			shcore # shellscalingapi.h, GetDpiForMonitor
+	)
+endif()
 
 if (ATTO_APP_GLES)
 	set(ATTO_DEFS ${ATTO_DEFS} ATTO_GLES)
@@ -60,7 +70,7 @@ else()
 	set(ATTO_PUBLIC_LIBS OpenGL::GL)
 endif()
 
-target_include_directories(atto PUBLIC include)
+target_include_directories(atto PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 target_link_libraries(atto
 	PUBLIC ${ATTO_PUBLIC_LIBS}
