@@ -168,6 +168,7 @@ static void openKmsAndGbm(void) {
 	ATTO_ASSERT(a__kms.gbm.device);
 }
 
+#ifdef ATTO_APP_DISPLAYS
 static int findEdidForConnector(int fd, const drmModeConnectorPtr conn, uint8_t *out_edid /*[A_EDID_LENGTH]*/) {
 	int ret = 0;
 	for(int j = 0; j < conn->count_props && ret == 0; ++j) {
@@ -196,6 +197,7 @@ static int findEdidForConnector(int fd, const drmModeConnectorPtr conn, uint8_t 
 
 	return ret;
 }
+#endif
 
 static void findBestMode(void) {
 	drmModeResPtr res = NULL;
