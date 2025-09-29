@@ -133,10 +133,14 @@ static struct {
 		drmModeModeInfo mode;
 		uint32_t crtc_id, connector_id;
 	} drm;
+
+#ifdef ATTO_APP_DISPLAYS
 	struct {
 		AAppDisplay arr[MAX_DISPLAYS];
 		int count;
 	} displays;
+#endif
+
 	struct {
 		struct gbm_device *device;
 		struct gbm_surface *surface;
@@ -213,6 +217,7 @@ static void findBestMode(void) {
 	a__kms.drm.crtc_id = crtc_id;
 	a__kms.drm.connector_id = conn->connector_id;
 
+#ifdef ATTO_APP_DISPLAYS
 	a__kms.displays.count = 1;
 	AAppDisplay *const disp = &a__kms.displays.arr[0];
 	*disp = (AAppDisplay) {
@@ -223,6 +228,7 @@ static void findBestMode(void) {
 	const int has_edid = findEdidForConnector(a__kms.drm.fd, conn, disp->edid);
 
 	a__kms.displays.arr[0].flags = has_edid ? AAPP_DISPLAY_HAS_EDID : 0;
+#endif
 
 	drmModeFreeConnector(conn);
 	drmModeFreeResources(res);
