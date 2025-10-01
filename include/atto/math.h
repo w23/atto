@@ -267,6 +267,11 @@ static inline AMat4f aMat4fTranslation(AVec3f t) {
 	return m;
 }
 
+static inline AMat4f aMat4fScale(AVec3f t) {
+	const AMat4f m = {aVec4f(t.x, 0, 0, 0), aVec4f(0, t.y, 0, 0), aVec4f(0, 0, t.z, 0), aVec4f(0, 0, 0, 1)};
+	return m;
+}
+
 static inline AMat4f aMat4f3(AMat3f o, AVec3f t) {
 	const AMat4f m = {aVec4f3(o.X, 0), aVec4f3(o.Y, 0), aVec4f3(o.Z, 0), aVec4f3(t, 1)};
 	return m;
