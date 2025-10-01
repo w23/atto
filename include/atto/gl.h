@@ -500,7 +500,16 @@ extern "C" {
 
 #ifndef ATTO_GL_DEBUG
 	#define AGL__CALL(f) (f)
+  #define AGL__CHECK_ERROR(f)
 #else
+  #define AGL__CHECK_ERROR(f) \
+	do { \
+		const GLenum glerror = glGetError(); \
+		if (glerror != GL_NO_ERROR) { \
+			a__GlPrintError(__FILE__ ":" ATTO__GL_STR(__LINE__) ": " #f " returned ", glerror); \
+			abort(); \
+		} \
+	} while(0)
 	#include <stdlib.h> /* abort() */
 static void a__GlPrintError(const char *message, GLenum error) {
 	const char *errstr = "UNKNOWN";
@@ -1155,15 +1164,18 @@ void aGLClear(const AGLClearParams *params, const AGLDrawTarget *target) {
 static GLuint a__GLCreateShader(int type, const char *const *source) {
 	int n;
 	GLuint shader = glCreateShader(type);
+	AGL__CHECK_ERROR(glCreateShader);
+	if (shader == 0)
+		return 0;
 
-	for (n = 0; source[n] != 0; ++n)
-		;
+	// Count how many sources it has
+	for (n = 0; source[n] != 0; ++n);
 
 	AGL__CALL(glShaderSource(shader, n, (const GLchar **)source, 0));
 	AGL__CALL(glCompileShader(shader));
 
 	{
-		GLint status;
+		GLint status = 0;
 		AGL__CALL(glGetShaderiv(shader, GL_COMPILE_STATUS, &status));
 		if (status != GL_TRUE) {
 			AGL__CALL(glGetShaderInfoLog(shader, sizeof(a_gl_error), 0, a_gl_error));
