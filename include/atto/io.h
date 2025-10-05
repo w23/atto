@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-int aIoFileRead(const char *filename, void *buffer, int size);
+int aIoFileReadInto(const char *filename, void *buffer, int size);
 int aIoFileWrite(const char *filename, void *buffer, int size);
 
 struct Aio_monitor_t;
@@ -36,16 +36,16 @@ void aIoMonitorClose(struct Aio_monitor_t *monitor);
 #endif
 
 #ifdef ATTO_PLATFORM_POSIX
-	#include <sys/types.h>
-	#include <sys/stat.h>
-	#include <fcntl.h>
-	#include <unistd.h>
-
-	#ifdef __cplusplus
+#ifdef __cplusplus
 extern "C" {
-	#endif
+#endif
 
-int aIoFileRead(const char *filename, void *buffer, int size) {
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+int aIoFileReadInto(const char *filename, void *buffer, int size) {
 	int fd;
 	ssize_t rd;
 
@@ -74,10 +74,12 @@ int aIoFileWrite(const char *filename, void *buffer, int size) {
 #endif
 
 #ifdef ATTO_PLATFORM_LINUX
-	#include <sys/inotify.h>
-	#include <limits.h>
-	#include <stdlib.h>
-	#include <string.h>
+#include <linux/limits.h> // NAME_MAX
+#include <sys/inotify.h>
+#include <limits.h>
+#include <stdlib.h>
+#include <string.h>
+
 static int a__io_inotifyfd = -1;
 
 struct Aio_monitor_t {
@@ -88,7 +90,7 @@ struct Aio_monitor_t {
 
 struct Aio_monitor_t Aio_monitors[ATTO_IO_MONITORS_MAX];
 
-Aio_monitor_t *aIoMonitorOpen(const char *filename) {
+struct Aio_monitor_t *aIoMonitorOpen(const char *filename) {
 	int i;
 	if (a__io_inotifyfd < 0) {
 		memset(Aio_monitors, 0, sizeof(Aio_monitors));
@@ -107,7 +109,7 @@ Aio_monitor_t *aIoMonitorOpen(const char *filename) {
 	return NULL;
 }
 
-int aIoMonitorCheck(Aio_monitor_t *m) {
+int aIoMonitorCheck(struct Aio_monitor_t *m) {
 	char buffer[sizeof(struct inotify_event) + NAME_MAX + 1];
 	const struct inotify_event *e = (const struct inotify_event *)buffer;
 	int retval;
@@ -150,7 +152,7 @@ int aIoMonitorCheck(Aio_monitor_t *m) {
 	return retval;
 }
 
-void aIoMonitorClose(Aio_monitor_t *m) {
+void aIoMonitorClose(struct Aio_monitor_t *m) {
 	if (!m)
 		return;
 
@@ -166,7 +168,7 @@ void aIoMonitorClose(Aio_monitor_t *m) {
 #elif defined(ATTO_PLATFORM_WINDOWS)
 	#include <shellapi.h>
 
-int aIoFileRead(const char *filename, void *buffer, int size) {
+int aIoFileReadInto(const char *filename, void *buffer, int size) {
 	WCHAR *wfilename = utf8_to_wchar(filename, -1, NULL);
 	HANDLE h = CreateFile(wfilename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (h == INVALID_HANDLE_VALUE)
