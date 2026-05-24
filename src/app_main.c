@@ -1,4 +1,5 @@
 #include "atto/app.h"
+#include <stdlib.h> // exit()
 
 static struct AAppState a__global_state;
 const struct AAppState *a_app_state = &a__global_state;
@@ -10,7 +11,7 @@ static struct AAppProctable a__app_proctable;
 #define a__inputPoll a__EvdevProcess
 #define a__inputDestroy a__EvdevClose
 #else
-static void a__inputInit(void) {}
+static void a__inputInit(struct AAppState *state, struct AAppProctable *proctable) { (void)state; (void)proctable; }
 static void a__inputPoll(void) {}
 static void a__inputDestroy(void) {}
 #endif
@@ -42,6 +43,19 @@ int main(int argc, char *argv[]) {
 	a__inputInit(&a__global_state, &a__app_proctable);
 
 	a__global_state.gl_version = AOGLV_ES_20;
+
+	// Pre-init (arg parsing, device selection)
+	#ifdef ATTO_APP_PREINIT_FUNC
+	{
+		AAppPreinitResult preinit = ATTO_APP_PREINIT_FUNC(&(AAppPreinitArgs){
+			.displays = NULL,
+			.displays_count = 0,
+			.argc = argc,
+			.argv = argv,
+		});
+		(void)preinit;
+	}
+	#endif
 
 	ATimeUs timestamp = aAppTime();
 	ATTO_APP_INIT_FUNC(&a__app_proctable);
