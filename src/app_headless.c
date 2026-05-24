@@ -2,7 +2,6 @@
 #include <EGL/eglext.h>
 
 #include "atto/app.h"
-#include "atto/gl.h"
 
 #ifndef COUNTOF
 #define COUNTOF(a) (sizeof(a)/sizeof(*(a)))
@@ -71,10 +70,9 @@ void a__headlessInit(struct AAppState *state) {
 	state->width = 1920;
 	state->height = 1080;
 
-	// TODO enums for GLES3
+	// aoGLVersion enum only has ES20/21; KMS also sets ES20 despite GLES3.
+	// The real GL version comes from context creation attrs above.
 	state->gl_version = AOGLV_ES_20;
-
-	aGLInit();
 }
 
 void a__headlessSwap(void) {
