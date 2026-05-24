@@ -22,6 +22,13 @@ static void a__inputDestroy(void) {}
 #define a__videoDestroy a__kmsDestroy
 #endif
 
+#ifdef ATTO_HEADLESS
+#include "app_headless.c"
+#define a__videoInit a__headlessInit
+#define a__videoSwap a__headlessSwap
+#define a__videoDestroy a__headlessDestroy
+#endif
+
 static void deinit(void) {
 	a__inputDestroy();
 	a__videoDestroy();

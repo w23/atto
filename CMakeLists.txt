@@ -3,6 +3,9 @@ project(atto C)
 
 set(OpenGL_GL_PREFERENCE GLVND)
 
+# allow setting option() variables in other, prior cmake files, e.g. toolchain
+cmake_policy(SET CMP0077 NEW)
+
 if(WIN32)
 	set(ATTO_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/app_windows.c)
 elseif(CMAKE_SYSTEM_NAME MATCHES ".*Linux")
@@ -28,6 +31,12 @@ elseif(CMAKE_SYSTEM_NAME MATCHES ".*Linux")
 		pkg_check_modules(libdrm REQUIRED IMPORTED_TARGET libdrm)
 		pkg_check_modules(gbm REQUIRED IMPORTED_TARGET gbm)
 		set(ATTO_PRIVATE_LIBS ${ATTO_PRIVATE_LIBS} PkgConfig::libdrm PkgConfig::gbm)
+	elseif(ATTO_APP_HEADLESS)
+		# Surfaceless EGL — no display, no GBM, no DRM needed
+		set(ATTO_APP_EGL YES)
+		set(ATTO_APP_GLES YES)
+		set(ATTO_DEFS ${ATTO_DEFS} ATTO_HEADLESS)
+		set(ATTO_SOURCES ${ATTO_SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/src/app_main.c)
 	else()
 		find_package(X11 REQUIRED)
 		set(ATTO_PRIVATE_LIBS
