@@ -1,7 +1,7 @@
 #ifndef ATTO_PLATFORM
 #define ATTO_PLATFORM
 
-#ifdef __linux__
+#if defined(__linux__)
 	#define ATTO_PLATFORM_POSIX
 	#define ATTO_PLATFORM_LINUX
 	#ifndef ATTO_PLATFORM_RPI

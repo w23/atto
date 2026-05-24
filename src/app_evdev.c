@@ -79,7 +79,11 @@ static void a__EvdevScan(void) {
 	char buffer[8192];
 	const int evdir = open("/dev/input", O_RDONLY);
 	ATTO_ASSERT(evdir > 0);
+#ifdef SYS_getdents64
+	const long bytes = syscall(SYS_getdents64, evdir, buffer, sizeof buffer);
+#else
 	const long bytes = syscall(SYS_getdents, evdir, buffer, sizeof buffer);
+#endif
 	close(evdir);
 
 	for (long i = 0; i + (long)sizeof(struct linux_dirent) < bytes;) {
