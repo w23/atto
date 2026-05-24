@@ -225,7 +225,32 @@ static void resize(ATimeUs timestamp, unsigned int old_w, unsigned int old_h) {
 	g.fb.viewport.h = a_app_state->height;
 }
 
+static struct {
+	ATimeUs time;
+	float dt, min_dt, max_dt;
+	int frames;
+} fps = {0, 0, 0, 0, 0};
+static void profile(ATimeUs timestamp, float dt) {
+	fps.dt += dt;
+	fps.min_dt = (fps.min_dt > dt || !fps.min_dt) ? dt : fps.min_dt;
+	fps.max_dt = (fps.max_dt < dt) ? dt : fps.max_dt;
+	++fps.frames;
+	if (timestamp - fps.time > 1000000) {
+		float sec = (timestamp - fps.time) * 1e-6f;
+		aAppDebugPrintf(
+			"%s[%u]: elapsed: %.2fs, frames = %d, "
+			"min_dt = %.2fms, avg_dt = %.2fms, max_dt = %.2fms, avg_fps = %.2f",
+			__func__, timestamp, sec, fps.frames, fps.min_dt * 1e3, fps.dt * 1e3 / fps.frames, fps.max_dt * 1e3,
+			fps.frames / sec);
+		fps.frames = 0;
+		fps.min_dt = fps.dt = fps.max_dt = 0;
+		fps.time = timestamp;
+	}
+}
+
 static void paint(ATimeUs timestamp, float dt) {
+	profile(timestamp, dt);
+
 	const float t = timestamp * 1e-6f;
 	(void)(dt);
 
