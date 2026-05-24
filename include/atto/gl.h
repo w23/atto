@@ -40,6 +40,19 @@
 		#include <OpenGL/gl3.h>
 		#define ATTO_GL_DESKTOP
 	#endif
+
+#ifdef ATTO_PLATFORM_ANDROID
+#include <GLES3/gl3.h>
+#define GL_GLEXT_PROTOTYPES 1
+#include <GLES3/gl3ext.h>
+#endif
+
+#ifdef ATTO_GLES
+#include <stddef.h>
+#include <GLES3/gl3.h>
+#define GL_GLEXT_PROTOTYPES 1
+#include <GLES3/gl3ext.h>
+#endif
 #endif /* if !defined(ATTO_GL_HEADERS_INCLUDED) */
 
 /* \todo
@@ -500,9 +513,9 @@ extern "C" {
 
 #ifndef ATTO_GL_DEBUG
 	#define AGL__CALL(f) (f)
-  #define AGL__CHECK_ERROR(f)
+	#define AGL__CHECK_ERROR(f)
 #else
-  #define AGL__CHECK_ERROR(f) \
+	#define AGL__CHECK_ERROR(f) \
 	do { \
 		const GLenum glerror = glGetError(); \
 		if (glerror != GL_NO_ERROR) { \
