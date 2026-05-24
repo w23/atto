@@ -27,10 +27,14 @@ elseif(CMAKE_SYSTEM_NAME MATCHES ".*Linux")
 		set(ATTO_DEFS ${ATTO_DEFS} ATTO_KMS ATTO_EVDEV)
 		set(ATTO_SOURCES ${ATTO_SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/src/app_main.c)
 
-		find_package(PkgConfig REQUIRED)
-		pkg_check_modules(libdrm REQUIRED IMPORTED_TARGET libdrm)
-		pkg_check_modules(gbm REQUIRED IMPORTED_TARGET gbm)
-		set(ATTO_PRIVATE_LIBS ${ATTO_PRIVATE_LIBS} PkgConfig::libdrm PkgConfig::gbm)
+		if (ATTO_TOOLCHAIN_LIBS)
+			set(ATTO_PRIVATE_LIBS ${ATTO_PRIVATE_LIBS} LibDrm LibGbm)
+		else()
+			find_package(PkgConfig REQUIRED)
+			pkg_check_modules(libdrm REQUIRED IMPORTED_TARGET libdrm)
+			pkg_check_modules(gbm REQUIRED IMPORTED_TARGET gbm)
+			set(ATTO_PRIVATE_LIBS ${ATTO_PRIVATE_LIBS} PkgConfig::libdrm PkgConfig::gbm)
+		endif()
 	elseif(ATTO_APP_HEADLESS)
 		# Surfaceless EGL — no display, no GBM, no DRM needed
 		set(ATTO_APP_EGL YES)
@@ -55,6 +59,10 @@ endif()
 
 add_library(atto STATIC ${ATTO_SOURCES})
 
+if (ATTO_PLATFORM_RPI)
+	target_compile_definitions(atto PUBLIC ATTO_PLATFORM_RPI=1)
+endif()
+
 if (WIN32)
 	# TODO make optional, for displays/fullscreen support only
 	target_link_libraries(atto
@@ -72,8 +80,12 @@ endif()
 if (ATTO_APP_EGL)
 	target_compile_definitions(atto PUBLIC ${ATTO_DEFS} ATTO_EGL)
 
+	if (ATTO_TOOLCHAIN_LIBS)
+	else()
+		find_package(OpenGL REQUIRED EGL)
+	endif()
+
 	set(OPENGL_USE_EGL YES)
-	find_package(OpenGL REQUIRED EGL)
 	set(ATTO_PUBLIC_LIBS ${ATTO_PUBLIC_LIBS} OpenGL::GL)
 	set(ATTO_PRIVATE_LIBS ${ATTO_PRIVATE_LIBS} OpenGL::EGL)
 else()
