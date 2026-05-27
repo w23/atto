@@ -527,8 +527,9 @@ int main(int argc, char *argv[]) {
 	if (a__app_proctable.resize)
 		a__app_proctable.resize(timestamp, 0, 0);
 
+	a__app_state.redraw = 1;
 	for (;;) {
-		while (XPending(a__x11.display)) {
+		while (!a__app_state.redraw || XPending(a__x11.display)) {
 			XEvent e;
 			XNextEvent(a__x11.display, &e);
 			switch (e.type) {
@@ -545,6 +546,9 @@ int main(int argc, char *argv[]) {
 
 				if (a__app_proctable.resize)
 					a__app_proctable.resize(timestamp, oldw, oldh);
+
+				// Resize forces redraw
+				a__app_state.redraw = 1;
 			} break;
 
 			case ButtonPress:
@@ -565,6 +569,9 @@ int main(int argc, char *argv[]) {
 			if (!last_paint)
 				last_paint = now;
 			dt = (now - last_paint) * 1e-6f;
+
+			// Force redraw for the next frame
+			a__app_state.redraw = 1;
 
 			if (a__app_proctable.paint)
 				a__app_proctable.paint(now, dt);
@@ -610,4 +617,8 @@ void aAppGrabInput(int grab) {
 		XUngrabPointer(a__x11.display, CurrentTime);
 	}
 	a__app_state.grabbed = grab;
+}
+
+void aAppRedraw(int redraw) {
+	a__app_state.redraw = (redraw != 0);
 }
