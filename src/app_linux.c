@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include "atto/app.h"
 #include <time.h>
 #include <stdio.h>

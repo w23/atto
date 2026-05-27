@@ -5,6 +5,8 @@
 	#include "atto/platform.h"
 #endif
 
+#include <stdint.h>
+
 #if !defined(ATTO_GL_HEADERS_INCLUDED)
 	#ifdef ATTO_PLATFORM_X11
 		#define GL_GLEXT_PROTOTYPES 1
@@ -48,7 +50,7 @@
  *   + gl error detection
  *   - profiling
  * - framebuffer
- *   - fb object
+ *   + fb object
  *   - multiple attachments
  *   - depth texture attachment
  * - textures
@@ -76,7 +78,7 @@ extern "C" {
 #endif
 
 /* Initialize GL stuff, like load GL>=2 procs on Windows */
-void aGLInit();
+void aGLInit(void);
 
 /* Textures */
 
@@ -89,6 +91,7 @@ typedef enum {
 	AGLTF_U565_RGB,
 	AGLTF_U5551_RGBA,
 	AGLTF_U4444_RGBA,
+	AGLTF_F32_R,
 	AGLTF_F32_RGBA
 } AGLTextureFormat;
 
@@ -112,9 +115,18 @@ typedef enum {
 	AGLTW_MirroredRepeat = GL_MIRRORED_REPEAT
 } AGLTextureWrap;
 
+typedef enum {
+	AGLTT_NULL,
+	AGLTT_1D,
+	AGLTT_2D,
+	AGLTT_3D,
+	AGLTT_2DArray,
+} AGLTextureType;
+
 typedef struct {
+	AGLTextureType type;
 	AGLTextureFormat format;
-	GLsizei width, height;
+	GLsizei width, height, depth;
 	AGLTextureMinFilter min_filter;
 	AGLTextureMagFilter mag_filter;
 	AGLTextureWrap wrap_s, wrap_t;
@@ -126,14 +138,21 @@ typedef struct {
 	/* \todo unsigned int sequence__; */
 } AGLTexture;
 
-typedef struct {
-	AGLTextureFormat format;
-	int x, y, width, height;
-	const void *pixels;
-} AGLTextureUploadData;
+enum AGLTextureUpdateFlags {
+	// Available only in GLES2+ and GL3+
+	AGLTUF_GenerateMipmaps = (1 << 0),
+};
 
-AGLTexture aGLTextureCreate(void);
-void aGLTextureUpload(AGLTexture *texture, const AGLTextureUploadData *data);
+typedef struct {
+	AGLTextureType type;
+	AGLTextureFormat format;
+	int x, y, z, width, height, depth;
+	uint32_t flags; // Combination of AGLTextureUpdateFlags
+	const void *pixels;
+} AGLTextureData;
+
+AGLTexture aGLTextureCreate(const AGLTextureData *data);
+void aGLTextureUpdate(AGLTexture *texture, const AGLTextureData *data);
 #define aGLTextureDestroy(t) \
 	do { \
 		glDeleteTextures(1, &(t)->_.name); \
@@ -161,12 +180,12 @@ typedef enum {
 typedef struct {
 	const char *name;
 	AGLAttributeType type;
+	GLsizei count;
 	union {
 		const GLfloat *pf;
 		const GLint *pi;
 		const AGLTexture *texture;
 	} value;
-	GLsizei count;
 	struct {
 		GLint location;
 	} _;
@@ -192,7 +211,7 @@ typedef struct {
 AGLBuffer aGLBufferCreate(AGLBufferType type);
 void aGLBufferUpload(AGLBuffer *buffer, GLsizei size, const void *data);
 #define aGLBufferDestroy(b) \
-	do { AGL__CALL(glDeleteBuffers(1, &(b)->name); (b)->name = 0); } while (0)
+	do { glDeleteBuffers(1, &(b)->name); (b)->name = 0; } while (0)
 
 /* Draw */
 
@@ -315,21 +334,27 @@ typedef struct {
 	AGLDepthParams depth;
 } AGLDrawMerge;
 
-typedef enum { AGLDBM_Texture, AGLDBM_Best } AGLDepthBufferMode;
-
 typedef struct {
 	const AGLTexture *color;
 	struct {
-		AGLDepthBufferMode mode;
+		int enable;
 		AGLTexture *texture;
 	} depth;
-} AGLFramebufferParams;
+} AGLFramebufferCreate;
+
+typedef struct {
+	GLuint name;
+	GLuint depth_renderbuffer;
+} AGLFramebuffer;
+
+AGLFramebuffer aGLFramebufferCreate(AGLFramebufferCreate params);
+void aGLFramebufferDestroy(AGLFramebuffer);
 
 typedef struct {
 	struct {
 		unsigned x, y, w, h;
 	} viewport;
-	AGLFramebufferParams *framebuffer;
+	const AGLFramebuffer *framebuffer;
 } AGLDrawTarget;
 
 void aGLDraw(const AGLDrawSource *source, const AGLDrawMerge *merge, const AGLDrawTarget *target);
@@ -347,6 +372,11 @@ typedef struct {
 } AGLClearParams;
 
 void aGLClear(const AGLClearParams *params, const AGLDrawTarget *target);
+#if 0
+// TODO: need to check whether it's available: gl4, gles3, or GL_ARB_invalidate_subdata
+// For that, need to have _features_, either at compile time "I NEED THIS, FAIL WITHOUT", or at runtime -- cheap bools.
+void aGLInvalidate(const AGLFramebuffer *fbo);
+#endif
 
 /* \todo
 typedef struct {
@@ -361,65 +391,70 @@ extern char a_gl_error[];
 /***************************************************************************************/
 
 #ifdef ATTO_PLATFORM_WINDOWS
-	#define ATTO__FUNCLIST \
-		ATTO__FUNCLIST_DO(PFNGLGENBUFFERSPROC, GenBuffers) \
-		ATTO__FUNCLIST_DO(PFNGLGENRENDERBUFFERSPROC, GenRenderbuffers) \
-		ATTO__FUNCLIST_DO(PFNGLBINDBUFFERPROC, BindBuffer) \
-		ATTO__FUNCLIST_DO(PFNGLBUFFERDATAPROC, BufferData) \
-		ATTO__FUNCLIST_DO(PFNGLGETATTRIBLOCATIONPROC, GetAttribLocation) \
-		ATTO__FUNCLIST_DO(PFNGLDISABLEVERTEXATTRIBARRAYPROC, DisableVertexAttribArray) \
-		ATTO__FUNCLIST_DO(PFNGLBLENDCOLORPROC, BlendColor) \
-		ATTO__FUNCLIST_DO(PFNGLBLENDEQUATIONPROC, BlendEquation) \
-		ATTO__FUNCLIST_DO(PFNGLBLENDEQUATIONSEPARATEPROC, BlendEquationSeparate) \
-		ATTO__FUNCLIST_DO(PFNGLBLENDFUNCSEPARATEPROC, BlendFuncSeparate) \
-		ATTO__FUNCLIST_DO(PFNGLBINDRENDERBUFFERPROC, BindRenderbuffer) \
-		ATTO__FUNCLIST_DO(PFNGLRENDERBUFFERSTORAGEPROC, RenderbufferStorage) \
-		ATTO__FUNCLIST_DO(PFNGLFRAMEBUFFERRENDERBUFFERPROC, FramebufferRenderbuffer) \
-		ATTO__FUNCLIST_DO(PFNGLACTIVETEXTUREPROC, ActiveTexture) \
-		ATTO__FUNCLIST_DO(PFNGLCREATESHADERPROC, CreateShader) \
-		ATTO__FUNCLIST_DO(PFNGLSHADERSOURCEPROC, ShaderSource) \
-		ATTO__FUNCLIST_DO(PFNGLCOMPILESHADERPROC, CompileShader) \
-		ATTO__FUNCLIST_DO(PFNGLGENFRAMEBUFFERSPROC, GenFramebuffers) \
-		ATTO__FUNCLIST_DO(PFNGLDELETEFRAMEBUFFERSPROC, DeleteFramebuffers) \
-		ATTO__FUNCLIST_DO(PFNGLBINDFRAMEBUFFERPROC, BindFramebuffer) \
-		ATTO__FUNCLIST_DO(PFNGLFRAMEBUFFERTEXTURE2DPROC, FramebufferTexture2D) \
-		ATTO__FUNCLIST_DO(PFNGLUSEPROGRAMPROC, UseProgram) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM1FVPROC, Uniform1fv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM2FVPROC, Uniform2fv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM3FVPROC, Uniform3fv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM4FVPROC, Uniform4fv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM1FPROC, Uniform1f) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM2FPROC, Uniform2f) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM3FPROC, Uniform3f) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM4FPROC, Uniform4f) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORMMATRIX2FVPROC, UniformMatrix2fv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORMMATRIX3FVPROC, UniformMatrix3fv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORMMATRIX4FVPROC, UniformMatrix4fv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM1IPROC, Uniform1i) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM1IVPROC, Uniform1iv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM2IVPROC, Uniform2iv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM3IVPROC, Uniform3iv) \
-		ATTO__FUNCLIST_DO(PFNGLUNIFORM4IVPROC, Uniform4iv) \
-		ATTO__FUNCLIST_DO(PFNGLCREATEPROGRAMPROC, CreateProgram) \
-		ATTO__FUNCLIST_DO(PFNGLATTACHSHADERPROC, AttachShader) \
-		ATTO__FUNCLIST_DO(PFNGLBINDATTRIBLOCATIONPROC, BindAttribLocation) \
-		ATTO__FUNCLIST_DO(PFNGLLINKPROGRAMPROC, LinkProgram) \
-		ATTO__FUNCLIST_DO(PFNGLGETUNIFORMLOCATIONPROC, GetUniformLocation) \
-		ATTO__FUNCLIST_DO(PFNGLDELETESHADERPROC, DeleteShader) \
-		ATTO__FUNCLIST_DO(PFNGLGETPROGRAMINFOLOGPROC, GetProgramInfoLog) \
-		ATTO__FUNCLIST_DO(PFNGLDELETEPROGRAMPROC, DeleteProgram) \
-		ATTO__FUNCLIST_DO(PFNGLGETSHADERIVPROC, GetShaderiv) \
-		ATTO__FUNCLIST_DO(PFNGLGETSHADERINFOLOGPROC, GetShaderInfoLog) \
-		ATTO__FUNCLIST_DO(PFNGLGETPROGRAMIVPROC, GetProgramiv) \
-		ATTO__FUNCLIST_DO(PFNGLCHECKFRAMEBUFFERSTATUSPROC, CheckFramebufferStatus) \
-		ATTO__FUNCLIST_DO(PFNGLENABLEVERTEXATTRIBARRAYPROC, EnableVertexAttribArray) \
-		ATTO__FUNCLIST_DO(PFNGLVERTEXATTRIBPOINTERPROC, VertexAttribPointer) \
-		ATTO__FUNCLIST_DO(PFNGLGENERATEMIPMAPPROC, GenerateMipmap) \
-		ATTO__FUNCLIST_DO(PFNGLCLEARDEPTHFPROC, ClearDepthf) \
-		ATTO__FUNCLIST_DO(PFNGLDRAWBUFFERSPROC, DrawBuffers)
-	#define ATTO__FUNCLIST_DO(T, N) T gl##N = 0;
-ATTO__FUNCLIST
-	#undef ATTO__FUNCLIST_DO
+	#define ATTO__GL_FUNCS_LIST(X) \
+		X(PFNGLACTIVETEXTUREPROC, glActiveTexture) \
+		X(PFNGLATTACHSHADERPROC, glAttachShader) \
+		X(PFNGLBINDATTRIBLOCATIONPROC, glBindAttribLocation) \
+		X(PFNGLBINDBUFFERPROC, glBindBuffer) \
+		X(PFNGLBINDFRAMEBUFFERPROC, glBindFramebuffer) \
+		X(PFNGLBINDRENDERBUFFERPROC, glBindRenderbuffer) \
+		X(PFNGLBLENDCOLORPROC, glBlendColor) \
+		X(PFNGLBLENDEQUATIONPROC, glBlendEquation) \
+		X(PFNGLBLENDEQUATIONSEPARATEPROC, glBlendEquationSeparate) \
+		X(PFNGLBLENDFUNCSEPARATEPROC, glBlendFuncSeparate) \
+		X(PFNGLBUFFERDATAPROC, glBufferData) \
+		X(PFNGLCHECKFRAMEBUFFERSTATUSPROC, glCheckFramebufferStatus) \
+		X(PFNGLCLEARDEPTHFPROC, glClearDepthf) \
+		X(PFNGLCOMPILESHADERPROC, glCompileShader) \
+		X(PFNGLCREATEPROGRAMPROC, glCreateProgram) \
+		X(PFNGLCREATESHADERPROC, glCreateShader) \
+		X(PFNGLDELETEFRAMEBUFFERSPROC, glDeleteFramebuffers) \
+		X(PFNGLDELETEPROGRAMPROC, glDeleteProgram) \
+		X(PFNGLDELETERENDERBUFFERSPROC, glDeleteRenderbuffers) \
+		X(PFNGLDELETESHADERPROC, glDeleteShader) \
+		X(PFNGLDISABLEVERTEXATTRIBARRAYPROC, glDisableVertexAttribArray) \
+		X(PFNGLDRAWBUFFERSPROC, glDrawBuffers) \
+		X(PFNGLENABLEVERTEXATTRIBARRAYPROC, glEnableVertexAttribArray) \
+		X(PFNGLFRAMEBUFFERRENDERBUFFERPROC, glFramebufferRenderbuffer) \
+		X(PFNGLFRAMEBUFFERTEXTURE2DPROC, glFramebufferTexture2D) \
+		X(PFNGLGENBUFFERSPROC, glGenBuffers) \
+		X(PFNGLDELETEBUFFERSPROC, glDeleteBuffers) \
+		X(PFNGLGENERATEMIPMAPPROC, glGenerateMipmap) \
+		X(PFNGLGENFRAMEBUFFERSPROC, glGenFramebuffers) \
+		X(PFNGLGENRENDERBUFFERSPROC, glGenRenderbuffers) \
+		X(PFNGLGETATTRIBLOCATIONPROC, glGetAttribLocation) \
+		X(PFNGLGETPROGRAMINFOLOGPROC, glGetProgramInfoLog) \
+		X(PFNGLGETPROGRAMIVPROC, glGetProgramiv) \
+		X(PFNGLGETSHADERINFOLOGPROC, glGetShaderInfoLog) \
+		X(PFNGLGETSHADERIVPROC, glGetShaderiv) \
+		X(PFNGLGETUNIFORMLOCATIONPROC, glGetUniformLocation) \
+		X(PFNGLLINKPROGRAMPROC, glLinkProgram) \
+		X(PFNGLRENDERBUFFERSTORAGEPROC, glRenderbufferStorage) \
+		X(PFNGLSHADERSOURCEPROC, glShaderSource) \
+		X(PFNGLTEXIMAGE3DPROC, glTexImage3D) \
+		X(PFNGLTEXSUBIMAGE3DPROC, glTexSubImage3D) \
+		X(PFNGLUNIFORM1FPROC, glUniform1f) \
+		X(PFNGLUNIFORM1FVPROC, glUniform1fv) \
+		X(PFNGLUNIFORM1IPROC, glUniform1i) \
+		X(PFNGLUNIFORM1IVPROC, glUniform1iv) \
+		X(PFNGLUNIFORM2FPROC, glUniform2f) \
+		X(PFNGLUNIFORM2FVPROC, glUniform2fv) \
+		X(PFNGLUNIFORM2IVPROC, glUniform2iv) \
+		X(PFNGLUNIFORM3FPROC, glUniform3f) \
+		X(PFNGLUNIFORM3FVPROC, glUniform3fv) \
+		X(PFNGLUNIFORM3IVPROC, glUniform3iv) \
+		X(PFNGLUNIFORM4FPROC, glUniform4f) \
+		X(PFNGLUNIFORM4FVPROC, glUniform4fv) \
+		X(PFNGLUNIFORM4IVPROC, glUniform4iv) \
+		X(PFNGLUNIFORMMATRIX2FVPROC, glUniformMatrix2fv) \
+		X(PFNGLUNIFORMMATRIX3FVPROC, glUniformMatrix3fv) \
+		X(PFNGLUNIFORMMATRIX4FVPROC, glUniformMatrix4fv) \
+		X(PFNGLUSEPROGRAMPROC, glUseProgram) \
+		X(PFNGLVERTEXATTRIBPOINTERPROC, glVertexAttribPointer) \
+
+#define ATTO__DECLARE_FUNC_EXTERN(T_, N_) extern T_ N_;
+ATTO__GL_FUNCS_LIST(ATTO__DECLARE_FUNC_EXTERN)
+#undef ATTO__DECLARE_FUNC_EXTERN
 #endif /* ifdef ATTO_PLATFORM_WINDOWS */
 
 #if defined(__cplusplus)
@@ -438,10 +473,14 @@ ATTO__FUNCLIST
 extern "C" {
 #endif
 
+#ifndef AGL_PRINTFLN
+#define AGL_PRINTFLN(msg, ...) aAppDebugPrintf("[agl] " msg, ##__VA_ARGS__)
+#endif
+
 #ifndef ATTO_ASSERT
 	#define ATTO_ASSERT(cond) \
 		if (!(cond)) { \
-			aAppDebugPrintf("ERROR @ %s:%d: (%s) failed", __FILE__, __LINE__, #cond); \
+			AGL_PRINTFLN("ERROR @ %s:%d: (%s) failed", __FILE__, __LINE__, #cond); \
 			aAppTerminate(-1); \
 		}
 #endif /* ifndef ATTO_ASSERT */
@@ -463,7 +502,7 @@ extern "C" {
 	#define AGL__CALL(f) (f)
 #else
 	#include <stdlib.h> /* abort() */
-static void a__GlPrintError(const char *message, int error) {
+static void a__GlPrintError(const char *message, GLenum error) {
 	const char *errstr = "UNKNOWN";
 	switch (error) {
 	case GL_INVALID_ENUM: errstr = "GL_INVALID_ENUM"; break;
@@ -480,12 +519,12 @@ static void a__GlPrintError(const char *message, int error) {
 	case GL_TABLE_TOO_LARGE: errstr = "GL_TABLE_TOO_LARGE"; break;
 	#endif
 	};
-	aAppDebugPrintf("%s %s (%#x)", message, errstr, error);
+	AGL_PRINTFLN("%s %s (%#x)", message, errstr, error);
 }
 	#define ATTO__GL_STR__(s) #s
 	#define ATTO__GL_STR(s) ATTO__GL_STR__(s)
 	#ifdef ATTO_GL_TRACE
-		#define ATTO_GL_TRACE_PRINT aAppDebugPrintf
+		#define ATTO_GL_TRACE_PRINT AGL_PRINTFLN
 	#else
 		#define ATTO_GL_TRACE_PRINT(...)
 	#endif
@@ -495,7 +534,7 @@ static void a__GlPrintError(const char *message, int error) {
 			ATTO_GL_PROFILE_PREAMBLE \
 			f; \
 			ATTO_GL_PROFILE_FUNC(#f, aAppTime() - start); \
-			const int glerror = glGetError(); \
+			const GLenum glerror = glGetError(); \
 			if (glerror != GL_NO_ERROR) { \
 				a__GlPrintError(__FILE__ ":" ATTO__GL_STR(__LINE__) ": " #f " returned ", glerror); \
 				abort(); \
@@ -520,8 +559,6 @@ typedef struct {
 } AGLStats;
 
 static struct {
-	/* \todo GLuint framebuffer;
-	AGLFramebufferParams framebuffer; */
 	AGLProgram program;
 	AGLCullMode cull_mode;
 	AGLFrontFace front_face;
@@ -533,12 +570,11 @@ static struct {
 		AGLAttribute attrib;
 		unsigned serial;
 	} attribs[ATTO_GL_MAX_ATTRIBS];
+
 	struct {
-		AGLFramebufferParams params;
-		/* store color explicitly by value? */
-		GLuint depth_buffer;
-		GLuint name, binding;
+		GLuint binding;
 	} framebuffer;
+
 	struct {
 		unsigned x, y, w, h;
 	} viewport;
@@ -553,10 +589,14 @@ static void a__GLAttribsBind(const AGLAttribute *attrs, int nattrs);
 static void a__GLCullingBind(AGLCullMode cull, AGLFrontFace front);
 static void a__GLDepthBind(AGLDepthParams depth);
 static void a__GLBlendBind(const AGLBlendParams *blend);
-static void a__GLFramebufferBind(const AGLFramebufferParams *fb);
+static void a__GLFramebufferBind(const AGLFramebuffer *fbo);
 static void a__GLTargetBind(const AGLDrawTarget *target);
 
 #ifdef ATTO_PLATFORM_WINDOWS
+#define ATTO__DECLARE_FUNC(T_, N_) T_ N_ = 0;
+ATTO__GL_FUNCS_LIST(ATTO__DECLARE_FUNC)
+#undef ATTO__DECLARE_FUNC
+
 static PROC a__check_get_proc_address(const char *name) {
 	PROC ret = wglGetProcAddress(name);
 	ATTO_ASSERT(ret);
@@ -564,12 +604,241 @@ static PROC a__check_get_proc_address(const char *name) {
 }
 #endif /* ifdef ATTO_PLATFORM_WINDOWS */
 
-void aGLInit() {
+#ifdef ATTO_GL_PRINT_LIMITS
+#define A__GL_PRINT_LIMIT(enum, num) a__GlGetAndPrintInteger(enum, #enum, num)
+static void a__GlGetAndPrintInteger(GLenum pname, const char *name, int count) {
+	GLint params[2] = {0};
+	glGetIntegerv(pname, params);
+	if (count == 1)
+		AGL_PRINTFLN("%s: %d", name, params[0]);
+	else if (count == 2)
+		AGL_PRINTFLN("%s: %d, %d", name, params[0], params[1]);
+}
+#endif
+
+void aGLInit(void) {
 #ifdef ATTO_PLATFORM_WINDOWS
-	#define ATTO__FUNCLIST_DO(T, N) gl##N = (T)a__check_get_proc_address("gl" #N);
-	ATTO__FUNCLIST
-	#undef ATTO__FUNCLIST_DO
+#define ATTO__GET_FUNC(T_, N_) N_ = (T_)a__check_get_proc_address(#N_);
+	ATTO__GL_FUNCS_LIST(ATTO__GET_FUNC)
+#undef ATTO__GET_FUNC
 #endif /* ifdef ATTO_PLATFORM_WINDOWS */
+
+#ifndef ATTO_GL_DONT_PRINT_INFO
+	AGL_PRINTFLN("GL_VENDOR: %s", glGetString(GL_VENDOR));
+	AGL_PRINTFLN("GL_RENDERER: %s", glGetString(GL_RENDERER));
+	AGL_PRINTFLN("GL_VERSION: %s", glGetString(GL_VERSION));
+	AGL_PRINTFLN("GL_SHADING_LANGUAGE_VERSION: %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
+	AGL_PRINTFLN("GL_EXTENSIONS: %s", glGetString(GL_EXTENSIONS));
+#endif
+
+#ifdef ATTO_GL_PRINT_LIMITS
+	A__GL_PRINT_LIMIT(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, 1);
+	A__GL_PRINT_LIMIT(GL_MAX_CUBE_MAP_TEXTURE_SIZE, 1);
+	A__GL_PRINT_LIMIT(GL_MAX_FRAGMENT_UNIFORM_VECTORS, 1);
+	A__GL_PRINT_LIMIT(GL_MAX_RENDERBUFFER_SIZE, 1);
+	A__GL_PRINT_LIMIT(GL_MAX_TEXTURE_IMAGE_UNITS, 1);
+	A__GL_PRINT_LIMIT(GL_MAX_TEXTURE_SIZE, 1);
+	A__GL_PRINT_LIMIT(GL_MAX_VARYING_VECTORS, 1);
+	A__GL_PRINT_LIMIT(GL_MAX_VERTEX_ATTRIBS, 1);
+	A__GL_PRINT_LIMIT(GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, 1);
+	A__GL_PRINT_LIMIT(GL_MAX_VERTEX_UNIFORM_VECTORS, 1);
+	A__GL_PRINT_LIMIT(GL_MAX_VIEWPORT_DIMS, 2);
+	A__GL_PRINT_LIMIT(GL_NUM_COMPRESSED_TEXTURE_FORMATS, 1);
+	A__GL_PRINT_LIMIT(GL_NUM_SHADER_BINARY_FORMATS, 1);
+
+#ifdef GL_MAX_3D_TEXTURE_SIZE
+	A__GL_PRINT_LIMIT(GL_MAX_3D_TEXTURE_SIZE, 1);
+#endif
+#ifdef GL_MAX_ARRAY_TEXTURE_LAYERS
+	A__GL_PRINT_LIMIT(GL_MAX_ARRAY_TEXTURE_LAYERS, 1);
+#endif
+#ifdef GL_MAX_ATOMIC_COUNTER_BUFFER_BINDINGS
+	A__GL_PRINT_LIMIT(GL_MAX_ATOMIC_COUNTER_BUFFER_BINDINGS, 1);
+#endif
+#ifdef GL_MAX_COLOR_ATTACHMENTS
+	A__GL_PRINT_LIMIT(GL_MAX_COLOR_ATTACHMENTS, 1);
+#endif
+#ifdef GL_MAX_COLOR_TEXTURE_SAMPLES
+	A__GL_PRINT_LIMIT(GL_MAX_COLOR_TEXTURE_SAMPLES, 1);
+#endif
+#ifdef GL_MAX_COMBINED_ATOMIC_COUNTERS
+	A__GL_PRINT_LIMIT(GL_MAX_COMBINED_ATOMIC_COUNTERS, 1);
+#endif
+#ifdef GL_MAX_COMBINED_COMPUTE_UNIFORM_COMPONENTS
+	A__GL_PRINT_LIMIT(GL_MAX_COMBINED_COMPUTE_UNIFORM_COMPONENTS, 1);
+#endif
+#ifdef GL_MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS
+	A__GL_PRINT_LIMIT(GL_MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS, 1);
+#endif
+#ifdef GL_MAX_COMBINED_SHADER_STORAGE_BLOCKS
+	A__GL_PRINT_LIMIT(GL_MAX_COMBINED_SHADER_STORAGE_BLOCKS, 1);
+#endif
+#ifdef GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS
+	A__GL_PRINT_LIMIT(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, 1);
+#endif
+#ifdef GL_MAX_COMBINED_UNIFORM_BLOCKS
+	A__GL_PRINT_LIMIT(GL_MAX_COMBINED_UNIFORM_BLOCKS, 1);
+#endif
+#ifdef GL_MAX_COMBINED_VERTEX_UNIFORM_COMPONENTS
+	A__GL_PRINT_LIMIT(GL_MAX_COMBINED_VERTEX_UNIFORM_COMPONENTS, 1);
+#endif
+#ifdef GL_MAX_COMPUTE_ATOMIC_COUNTERS
+	A__GL_PRINT_LIMIT(GL_MAX_COMPUTE_ATOMIC_COUNTERS, 1);
+#endif
+#ifdef GL_MAX_COMPUTE_ATOMIC_COUNTER_BUFFERS
+	A__GL_PRINT_LIMIT(GL_MAX_COMPUTE_ATOMIC_COUNTER_BUFFERS, 1);
+#endif
+#ifdef GL_MAX_COMPUTE_SHADER_STORAGE_BLOCKS
+	A__GL_PRINT_LIMIT(GL_MAX_COMPUTE_SHADER_STORAGE_BLOCKS, 1);
+#endif
+#ifdef GL_MAX_COMPUTE_TEXTURE_IMAGE_UNITS
+	A__GL_PRINT_LIMIT(GL_MAX_COMPUTE_TEXTURE_IMAGE_UNITS, 1);
+#endif
+#ifdef GL_MAX_COMPUTE_UNIFORM_BLOCKS
+	A__GL_PRINT_LIMIT(GL_MAX_COMPUTE_UNIFORM_BLOCKS, 1);
+#endif
+#ifdef GL_MAX_COMPUTE_UNIFORM_COMPONENTS
+	A__GL_PRINT_LIMIT(GL_MAX_COMPUTE_UNIFORM_COMPONENTS, 1);
+#endif
+#ifdef GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS
+	A__GL_PRINT_LIMIT(GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS, 1);
+#endif
+#ifdef GL_MAX_CUBE_MAP_TEXTURE_SIZE
+	A__GL_PRINT_LIMIT(GL_MAX_CUBE_MAP_TEXTURE_SIZE, 1);
+#endif
+#ifdef GL_MAX_DRAW_BUFFERS
+	A__GL_PRINT_LIMIT(GL_MAX_DRAW_BUFFERS, 1);
+#endif
+#ifdef GL_MAX_ELEMENT_INDEX
+	A__GL_PRINT_LIMIT(GL_MAX_ELEMENT_INDEX, 1);
+#endif
+#ifdef GL_MAX_ELEMENTS_INDICES
+	A__GL_PRINT_LIMIT(GL_MAX_ELEMENTS_INDICES, 1);
+#endif
+#ifdef GL_MAX_ELEMENTS_VERTICES
+	A__GL_PRINT_LIMIT(GL_MAX_ELEMENTS_VERTICES, 1);
+#endif
+#ifdef GL_MAX_FRAGMENT_ATOMIC_COUNTERS
+	A__GL_PRINT_LIMIT(GL_MAX_FRAGMENT_ATOMIC_COUNTERS, 1);
+#endif
+#ifdef GL_MAX_FRAGMENT_INPUT_COMPONENTS
+	A__GL_PRINT_LIMIT(GL_MAX_FRAGMENT_INPUT_COMPONENTS, 1);
+#endif
+#ifdef GL_MAX_FRAGMENT_SHADER_STORAGE_BLOCKS
+	A__GL_PRINT_LIMIT(GL_MAX_FRAGMENT_SHADER_STORAGE_BLOCKS, 1);
+#endif
+#ifdef GL_MAX_FRAGMENT_UNIFORM_BLOCKS
+	A__GL_PRINT_LIMIT(GL_MAX_FRAGMENT_UNIFORM_BLOCKS, 1);
+#endif
+#ifdef GL_MAX_FRAGMENT_UNIFORM_COMPONENTS
+	A__GL_PRINT_LIMIT(GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, 1);
+#endif
+#ifdef GL_MAX_FRAGMENT_UNIFORM_VECTORS
+	A__GL_PRINT_LIMIT(GL_MAX_FRAGMENT_UNIFORM_VECTORS, 1);
+#endif
+#ifdef GL_MAX_FRAMEBUFFER_HEIGHT
+	A__GL_PRINT_LIMIT(GL_MAX_FRAMEBUFFER_HEIGHT, 1);
+#endif
+#ifdef GL_MAX_FRAMEBUFFER_SAMPLES
+	A__GL_PRINT_LIMIT(GL_MAX_FRAMEBUFFER_SAMPLES, 1);
+#endif
+#ifdef GL_MAX_FRAMEBUFFER_WIDTH
+	A__GL_PRINT_LIMIT(GL_MAX_FRAMEBUFFER_WIDTH, 1);
+#endif
+#ifdef GL_MAX_INTEGER_SAMPLES
+	A__GL_PRINT_LIMIT(GL_MAX_INTEGER_SAMPLES, 1);
+#endif
+#ifdef GL_MAX_PROGRAM_TEXEL_OFFSET
+	A__GL_PRINT_LIMIT(GL_MAX_PROGRAM_TEXEL_OFFSET, 1);
+#endif
+#ifdef GL_MAX_RENDERBUFFER_SIZE
+	A__GL_PRINT_LIMIT(GL_MAX_RENDERBUFFER_SIZE, 1);
+#endif
+#ifdef GL_MAX_SAMPLE_MASK_WORDS
+	A__GL_PRINT_LIMIT(GL_MAX_SAMPLE_MASK_WORDS, 1);
+#endif
+#ifdef GL_MAX_SAMPLES
+	A__GL_PRINT_LIMIT(GL_MAX_SAMPLES, 1);
+#endif
+#ifdef GL_MAX_SERVER_WAIT_TIMEOUT
+	A__GL_PRINT_LIMIT(GL_MAX_SERVER_WAIT_TIMEOUT, 1);
+#endif
+#ifdef GL_MAX_SHADER_STORAGE_BLOCK_SIZE
+	A__GL_PRINT_LIMIT(GL_MAX_SHADER_STORAGE_BLOCK_SIZE, 1);
+#endif
+#ifdef GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS
+	A__GL_PRINT_LIMIT(GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS, 1);
+#endif
+#ifdef GL_MAX_TEXTURE_IMAGE_UNITS
+	A__GL_PRINT_LIMIT(GL_MAX_TEXTURE_IMAGE_UNITS, 1);
+#endif
+#ifdef GL_MAX_TEXTURE_LOD_BIAS
+	A__GL_PRINT_LIMIT(GL_MAX_TEXTURE_LOD_BIAS, 1);
+#endif
+#ifdef GL_MAX_TEXTURE_SIZE
+	A__GL_PRINT_LIMIT(GL_MAX_TEXTURE_SIZE, 1);
+#endif
+#ifdef GL_MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS
+	A__GL_PRINT_LIMIT(GL_MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS, 1);
+#endif
+#ifdef GL_MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS
+	A__GL_PRINT_LIMIT(GL_MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS, 1);
+#endif
+#ifdef GL_MAX_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS
+	A__GL_PRINT_LIMIT(GL_MAX_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS, 1);
+#endif
+#ifdef GL_MAX_UNIFORM_BLOCK_SIZE
+	A__GL_PRINT_LIMIT(GL_MAX_UNIFORM_BLOCK_SIZE, 1);
+#endif
+#ifdef GL_MAX_UNIFORM_BUFFER_BINDINGS
+	A__GL_PRINT_LIMIT(GL_MAX_UNIFORM_BUFFER_BINDINGS, 1);
+#endif
+#ifdef GL_MAX_UNIFORM_LOCATIONS
+	A__GL_PRINT_LIMIT(GL_MAX_UNIFORM_LOCATIONS, 1);
+#endif
+#ifdef GL_MAX_VARYING_COMPONENTS
+	A__GL_PRINT_LIMIT(GL_MAX_VARYING_COMPONENTS, 1);
+#endif
+#ifdef GL_MAX_VARYING_VECTORS
+	A__GL_PRINT_LIMIT(GL_MAX_VARYING_VECTORS, 1);
+#endif
+#ifdef GL_MAX_VERTEX_ATOMIC_COUNTERS
+	A__GL_PRINT_LIMIT(GL_MAX_VERTEX_ATOMIC_COUNTERS, 1);
+#endif
+#ifdef GL_MAX_VERTEX_ATTRIB_BINDINGS
+	A__GL_PRINT_LIMIT(GL_MAX_VERTEX_ATTRIB_BINDINGS, 1);
+#endif
+#ifdef GL_MAX_VERTEX_ATTRIB_RELATIVE_OFFSET
+	A__GL_PRINT_LIMIT(GL_MAX_VERTEX_ATTRIB_RELATIVE_OFFSET, 1);
+#endif
+#ifdef GL_MAX_VERTEX_ATTRIBS
+	A__GL_PRINT_LIMIT(GL_MAX_VERTEX_ATTRIBS, 1);
+#endif
+#ifdef GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS
+	A__GL_PRINT_LIMIT(GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS, 1);
+#endif
+#ifdef GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS
+	A__GL_PRINT_LIMIT(GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, 1);
+#endif
+#ifdef GL_MAX_VERTEX_OUTPUT_COMPONENTS
+	A__GL_PRINT_LIMIT(GL_MAX_VERTEX_OUTPUT_COMPONENTS, 1);
+#endif
+#ifdef GL_MAX_VERTEX_UNIFORM_BLOCKS
+	A__GL_PRINT_LIMIT(GL_MAX_VERTEX_UNIFORM_BLOCKS, 1);
+#endif
+#ifdef GL_MAX_VERTEX_UNIFORM_COMPONENTS
+	A__GL_PRINT_LIMIT(GL_MAX_VERTEX_UNIFORM_COMPONENTS, 1);
+#endif
+#ifdef GL_MAX_VERTEX_UNIFORM_VECTORS
+	A__GL_PRINT_LIMIT(GL_MAX_VERTEX_UNIFORM_VECTORS, 1);
+#endif
+
+// INDEXED
+//GL_MAX_COMPUTE_WORK_GROUP_COUNT
+//GL_MAX_COMPUTE_WORK_GROUP_SIZE
+
+	glGetError();
+#endif
 
 	/* default initial GL state */
 	a__gl_state.cull_mode = AGLCM_Disable;
@@ -585,9 +854,6 @@ void aGLInit() {
 		a__gl_state.attribs[i].buffer = -1;
 		a__gl_state.attribs[i].serial = 0;
 	}
-
-	AGL__CALL(glGenFramebuffers(1, &a__gl_state.framebuffer.name));
-	AGL__CALL(glGenRenderbuffers(1, &a__gl_state.framebuffer.depth_buffer));
 }
 
 GLint aGLProgramCreate(const char *const *vertex, const char *const *fragment) {
@@ -633,82 +899,210 @@ GLint aGLProgramCreateSimple(const char *vertex, const char *fragment) {
 }
 
 void aGLUniformLocate(AGLProgram program, AGLProgramUniform *uniforms, int count) {
-	for (int i = 0; i < count; ++i) { uniforms[i]._.location = glGetUniformLocation(program, uniforms[i].name); }
+	for (int i = 0; i < count; ++i)
+		uniforms[i]._.location = glGetUniformLocation(program, uniforms[i].name);
 }
 
 void aGLAttributeLocate(AGLProgram program, AGLAttribute *attribs, int count) {
-	for (int i = 0; i < count; ++i) { attribs[i]._.location = glGetAttribLocation(program, attribs[i].name); }
+	for (int i = 0; i < count; ++i)
+		attribs[i]._.location = glGetAttribLocation(program, attribs[i].name);
 }
 
-AGLTexture aGLTextureCreate(void) {
-	AGLTexture tex;
+AGLTexture aGLTextureCreate(const AGLTextureData *data) {
+	AGLTexture tex = {
+		.type = data->type,
+		.format = AGLTF_Unknown,
+		._.mag_filter = tex._.min_filter = (GLenum)-1,
+		._.wrap_s = tex._.wrap_t = (GLenum)-1,
+		.mag_filter = AGLTMF_Linear,
+		.min_filter = (data->flags & AGLTUF_GenerateMipmaps)
+			? AGLTmF_LinearMipLinear
+			: AGLTmF_Linear,
+		.wrap_s = tex.wrap_t = AGLTW_Repeat,
+	};
+
 	AGL__CALL(glGenTextures(1, &tex._.name));
-	tex.width = tex.height = 0;
-	tex.format = AGLTF_Unknown;
-	tex._.mag_filter = tex._.min_filter = -1;
-	tex._.wrap_s = tex._.wrap_t = -1;
-	tex.mag_filter = AGLTMF_Linear;
-	tex.min_filter = AGLTmF_LinearMipLinear;
-	tex.wrap_s = tex.wrap_t = AGLTW_Repeat;
+	aGLTextureUpdate(&tex, data);
 	return tex;
 }
 
-void aGLTextureUpload(AGLTexture *tex, const AGLTextureUploadData *data) {
+struct A__GLTextureFormat {
 	GLenum internal, format, type;
-	int maxwidth = data->x + data->width;
-	int maxheight = data->y + data->height;
-	switch (data->format) {
+};
+
+static struct A__GLTextureFormat getTextureFormat(AGLTextureFormat aformat) {
+	struct A__GLTextureFormat tf = {0};
+	switch (aformat) {
 	case AGLTF_U8_R:
-		internal = format = GL_LUMINANCE;
-		type = GL_UNSIGNED_BYTE;
+		tf.internal = tf.format = GL_LUMINANCE;
+		tf.type = GL_UNSIGNED_BYTE;
 		break;
 	case AGLTF_U8_RA:
-		internal = format = GL_LUMINANCE_ALPHA;
-		type = GL_UNSIGNED_BYTE;
+		tf.internal = tf.format = GL_LUMINANCE_ALPHA;
+		tf.type = GL_UNSIGNED_BYTE;
 		break;
 	case AGLTF_U8_RGB:
-		internal = format = GL_RGB;
-		type = GL_UNSIGNED_BYTE;
+		tf.internal = tf.format = GL_RGB;
+		tf.type = GL_UNSIGNED_BYTE;
 		break;
 	case AGLTF_U8_RGBA:
-		internal = format = GL_RGBA;
-		type = GL_UNSIGNED_BYTE;
+		tf.internal = tf.format = GL_RGBA;
+		tf.type = GL_UNSIGNED_BYTE;
 		break;
 	case AGLTF_U565_RGB:
-		internal = format = GL_RGB;
-		type = GL_UNSIGNED_SHORT_5_6_5;
+		tf.internal = tf.format = GL_RGB;
+		tf.type = GL_UNSIGNED_SHORT_5_6_5;
 		break;
 	case AGLTF_U5551_RGBA:
-		internal = format = GL_RGBA;
-		type = GL_UNSIGNED_SHORT_5_5_5_1;
+		tf.internal = tf.format = GL_RGBA;
+		tf.type = GL_UNSIGNED_SHORT_5_5_5_1;
 		break;
 	case AGLTF_U4444_RGBA:
-		internal = format = GL_RGBA;
-		type = GL_UNSIGNED_SHORT_4_4_4_4;
+		tf.internal = tf.format = GL_RGBA;
+		tf.type = GL_UNSIGNED_SHORT_4_4_4_4;
+		break;
+	case AGLTF_F32_R:
+#ifdef GL_R32F
+		tf.internal = GL_R32F;
+		tf.format = GL_RED;
+		tf.type = GL_FLOAT;
+#else
+		ATTO_ASSERT(!"Unknown format");
+#endif
 		break;
 	case AGLTF_F32_RGBA:
 #ifdef GL_RGBA32F
-		internal = GL_RGBA32F;
-		format = GL_RGBA;
-		type = GL_FLOAT;
-		break;
+		tf.internal = GL_RGBA32F;
+		tf.format = GL_RGBA;
+		tf.type = GL_FLOAT;
+#else
+		ATTO_ASSERT(!"Unknown format");
 #endif
-	default: ATTO_ASSERT(!"Unknown format"); return;
+		break;
+	case AGLTF_Unknown: ATTO_ASSERT(!"Unknown format");
 	}
-	AGL__CALL(glBindTexture(GL_TEXTURE_2D, tex->_.name));
+	ATTO_ASSERT(tf.internal != 0);
+	return tf;
+}
 
-	if (data->x || data->y) {
-		if (maxwidth > data->width || maxheight > data->height)
-			AGL__CALL(glTexImage2D(GL_TEXTURE_2D, 0, internal, maxwidth, maxheight, 0, format, type, 0));
-		AGL__CALL(
-			glTexSubImage2D(GL_TEXTURE_2D, 0, data->x, data->y, data->width, data->height, format, type, data->pixels));
-	} else
-		AGL__CALL(glTexImage2D(GL_TEXTURE_2D, 0, internal, data->width, data->height, 0, format, type, data->pixels));
+typedef void (a__gl_texture_upload_func)(AGLTexture *tex, const AGLTextureData *data, GLenum binding, struct A__GLTextureFormat tf);
 
-	glGenerateMipmap(GL_TEXTURE_2D);
+static void a__GLTexureUpload1D(AGLTexture *tex, const AGLTextureData *data, GLenum binding, struct A__GLTextureFormat tf) {
+	const int maxwidth = data->x + data->width;
 
-	tex->width = data->width;
-	tex->height = data->height;
+	const int expand = maxwidth > tex->width;
+	const int is_subimage = data->x > 0;
+	const void *const to_upload = (!is_subimage && data->pixels) ? data->pixels : NULL;
+
+	ATTO_ASSERT(binding == GL_TEXTURE_1D);
+
+	if (expand || to_upload) {
+		AGL__CALL(glTexImage1D(binding, 0, tf.internal, maxwidth, 0,
+			tf.format, tf.type, to_upload));
+		tex->width = maxwidth;
+	}
+
+	if (is_subimage) {
+		ATTO_ASSERT(data->pixels);
+		AGL__CALL(glTexSubImage1D(binding, 0,
+			data->x, data->width,
+			tf.format, tf.type, data->pixels));
+	}
+}
+
+static void a__GLTexureUpload2D(AGLTexture *tex, const AGLTextureData *data, GLenum binding, struct A__GLTextureFormat tf) {
+	const int maxwidth = data->x + data->width;
+	const int maxheight = data->y + data->height;
+
+	const int expand = (maxwidth > tex->width) || (maxheight > tex->height);
+	const int is_subimage = (data->x > 0 || data->y > 0);
+	const void *const to_upload = (!is_subimage && data->pixels) ? data->pixels : NULL;
+
+	ATTO_ASSERT(binding == GL_TEXTURE_2D);
+
+	if (expand || to_upload) {
+		AGL__CALL(glTexImage2D(binding, 0, tf.internal, maxwidth, maxheight, 0,
+			tf.format, tf.type, to_upload));
+		tex->width = maxwidth;
+		tex->height = maxheight;
+	}
+
+	if (is_subimage) {
+		ATTO_ASSERT(data->pixels);
+		AGL__CALL(glTexSubImage2D(binding, 0,
+			data->x, data->y, data->width, data->height,
+			tf.format, tf.type, data->pixels));
+	}
+}
+
+static void a__GLTexureUpload3D(AGLTexture *tex, const AGLTextureData *data, GLenum binding, struct A__GLTextureFormat tf) {
+	const int maxwidth = data->x + data->width;
+	const int maxheight = data->y + data->height;
+	const int maxdepth = data->z + data->depth;
+
+	const int expand = (maxwidth > tex->width)
+		|| (maxheight > tex->height)
+		|| (maxdepth > tex->depth);
+	const int is_subimage = (data->x > 0 || data->y > 0 || data->z > 0);
+	const void *const to_upload = (!is_subimage && data->pixels) ? data->pixels : NULL;
+
+	ATTO_ASSERT(binding == GL_TEXTURE_3D || binding == GL_TEXTURE_2D_ARRAY);
+
+	if (expand || to_upload) {
+		AGL__CALL(glTexImage3D(binding, 0, tf.internal,
+			maxwidth, maxheight, maxdepth, 0,
+			tf.format, tf.type,
+			to_upload));
+		tex->width = maxwidth;
+		tex->height = maxheight;
+		tex->depth = maxdepth;
+	}
+
+	if (is_subimage) {
+		ATTO_ASSERT(data->pixels);
+		AGL__CALL(glTexSubImage3D(binding, 0,
+			data->x, data->y, data->z, data->width, data->height, data->depth,
+			tf.format, tf.type, data->pixels));
+	}
+}
+
+void aGLTextureUpdate(AGLTexture *tex, const AGLTextureData *data) {
+	ATTO_ASSERT(data->type == tex->type);
+
+	struct A__GLTextureFormat tf = getTextureFormat(data->format);
+
+	a__gl_texture_upload_func *upload_func = NULL;
+	GLenum binding = 0;
+
+	switch (data->type) {
+		case AGLTT_1D:
+			upload_func = &a__GLTexureUpload1D;
+			binding = GL_TEXTURE_1D;
+			break;
+		case AGLTT_2D:
+			upload_func = &a__GLTexureUpload2D;
+			binding = GL_TEXTURE_2D;
+			break;
+		case AGLTT_3D:
+			upload_func = &a__GLTexureUpload3D;
+			binding = GL_TEXTURE_3D;
+			break;
+		case AGLTT_2DArray:
+			upload_func = &a__GLTexureUpload3D;
+			binding = GL_TEXTURE_2D_ARRAY;
+			break;
+		case AGLTT_NULL: ATTO_ASSERT(!"Invalid texture type");
+	}
+	ATTO_ASSERT(upload_func);
+
+	// TODO track bindings properly
+	AGL__CALL(glBindTexture(binding, tex->_.name));
+
+	upload_func(tex, data, binding, tf);
+
+	if (data->pixels && (data->flags & AGLTUF_GenerateMipmaps))
+		AGL__CALL(glGenerateMipmap(binding));
+
 	tex->format = data->format;
 }
 
@@ -788,7 +1182,7 @@ void a__GLProgramBind(AGLProgram program, const AGLProgramUniform *uniforms, int
 	for (i = 0; i < nuniforms; ++i) {
 		ATTO_GL_PROFILE_START
 		const int loc = uniforms[i]._.location;
-		if (loc == -1) { /*aAppDebugPrintf("Skipping %s", uniforms[i].name);*/
+		if (loc == -1) { /*AGL_PRINTFLN("Skipping %s", uniforms[i].name);*/
 			continue;
 		}
 		switch (uniforms[i].type) {
@@ -835,21 +1229,21 @@ static void a__GLTextureBind(const AGLTexture *texture, GLint unit) {
 	AGL__CALL(glBindTexture(GL_TEXTURE_2D, texture->_.name));
 
 	AGLTexture *mutable_texture = (AGLTexture *)texture;
-	if (mutable_texture->_.min_filter != mutable_texture->min_filter) {
+	if (mutable_texture->_.min_filter != (GLenum)mutable_texture->min_filter) {
 		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, mutable_texture->min_filter));
-		mutable_texture->_.min_filter = mutable_texture->min_filter;
+		mutable_texture->_.min_filter = (GLenum)mutable_texture->min_filter;
 	}
-	if (mutable_texture->_.mag_filter != mutable_texture->mag_filter) {
+	if (mutable_texture->_.mag_filter != (GLenum)mutable_texture->mag_filter) {
 		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, mutable_texture->mag_filter));
-		mutable_texture->_.mag_filter = mutable_texture->mag_filter;
+		mutable_texture->_.mag_filter = (GLenum)mutable_texture->mag_filter;
 	}
-	if (mutable_texture->_.wrap_s != mutable_texture->wrap_s) {
+	if (mutable_texture->_.wrap_s != (GLenum)mutable_texture->wrap_s) {
 		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, mutable_texture->wrap_s));
-		mutable_texture->_.wrap_s = mutable_texture->wrap_s;
+		mutable_texture->_.wrap_s = (GLenum)mutable_texture->wrap_s;
 	}
-	if (mutable_texture->_.wrap_t != mutable_texture->wrap_t) {
+	if (mutable_texture->_.wrap_t != (GLenum)mutable_texture->wrap_t) {
 		AGL__CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, mutable_texture->wrap_t));
-		mutable_texture->_.wrap_t = mutable_texture->wrap_t;
+		mutable_texture->_.wrap_t = (GLenum)mutable_texture->wrap_t;
 	}
 	ATTO_GL_PROFILE_END
 }
@@ -862,7 +1256,7 @@ static void a__GLAttribsBind(const AGLAttribute *attribs, int nattribs) {
 		const AGLAttribute *a = attribs + i;
 		const GLint loc = a->_.location;
 		GLint buffer = a->buffer ? a->buffer->name : 0;
-		if (loc < 0) { /*aAppDebugPrintf("Skipping %s", a->name);*/
+		if (loc < 0) { /*AGL_PRINTFLN("Skipping %s", a->name);*/
 			continue;
 		}
 		if (loc >= ATTO_GL_MAX_ATTRIBS) {
@@ -968,40 +1362,73 @@ static void a__GLCullingBind(AGLCullMode cull, AGLFrontFace front) {
 		AGL__CALL(glFrontFace(a__gl_state.front_face = front));
 }
 
-static void a__GLFramebufferBind(const AGLFramebufferParams *fb) {
-	int depth, color;
-	GLenum status;
+static void a__GLFramebufferBind(const AGLFramebuffer *fbo) {
+	const GLuint desired_binding = fbo ? fbo->name : 0;
+	if (a__gl_state.framebuffer.binding != desired_binding)
+		AGL__CALL(glBindFramebuffer(GL_FRAMEBUFFER, a__gl_state.framebuffer.binding = desired_binding));
+}
 
-	if (!fb) {
-		if (a__gl_state.framebuffer.binding)
+AGLFramebuffer aGLFramebufferCreate(AGLFramebufferCreate params) {
+	AGLFramebuffer fbo = {0};
+	AGL__CALL(glGenFramebuffers(1, &fbo.name));
+	AGL__CALL(glBindFramebuffer(GL_FRAMEBUFFER, fbo.name));
+
+	ATTO_ASSERT(params.color);
+
+	if (params.color)
+		AGL__CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, params.color->_.name, 0));
+
+	if (params.depth.enable) {
+		if (params.depth.texture) {
+			AGL__CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, params.depth.texture->_.name, 0));
+		} else {
+#ifdef ATTO_GLES
+			const GLenum depth_component = GL_DEPTH_COMPONENT16;
+#else
+			const GLenum depth_component = GL_DEPTH_COMPONENT;
+#endif
+			AGL__CALL(glGenRenderbuffers(1, &fbo.depth_renderbuffer));
+			AGL__CALL(glBindRenderbuffer(GL_RENDERBUFFER, fbo.depth_renderbuffer));
+			AGL__CALL(glRenderbufferStorage(GL_RENDERBUFFER, depth_component, params.color->width, params.color->height));
+			AGL__CALL(glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+				GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fbo.depth_renderbuffer));
+			AGL__CALL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
+		}
+	} else {
+		// Depth disabled
+		AGL__CALL(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0));
+	}
+
+	const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	ATTO_ASSERT(status == GL_FRAMEBUFFER_COMPLETE);
+
+	AGL__CALL(glBindFramebuffer(GL_FRAMEBUFFER, a__gl_state.framebuffer.binding));
+	return fbo;
+}
+
+void aGLFramebufferDestroy(AGLFramebuffer fbo) {
+	if (fbo.name) {
+		if (fbo.name == a__gl_state.framebuffer.binding)
 			AGL__CALL(glBindFramebuffer(GL_FRAMEBUFFER, a__gl_state.framebuffer.binding = 0));
+		glDeleteFramebuffers(1, &fbo.name);
+	}
+
+	if (fbo.depth_renderbuffer)
+		glDeleteRenderbuffers(1, &fbo.depth_renderbuffer);
+}
+
+#if 0
+void aGLInvalidate(const AGLFramebuffer *fbo) {
+	a__GLFramebufferBind(fbo);
+	if (!fbo || fbo->name == 0) {
+		GLenum attachments[] = {GL_COLOR, GL_DEPTH};
+		glInvalidateFramebuffer(GL_FRAMEBUFFER, 2, attachments);
 		return;
 	}
 
-	if (a__gl_state.framebuffer.binding != a__gl_state.framebuffer.name)
-		AGL__CALL(glBindFramebuffer(GL_FRAMEBUFFER, a__gl_state.framebuffer.binding = a__gl_state.framebuffer.name));
-
-	depth = a__gl_state.framebuffer.params.depth.mode != fb->depth.mode;
-	color = a__gl_state.framebuffer.params.color != fb->color;
-
-	if (color)
-		AGL__CALL(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fb->color->_.name, 0));
-
-	if (fb->depth.mode != AGLDBM_Texture && (depth || color)) {
-		AGL__CALL(glBindRenderbuffer(GL_RENDERBUFFER, a__gl_state.framebuffer.depth_buffer));
-		AGL__CALL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, fb->color->width, fb->color->height));
-		AGL__CALL(glFramebufferRenderbuffer(
-			GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, a__gl_state.framebuffer.depth_buffer));
-	}
-
-	if (depth && fb->depth.mode == AGLDBM_Texture)
-		AGL__CALL(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0));
-
-	status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-	/* \fixme */ ATTO_ASSERT(status == GL_FRAMEBUFFER_COMPLETE);
-
-	a__gl_state.framebuffer.params = *fb;
+	ATTO_ASSERT(!"Not implemented");
 }
+#endif
 
 #if defined(__cplusplus)
 } /* extern "C" */

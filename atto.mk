@@ -44,6 +44,10 @@ else
 	CC ?= cc
 	CFLAGS += -pedantic
 	LIBS += -lX11 -lXfixes -lGL -lm -pthread
+	ifeq ($(EGL), 1)
+		CFLAGS += -DATTO_EGL=1
+		LIBS += -lEGL
+	endif
 	ATTO_SOURCES += \
 		$(ATTO_BASEDIR)/src/app_linux.c \
 		$(ATTO_BASEDIR)/src/app_x11.c

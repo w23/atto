@@ -50,7 +50,7 @@ static void appPointer(ATimeUs timestamp, int dx, int dy, unsigned int buttons_c
 		a_app_state->pointer.x, a_app_state->pointer.y, a_app_state->pointer.buttons, dx, dy, buttons_changed_bits);
 }
 
-static void appClose() {
+static void appClose(void) {
 	aAppDebugPrintf("%s", __func__);
 }
 

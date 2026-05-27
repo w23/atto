@@ -13,6 +13,9 @@ static void keyPress(ATimeUs timestamp, AKey key, int pressed) {
 }
 
 static const char shader_vertex[] =
+#ifdef ATTO_GLES
+	"precision mediump float;\n"
+#endif
 	"uniform mat4 um4_vp, um4_model;\n"
 	"attribute vec3 av3_pos;\n"
 	"varying vec3 vv3_color;\n"
@@ -23,6 +26,9 @@ static const char shader_vertex[] =
 	"}";
 
 static const char shader_fragment[] =
+#ifdef ATTO_GLES
+	"precision mediump float;\n"
+#endif
 	"varying vec3 vv3_color;\n"
 	"void main() {\n"
 	"  gl_FragColor = vec4(vv3_color, 1.);\n"

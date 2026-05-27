@@ -1,6 +1,7 @@
 #include "atto/app.h"
 
 #define ATTO_GL_H_IMPLEMENT
+#define ATTO_GL_PRINT_LIMITS
 #include "atto/gl.h"
 
 #include <math.h>
@@ -13,7 +14,10 @@ static void keyPress(ATimeUs timestamp, AKey key, int pressed) {
 }
 
 static const char shader_vertex[] =
-	"uniform float uf_time;"
+#ifdef ATTO_GLES
+	"precision mediump float;\n"
+#endif
+	"uniform float uf_time;\n"
 	"attribute vec2 av2_pos;\n"
 	"varying vec3 vv3_color;\n"
 	"void main() {\n"
@@ -26,6 +30,9 @@ static const char shader_vertex[] =
 	"}";
 
 static const char shader_fragment[] =
+#ifdef ATTO_GLES
+	"precision mediump float;\n"
+#endif
 	"varying vec3 vv3_color;\n"
 	"void main() {\n"
 	"  gl_FragColor = vec4(vv3_color, 1.);\n"

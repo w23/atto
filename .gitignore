@@ -9,3 +9,4 @@ build/
 *.db
 *.opendb
 .vscode
+.cache
